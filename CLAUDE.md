@@ -99,3 +99,10 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
 - **Cross-check fichiers** : en cas de doute sur l'état d'un fichier, croiser la lecture
   harness (vérité) avec `cat`/`git status` (cache bash agressif).
 - **Signaler, pas masquer** : remonter tout comportement anormal ; doute = STOP + demander.
+- **SSL / antivirus (interception HTTPS)** : sur cette machine, **Avast** scanne le HTTPS et
+  re-signe les certificats avec sa propre CA racine (absente du bundle `certifi`), d'où des
+  échecs `CERTIFICATE_VERIFY_FAILED` de `ccxt`/`requests` contre Kraken. Réglé **sans** toucher
+  `VERIFY_SSL` (qui reste `True`) via `truststore` (dans `requirements.txt`, injecté en garde
+  `try/except` dans `exchange.py`) : Python utilise alors le **magasin de certificats Windows**
+  (où la racine Avast est déjà approuvée). Sur un venv neuf, `pip install -r requirements.txt`
+  suffit. Ne jamais désactiver SSL pour « contourner ».
