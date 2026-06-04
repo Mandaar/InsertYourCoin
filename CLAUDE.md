@@ -45,8 +45,10 @@ trading/
   optimizer.py       optimize (train/test) + walk_forward (glissant)
   portfolio.py       backtest multi-actifs équipondéré + corrélation
   dashboard.py       génération du tableau de bord HTML (Chart.js via CDN)
-  paper_trader.py    paper trading + classe de base _Trader (boucle commune)
+  paper_trader.py    paper trading + classe de base _Trader (boucle, risque, sizing)
   live_trader.py     trading réel (hérite de _Trader)
+tests/               pytest : indicateurs, stratégies, backtester, trailing/sizing (sans réseau)
+conftest.py          imports + fabriques de données OHLCV synthétiques pour les tests
 ```
 Données : décision à la clôture de t, exécution à l'ouverture de t+1 (pas de lookahead).
 Tout-ou-rien sauf sizing "vol". Frais Kraken 0,26 % pris en compte.
@@ -63,8 +65,10 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
 
 ## État actuel (à jour)
 - Backtest/optimize/walkforward/portfolio/dashboard : faits et testés sur données réelles Kraken.
-- Paper/live : stop-loss + take-profit OK. **Trailing stop et sizing par vol PAS encore
-  câblés dans paper/live** (présents dans le backtest seulement). → tâche prioritaire.
+- Paper/live : stop-loss + take-profit + **trailing stop + sizing par volatilité** câblés dans
+  la classe de base `_Trader` (tâche cloud n°1). `PaperTrader` persiste le `peak` dans son état
+  JSON ; `LiveTrader` le suit en mémoire. Sizing live borné par les plafonds. Comportement aligné
+  sur le backtester. Suite de tests `pytest` dans `tests/` (sans réseau ni clés).
 - **Constat honnête mesuré** : la stratégie SMA n'a **pas d'edge fiable** sur la crypto
   récente (walk-forward : 0 % de fenêtres profitables sur ETH). Les outils de risque
   **lissent** (vol ÷3, drawdown ÷2) mais ne **créent pas** de profit. Diversification
@@ -72,7 +76,7 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
   Ne pas raconter d'histoires là-dessus à l'utilisateur.
 
 ## Prochaines étapes (ordre suggéré)
-1. Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.
+1. ~~Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.~~ ✅ fait.
 2. Lancer le paper trading en continu sur vraies données et l'observer plusieurs semaines.
 3. Filtre de tendance long terme (ne trader que dans le sens du marché).
 4. Chercher une stratégie à edge réel — valider systématiquement au walk-forward.

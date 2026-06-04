@@ -6,3 +6,4 @@ live_trades.log
 *.png
 .venv/
 venv/
+.pytest_cache/
