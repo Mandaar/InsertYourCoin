@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 import config
+from .stats import StatsRecorder, market_features
 
 _TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
                "1h": 3600, "4h": 14400, "1d": 86400}
@@ -30,9 +31,10 @@ class _Trader:
     def __init__(self, exchange, strategy, symbol=None, timeframe=None,
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
-                 max_fraction=None, poll_seconds=None):
+                 max_fraction=None, poll_seconds=None, stats_file=None):
         self.exchange = exchange
         self.strategy = strategy
+        self.recorder = StatsRecorder(stats_file) if stats_file else None
         self.symbol = symbol or config.DEFAULT_SYMBOL
         self.timeframe = timeframe or config.DEFAULT_TIMEFRAME
         self.stop_loss = config.STOP_LOSS if stop_loss is None else stop_loss
@@ -117,18 +119,42 @@ class _Trader:
         while True:
             try:
                 df = self._closed_candles()
-                desired = self._latest_signal(df)
+                signal = self._latest_signal(df)
                 fraction = self._entry_fraction(df)
                 price = self.exchange.fetch_price(self.symbol)
-                desired, reason = self._risk_overlay(desired, price)
-                self._rebalance(desired, price, reason, fraction)
+                desired, reason = self._risk_overlay(signal, price)
+                trade = self._rebalance(desired, price, reason, fraction)
                 self._log_status(price)
+                if self.recorder:
+                    self._record_cycle(df, price, signal, desired, fraction, reason, trade)
             except KeyboardInterrupt:
                 print(f"\n[{now()}] Arret demande. A bientot.")
                 break
             except Exception as e:
                 print(f"[{now()}] Erreur (on reessaie au prochain cycle) : {e}")
             time.sleep(self.poll_seconds)
+
+    def _record_cycle(self, df, price, signal, desired, fraction, reason, trade):
+        """Assemble et enregistre une ligne de stats pour le cycle courant."""
+        cash = self._cash()
+        units = self._units()
+        equity = cash + units * price
+        ts = dt.datetime.now()
+        row = {
+            "time": now(), "symbol": self.symbol, "timeframe": self.timeframe,
+            "price": price,
+            "hour": ts.hour, "weekday": ts.weekday(),
+            "signal": signal, "desired": desired, "fraction": fraction,
+            "peak": self._peak(), "cash": cash, "units": units, "equity": equity,
+            "exposure": (units * price / equity) if equity else 0.0,
+            "action": (trade or {}).get("action", "hold"),
+            "reason": reason,
+            "pnl": (trade or {}).get("pnl", ""),
+            "fee_paid": (trade or {}).get("fee_paid", ""),
+            "hold_secs": (trade or {}).get("hold_secs", ""),
+        }
+        row.update(market_features(df))
+        self.recorder.record(row)
 
     # Implementes par les sous-classes
     def _rebalance(self, desired, price, reason, fraction): raise NotImplementedError
@@ -137,6 +163,8 @@ class _Trader:
     def _entry_price(self): raise NotImplementedError
     def _peak(self): raise NotImplementedError
     def _set_peak(self, value): raise NotImplementedError
+    def _cash(self): raise NotImplementedError
+    def _units(self): raise NotImplementedError
 
 
 class PaperTrader(_Trader):
@@ -144,10 +172,11 @@ class PaperTrader(_Trader):
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
                  max_fraction=None, initial_capital=None, fee=None,
-                 poll_seconds=None, state_file="paper_state.json"):
+                 poll_seconds=None, state_file="paper_state.json",
+                 stats_file="paper_stats.csv"):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
-                         vol_window, max_fraction, poll_seconds)
+                         vol_window, max_fraction, poll_seconds, stats_file)
         self.fee = config.FEE if fee is None else fee
         self.state_file = Path(state_file)
         init_cap = config.INITIAL_CAPITAL if initial_capital is None else initial_capital
@@ -158,9 +187,12 @@ class PaperTrader(_Trader):
             print(f"[{now()}] Reprise de l'etat depuis {self.state_file}")
             state = json.loads(self.state_file.read_text())
             state.setdefault("peak", None)  # retro-compat des anciens etats sans 'peak'
+            state.setdefault("entry_ts", None)    # retro-compat (suivi pnl/duree par trade)
+            state.setdefault("entry_cost", None)
             return state
         return {"cash": init_cap, "base_amount": 0.0, "invested": False,
-                "entry_price": None, "peak": None, "trades": []}
+                "entry_price": None, "peak": None, "entry_ts": None,
+                "entry_cost": None, "trades": []}
 
     def _save(self):
         self.state_file.write_text(json.dumps(self.state, indent=2))
@@ -168,6 +200,8 @@ class PaperTrader(_Trader):
     def _is_invested(self, price): return self.state["invested"]
     def _entry_price(self): return self.state.get("entry_price")
     def _peak(self): return self.state.get("peak")
+    def _cash(self): return self.state["cash"]
+    def _units(self): return self.state["base_amount"]
 
     def _set_peak(self, value):
         if self.state.get("peak") != value:
@@ -179,26 +213,39 @@ class PaperTrader(_Trader):
         if desired == 1 and not s["invested"]:
             spend = s["cash"] * fraction
             if fraction <= 0 or spend <= 0:
-                return  # rien a investir (sizing nul / pas de cash)
+                return None  # rien a investir (sizing nul / pas de cash)
             s["base_amount"] = spend * (1 - self.fee) / price
             s["cash"] -= spend
             s["invested"] = True
             s["entry_price"] = price
             s["peak"] = price
+            s["entry_ts"] = time.time()
+            s["entry_cost"] = spend  # cout total engage (cash sorti), frais inclus
             s["trades"].append({"time": now(), "side": "buy", "price": price})
             extra = f" (sizing {fraction*100:.0f}%)" if self.position_sizing == "vol" else ""
             print(f"[{now()}] >>> ACHAT (simule) : {s['base_amount']:.5f} {self.base} @ {price:.2f}{extra}")
             self._save()
+            return {"action": "buy", "pnl": 0.0, "fee_paid": spend * self.fee, "hold_secs": ""}
         elif desired == 0 and s["invested"]:
-            s["cash"] += s["base_amount"] * price * (1 - self.fee)
+            amount = s["base_amount"]
+            proceeds = amount * price * (1 - self.fee)  # cash recu, net de frais
+            fee_sell = amount * price * self.fee
+            pnl = proceeds - (s.get("entry_cost") or 0.0)
+            hold = time.time() - (s.get("entry_ts") or time.time())
+            s["cash"] += proceeds
             tag = f" [{reason}]" if reason else ""
-            print(f"[{now()}] >>> VENTE (simule){tag} : {s['base_amount']:.5f} {self.base} @ {price:.2f}")
+            print(f"[{now()}] >>> VENTE (simule){tag} : {amount:.5f} {self.base} @ {price:.2f}")
             s["base_amount"] = 0.0
             s["invested"] = False
             s["entry_price"] = None
             s["peak"] = None
+            s["entry_ts"] = None
+            s["entry_cost"] = None
             s["trades"].append({"time": now(), "side": "sell", "price": price, "reason": reason})
             self._save()
+            return {"action": "sell", "pnl": pnl, "fee_paid": fee_sell,
+                    "hold_secs": hold, "reason": reason}
+        return None
 
     def _log_status(self, price):
         s = self.state

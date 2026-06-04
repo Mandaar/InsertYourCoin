@@ -11,6 +11,7 @@ Commandes :
   portfolio   backtester un panier de cryptos (diversification)
   paper       paper trading (argent fictif, temps reel)
   live        trading reel (dry-run par defaut, double confirmation)
+  stats       synthese descriptive du CSV de stats (labo de stats)
 
 Exemples :
   python main.py backtest  --strategy sma --stop-loss 8 --take-profit 20 --chart bt.png
@@ -161,6 +162,15 @@ def cmd_live(args):
                timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args)).run()
 
 
+def cmd_stats(args):
+    from trading.stats import load_stats, summarize, format_summary
+    try:
+        df = load_stats(args.file)
+    except FileNotFoundError as e:
+        sys.exit(str(e))
+    print(format_summary(summarize(df)))
+
+
 def _save_chart(result, path):
     import matplotlib
     matplotlib.use("Agg")
@@ -240,6 +250,11 @@ def build_parser():
     li.add_argument("--execute", action="store_true",
                     help="DESACTIVE le dry-run et passe de VRAIS ordres (double confirmation)")
     li.set_defaults(func=cmd_live)
+
+    st = sub.add_parser("stats")
+    st.add_argument("--file", default="paper_stats.csv",
+                    help="CSV de stats a analyser (defaut: paper_stats.csv)")
+    st.set_defaults(func=cmd_stats)
     return p
 
 

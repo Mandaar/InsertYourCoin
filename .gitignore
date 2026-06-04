@@ -7,3 +7,5 @@ live_trades.log
 .venv/
 venv/
 .pytest_cache/
+paper_stats.csv
+*_stats.csv
