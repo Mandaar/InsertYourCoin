@@ -134,8 +134,7 @@ def cmd_portfolio(args):
 def cmd_paper(args):
     from trading.paper_trader import PaperTrader
     PaperTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
-                timeframe=args.timeframe, stop_loss=_frac(args.stop_loss),
-                take_profit=_frac(args.take_profit)).run()
+                timeframe=args.timeframe, **_bt_kwargs(args)).run()
 
 
 def cmd_live(args):
@@ -149,13 +148,17 @@ def cmd_live(args):
         print(f"     Paire          : {args.symbol}")
         print(f"     Stratégie      : {build_strategy(args.strategy).name}")
         print(f"     Stop / Objectif: {args.stop_loss or '—'}% / {args.take_profit or '—'}%")
+        if args.trailing_stop:
+            print(f"     Trailing stop  : {args.trailing_stop}%")
+        if args.position_sizing == "vol":
+            tv = args.target_vol if args.target_vol is not None else config.TARGET_VOL * 100
+            print(f"     Sizing         : volatilite cible {tv:g}%")
         print(f"     Ordre max      : {config.MAX_TRADE_VALUE_USD} $ | Exposition max : {config.MAX_POSITION_VALUE_USD} $")
         print("=" * 64)
         if input('  Tape exactement  OUI JE CONFIRME  pour continuer : ').strip() != "OUI JE CONFIRME":
             sys.exit("Annule. (Aucun ordre envoye.)")
     LiveTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
-               timeframe=args.timeframe, stop_loss=_frac(args.stop_loss),
-               take_profit=_frac(args.take_profit), dry_run=dry_run).run()
+               timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args)).run()
 
 
 def _save_chart(result, path):
@@ -182,7 +185,7 @@ def _risk_args(sp):
 
 
 def _adv_risk_args(sp):
-    """Options de risque avancees (backtest/analyse uniquement)."""
+    """Options de risque avancees (analyse + paper/live)."""
     sp.add_argument("--trailing-stop", type=float, default=None, metavar="PCT",
                     help="stop suiveur en %% (ex: 12)")
     sp.add_argument("--position-sizing", choices=["none", "vol"], default="none",
@@ -230,9 +233,10 @@ def build_parser():
                     help="paires separees par des virgules")
     pf.set_defaults(func=cmd_portfolio)
 
-    pa = sub.add_parser("paper"); common(pa, days=False); _risk_args(pa); pa.set_defaults(func=cmd_paper)
+    pa = sub.add_parser("paper"); common(pa, days=False); _risk_args(pa); _adv_risk_args(pa)
+    pa.set_defaults(func=cmd_paper)
 
-    li = sub.add_parser("live"); common(li, days=False); _risk_args(li)
+    li = sub.add_parser("live"); common(li, days=False); _risk_args(li); _adv_risk_args(li)
     li.add_argument("--execute", action="store_true",
                     help="DESACTIVE le dry-run et passe de VRAIS ordres (double confirmation)")
     li.set_defaults(func=cmd_live)

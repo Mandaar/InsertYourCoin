@@ -47,10 +47,10 @@ Conseil : crée une clé Kraken **sans permission de retrait** (coche seulement 
 | `paper` | Paper trading (argent fictif, temps réel) |
 | `live` | Trading réel (dry-run par défaut) |
 
-**Options de risque** (sur backtest/compare/optimize/walkforward/dashboard/portfolio) :
+**Options de risque** (sur backtest/compare/optimize/walkforward/dashboard/portfolio
+**et désormais paper/live**) :
 `--stop-loss PCT` · `--take-profit PCT` · `--trailing-stop PCT` ·
 `--position-sizing vol --target-vol PCT`.
-(En paper/live : `--stop-loss` / `--take-profit`.)
 
 ### Exemples
 
@@ -61,6 +61,7 @@ python main.py walkforward --strategy sma --windows 4
 python main.py portfolio --symbols BTC/USD,ETH/USD,SOL/USD --strategy sma --stop-loss 8 --take-profit 20
 python main.py dashboard --strategy sma --stop-loss 8 --take-profit 20
 python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-profit 10
+python main.py paper     --strategy sma --timeframe 1h --trailing-stop 12 --position-sizing vol --target-vol 40
 python main.py live      --strategy sma --stop-loss 8 --take-profit 20            # dry-run
 python main.py live      --strategy sma --stop-loss 8 --take-profit 20 --execute  # réel
 ```
@@ -133,7 +134,7 @@ InsertYourCoin/
 
 ## Pistes pour la suite (dans Claude Code, sur ta machine)
 
-- Trailing stop + sizing volatilité **dans le paper/live** (déjà dans le backtest).
+- ✅ Trailing stop + sizing volatilité **dans le paper/live** (fait — aligné sur le backtest, couvert par `tests/`).
 - Filtre de tendance long terme (ne trader que dans le sens du marché).
 - Pondération du portefeuille par risque (risk parity).
 - Recherche d'une stratégie à vrai edge (le walk-forward reste juge).

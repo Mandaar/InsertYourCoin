@@ -7,7 +7,8 @@ Garde-fous (definis dans config.py) :
   - dry_run = True par defaut : aucun ordre envoye tant que --execute n'est pas passe.
   - MAX_TRADE_VALUE_USD / MAX_POSITION_VALUE_USD : plafonds montant et exposition.
   - MIN_TRADE_INTERVAL_SEC : delai minimum entre deux ordres.
-  - Stop-loss / take-profit verifies a chaque cycle.
+  - Stop-loss / take-profit / trailing stop verifies a chaque cycle.
+  - Dimensionnement par volatilite optionnel, TOUJOURS borne par les plafonds ci-dessus.
   - Toutes les actions journalisees dans live_trades.log.
 """
 import time
@@ -28,11 +29,15 @@ def _log(line: str):
 
 class LiveTrader(_Trader):
     def __init__(self, exchange, strategy, symbol=None, timeframe=None,
-                 stop_loss=None, take_profit=None, dry_run=True, poll_seconds=None):
-        super().__init__(exchange, strategy, symbol, timeframe,
-                         stop_loss, take_profit, poll_seconds)
+                 stop_loss=None, take_profit=None, trailing_stop=None,
+                 position_sizing=None, target_vol=None, vol_window=None,
+                 max_fraction=None, dry_run=True, poll_seconds=None):
+        super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
+                         take_profit, trailing_stop, position_sizing, target_vol,
+                         vol_window, max_fraction, poll_seconds)
         self.dry_run = dry_run
         self.entry_price = None
+        self.peak = None  # plus haut atteint depuis l'entree, suivi EN MEMOIRE
         self.last_trade_ts = 0.0
         mode = "DRY-RUN (aucun ordre envoye)" if dry_run else "REEL (ordres envoyes !)"
         _log(f"LiveTrader initialise en mode {mode}")
@@ -49,19 +54,29 @@ class LiveTrader(_Trader):
     def _entry_price(self):
         return self.entry_price
 
+    def _peak(self):
+        return self.peak
+
+    def _set_peak(self, value):
+        self.peak = value
+
     def _cooldown_ok(self):
         if time.time() - self.last_trade_ts < config.MIN_TRADE_INTERVAL_SEC:
             _log("Ordre ignore : delai minimum entre trades non ecoule (garde-fou).")
             return False
         return True
 
-    def _rebalance(self, desired, price, reason):
+    def _rebalance(self, desired, price, reason, fraction=1.0):
         invested = self._is_invested(price)
 
         if desired == 1 and not invested:                       # ACHAT
             if not self._cooldown_ok():
                 return
-            budget = min(self._quote_balance(), config.MAX_TRADE_VALUE_USD)
+            if fraction <= 0:
+                _log("Achat ignore : fraction de sizing nulle (volatilite trop elevee).")
+                return
+            # Sizing par volatilite, puis plafonds (garde-fous) : le plus serre gagne.
+            budget = min(self._quote_balance() * fraction, config.MAX_TRADE_VALUE_USD)
             room = config.MAX_POSITION_VALUE_USD - self._base_balance() * price
             budget = max(0.0, min(budget, room))
             if budget < 1.0:
@@ -75,6 +90,7 @@ class LiveTrader(_Trader):
                 _log(f"ACHAT EXECUTE : {amount:.5f} {self.base} @ ~{price:.2f} | id={order.get('id')}")
                 self.last_trade_ts = time.time()
             self.entry_price = price
+            self.peak = price
 
         elif desired == 0 and invested:                         # VENTE
             if not self._cooldown_ok():
@@ -88,6 +104,7 @@ class LiveTrader(_Trader):
                 _log(f"VENTE EXECUTEE{tag} : {amount:.5f} {self.base} @ ~{price:.2f} | id={order.get('id')}")
                 self.last_trade_ts = time.time()
             self.entry_price = None
+            self.peak = None
 
     def _log_status(self, price):
         try:
