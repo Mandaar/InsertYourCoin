@@ -3,6 +3,7 @@
 InsertYourCoin — point d'entree du systeme de trading crypto (Kraken).
 
 Commandes :
+  check       diagnostic d'installation + connexion Kraken (a lancer en premier)
   backtest    tester une stratégie sur l'historique
   compare     comparer toutes les stratégies
   optimize    meilleurs parametres AVEC validation hors-echantillon (train/test)
@@ -171,6 +172,69 @@ def cmd_stats(args):
     print(format_summary(summarize(df)))
 
 
+def diagnose_error(exc):
+    """
+    Classe une exception de connexion en (categorie, message actionnable FR).
+    Fonction pure (pas de reseau) -> testable directement.
+    """
+    text = str(exc)
+    low = text.lower()
+    if "certificate_verify_failed" in low or "certificate verify failed" in low:
+        return ("ssl",
+                "Interception SSL detectee (antivirus/proxy qui re-signe le HTTPS, ex. Avast).\n"
+                "  truststore est cense regler ca via le magasin de certificats de l'OS.\n"
+                "  -> Verifie l'installation dans le venv : pip install -r requirements.txt\n"
+                "  -> Voir SETUP.md, section Antivirus/SSL.\n"
+                "  Ne PAS desactiver VERIFY_SSL (la verification doit rester active).")
+    short = text if len(text) <= 200 else text[:200] + "..."
+    return ("network",
+            "Connexion a Kraken impossible (reseau ou indisponibilite du service).\n"
+            "  -> Verifie ta connexion internet, puis reessaie.\n"
+            "  Detail : " + short)
+
+
+def _version(pkg):
+    """Version d'un paquet installe, ou 'absent' s'il n'est pas trouve."""
+    import importlib.metadata
+    try:
+        return importlib.metadata.version(pkg)
+    except importlib.metadata.PackageNotFoundError:
+        return "absent"
+
+
+def run_check(exchange, symbol):
+    """
+    Effectue le diagnostic. `exchange` est injecte (testable sans reseau).
+    Retourne (ok: bool, lines: list[str]).
+    """
+    lines = ["Diagnostic InsertYourCoin", "-------------------------"]
+    lines.append("Python      : " + sys.version.split()[0])
+    for pkg in ("ccxt", "pandas", "numpy", "truststore"):
+        lines.append(f"{pkg:11s} : {_version(pkg)}")
+    try:
+        import truststore  # noqa: F401
+        lines.append("Protection antivirus/SSL (truststore) : active (magasin de certificats de l'OS).")
+    except ImportError:
+        lines.append("Protection antivirus/SSL (truststore) : INDISPONIBLE "
+                     "(installe-la via pip install -r requirements.txt si un antivirus scanne le HTTPS).")
+    lines.append("")
+    try:
+        price = exchange.fetch_price(symbol)
+        lines.append(f"OK : connexion Kraken fonctionnelle ({symbol} = {price})")
+        return (True, lines)
+    except Exception as exc:  # noqa: BLE001 -- on classe toute erreur en message actionnable
+        category, message = diagnose_error(exc)
+        lines.append(f"ECHEC connexion Kraken [{category}] :")
+        lines.append("  " + message.replace("\n", "\n  "))
+        return (False, lines)
+
+
+def cmd_check(args):
+    ok, lines = run_check(KrakenExchange(), args.symbol)
+    print("\n".join(lines))
+    sys.exit(0 if ok else 1)
+
+
 def _save_chart(result, path):
     import matplotlib
     matplotlib.use("Agg")
@@ -207,6 +271,10 @@ def _adv_risk_args(sp):
 def build_parser():
     p = argparse.ArgumentParser(description="Systeme de trading crypto (Kraken)")
     sub = p.add_subparsers(dest="command", required=True)
+
+    ch = sub.add_parser("check")
+    ch.add_argument("--symbol", default=config.DEFAULT_SYMBOL)
+    ch.set_defaults(func=cmd_check)
 
     def common(sp, days=True):
         sp.add_argument("--strategy", default="sma", choices=list(STRATEGIES))
