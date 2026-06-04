@@ -13,6 +13,16 @@ import ccxt
 
 import config
 
+# Robustesse SSL : si un antivirus/proxy intercepte le HTTPS (MITM legitime, ex.
+# Avast), le certificat est re-signe par une CA locale absente du bundle certifi.
+# truststore fait utiliser le magasin de certificats de l'OS (qui contient cette CA)
+# -- SANS desactiver la verification. Absent => comportement par defaut (certifi).
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 
 class KrakenExchange:
     def __init__(self, api_key: str = None, api_secret: str = None, verify_ssl: bool = None):
