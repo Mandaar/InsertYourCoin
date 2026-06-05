@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import ccxt
 
 import config
 from .stats import StatsRecorder, market_features
@@ -27,13 +28,49 @@ def now() -> str:
     return dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def describe_error(exc) -> dict:
+    """
+    Classe une exception levee pendant un cycle pour des logs lisibles et un
+    backoff adapte. ATTENTION a l'ordre : DDoSProtection herite de NetworkError
+    dans ccxt, donc on le teste en premier.
+    """
+    detail = f"{type(exc).__name__}: {str(exc)[:300]}"
+    low = str(exc).lower()
+    refus_words = ("rate limit", "too many requests", "lockout", "ddos")
+    if isinstance(exc, ccxt.DDoSProtection) or any(w in low for w in refus_words):
+        category = "kraken_refus"
+    elif isinstance(exc, ccxt.RequestTimeout):
+        category = "timeout"
+    elif isinstance(exc, ccxt.ExchangeNotAvailable):
+        category = "indisponible"
+    elif isinstance(exc, ccxt.NetworkError):
+        category = "reseau"
+    else:
+        category = "autre"
+    return {"category": category, "detail": detail}
+
+
+def backoff_seconds(consec_failures, category, poll_seconds) -> int:
+    """
+    Attente avant la prochaine tentative apres `consec_failures` echecs de suite
+    (n >= 1). Repart vite au 1er echec, espace ensuite, plafonne. Si Kraken nous
+    repousse (rate limit / lockout) on attend plus longtemps.
+    """
+    if category == "kraken_refus":
+        return min(60 * 2 ** (consec_failures - 1), 900)
+    return min(30 * 2 ** (consec_failures - 1), 600)
+
+
 class _Trader:
     def __init__(self, exchange, strategy, symbol=None, timeframe=None,
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
-                 max_fraction=None, poll_seconds=None, stats_file=None):
+                 max_fraction=None, poll_seconds=None, stats_file=None,
+                 log_file=None):
         self.exchange = exchange
         self.strategy = strategy
+        self.log_file = Path(log_file) if log_file else None
+        self.consec_failures = 0
         self.recorder = StatsRecorder(stats_file) if stats_file else None
         self.symbol = symbol or config.DEFAULT_SYMBOL
         self.timeframe = timeframe or config.DEFAULT_TIMEFRAME
@@ -47,6 +84,18 @@ class _Trader:
         self.poll_seconds = poll_seconds or _TF_SECONDS.get(self.timeframe, 3600)
         self.base = self.symbol.split("/")[0]
         self.quote = self.symbol.split("/")[1]
+
+    def _trace(self, msg):
+        """Trace lisible (console + fichier si log_file). N'ecrit le fichier
+        que lazy, a la 1ere trace ; un echec d'ecriture ne casse jamais le run."""
+        line = f"[{now()}] {msg}"
+        print(line)
+        if self.log_file:
+            try:
+                with self.log_file.open("a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+            except Exception:
+                pass  # ne JAMAIS crasher le run a cause du log
 
     def _closed_candles(self) -> pd.DataFrame:
         """Bougies CLOTUREES (la derniere, en cours de formation, est retiree)."""
@@ -114,8 +163,8 @@ class _Trader:
         if self.position_sizing == "vol":
             risk.append(f"sizing vol cible {self.target_vol*100:g}%")
         risk_txt = (" | " + ", ".join(risk)) if risk else ""
-        print(f"[{now()}] Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}")
-        print(f"[{now()}] Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.\n")
+        self._trace(f"Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}")
+        self._trace(f"Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.")
         while True:
             try:
                 df = self._closed_candles()
@@ -127,11 +176,20 @@ class _Trader:
                 self._log_status(price)
                 if self.recorder:
                     self._record_cycle(df, price, signal, desired, fraction, reason, trade)
+                if self.consec_failures:
+                    self._trace(f"Reconnexion OK apres {self.consec_failures} echec(s) consecutif(s).")
+                    self.consec_failures = 0
             except KeyboardInterrupt:
-                print(f"\n[{now()}] Arret demande. A bientot.")
+                self._trace("Arret demande. A bientot.")
                 break
             except Exception as e:
-                print(f"[{now()}] Erreur (on reessaie au prochain cycle) : {e}")
+                self.consec_failures += 1
+                info = describe_error(e)
+                wait = backoff_seconds(self.consec_failures, info["category"], self.poll_seconds)
+                self._trace(f"Erreur cycle [{info['category']}] ({self.consec_failures}e echec consecutif) : "
+                            f"{info['detail']} -> nouvelle tentative dans {wait}s")
+                time.sleep(wait)
+                continue
             time.sleep(self.poll_seconds)
 
     def _record_cycle(self, df, price, signal, desired, fraction, reason, trade):
@@ -173,10 +231,11 @@ class PaperTrader(_Trader):
                  position_sizing=None, target_vol=None, vol_window=None,
                  max_fraction=None, initial_capital=None, fee=None,
                  poll_seconds=None, state_file="paper_state.json",
-                 stats_file="paper_stats.csv"):
+                 stats_file="paper_stats.csv", log_file="paper_trades.log"):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
-                         vol_window, max_fraction, poll_seconds, stats_file)
+                         vol_window, max_fraction, poll_seconds, stats_file,
+                         log_file=log_file)
         self.fee = config.FEE if fee is None else fee
         self.state_file = Path(state_file)
         init_cap = config.INITIAL_CAPITAL if initial_capital is None else initial_capital

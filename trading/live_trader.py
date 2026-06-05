@@ -35,7 +35,8 @@ class LiveTrader(_Trader):
                  stats_file="live_stats.csv"):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
-                         vol_window, max_fraction, poll_seconds, stats_file)
+                         vol_window, max_fraction, poll_seconds, stats_file,
+                         log_file=LOG_FILE)
         self.dry_run = dry_run
         self.entry_price = None
         self.peak = None  # plus haut atteint depuis l'entree, suivi EN MEMOIRE
