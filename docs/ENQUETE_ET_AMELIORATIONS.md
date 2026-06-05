@@ -10,6 +10,8 @@
 
 Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'aveugle.
 
+- **Etape 0 — s'inspirer du vecu** : avant d'enqueter, consulter le **registre des bugs**
+  (`docs/SQA.md` §5) et le journal ci-dessous (§2). Un cas similaire a-t-il deja ete vecu/resolu ?
 - **Ne jamais conclure au 1er indice.** Croiser : **chronologie** x **type de message**
   x **surface** (le code suspect tourne-t-il vraiment la ?) x **categorie**
   (reseau / SSL / logique / donnees / alimentation) x **correlation != causalite**.

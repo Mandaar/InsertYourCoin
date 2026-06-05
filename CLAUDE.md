@@ -33,6 +33,19 @@ sans clés ; soldes et ordres réels via clés API dans `.env`. Voir `SETUP.md`.
 
 ---
 
+## SQA — qualité & journal des bugs
+
+Système qualité léger **inspiré de REGNUM**, adapté solo :
+- **[`docs/SQA.md`](docs/SQA.md)** — registre des bugs (corrélation bug ↔ correctif ↔ test), sévérités P0-P3, cycle de vie, gate qualité.
+- **[`docs/ENQUETE_ET_AMELIORATIONS.md`](docs/ENQUETE_ET_AMELIORATIONS.md)** — doctrine d'enquête, journal détaillé des incidents, backlog d'améliorations.
+
+Règles **systémiques** (à appliquer à chaque session) :
+- **Étape 0 de toute enquête : s'inspirer du vécu** — lire le registre des bugs + les enquêtes passées AVANT de diagnostiquer (beaucoup de symptômes se répètent).
+- **Un bug n'est fermé que s'il a un test de non-régression** (sinon il reste ouvert).
+- Tout incident/correctif se **capitalise** : une ligne au registre (`SQA.md` §5) + l'enquête (`§2`).
+
+---
+
 ## Architecture
 ```
 main.py              CLI : backtest, compare, optimize, walkforward, dashboard, portfolio, paper, live
