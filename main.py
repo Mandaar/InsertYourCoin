@@ -13,6 +13,7 @@ Commandes :
   paper       paper trading (argent fictif, temps reel)
   live        trading reel (dry-run par defaut, double confirmation)
   stats       synthese descriptive du CSV de stats (labo de stats)
+  monitor     serveur web leger de suivi du paper trading en direct
 
 Exemples :
   python main.py backtest  --strategy sma --stop-loss 8 --take-profit 20 --chart bt.png
@@ -172,6 +173,12 @@ def cmd_stats(args):
     print(format_summary(summarize(df)))
 
 
+def cmd_monitor(args):
+    from trading.monitor import run_monitor
+    run_monitor(port=args.port, stats_path=args.stats,
+                log_path=args.log, state_path=args.state)
+
+
 def diagnose_error(exc):
     """
     Classe une exception de connexion en (categorie, message actionnable FR).
@@ -323,6 +330,16 @@ def build_parser():
     st.add_argument("--file", default="paper_stats.csv",
                     help="CSV de stats a analyser (defaut: paper_stats.csv)")
     st.set_defaults(func=cmd_stats)
+
+    mo = sub.add_parser("monitor")
+    mo.add_argument("--port", type=int, default=8765)
+    mo.add_argument("--stats", default=None,
+                    help="CSV de stats (defaut: paper_stats.csv a la racine)")
+    mo.add_argument("--log", default=None,
+                    help="journal du paper (defaut: paper_trades.log a la racine)")
+    mo.add_argument("--state", default=None,
+                    help="etat du paper (defaut: paper_state.json a la racine)")
+    mo.set_defaults(func=cmd_monitor)
     return p
 
 
