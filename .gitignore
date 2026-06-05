@@ -10,3 +10,6 @@ venv/
 .pytest_cache/
 paper_stats.csv
 *_stats.csv
+
+# Config locale Claude Code (preview / launch) -- chemins specifiques a la machine
+.claude/launch.json
