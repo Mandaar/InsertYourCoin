@@ -31,13 +31,17 @@ class LiveTrader(_Trader):
     def __init__(self, exchange, strategy, symbol=None, timeframe=None,
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
-                 max_fraction=None, dry_run=True, poll_seconds=None):
+                 max_fraction=None, dry_run=True, poll_seconds=None,
+                 stats_file="live_stats.csv"):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
-                         vol_window, max_fraction, poll_seconds)
+                         vol_window, max_fraction, poll_seconds, stats_file,
+                         log_file=LOG_FILE)
         self.dry_run = dry_run
         self.entry_price = None
         self.peak = None  # plus haut atteint depuis l'entree, suivi EN MEMOIRE
+        self.entry_ts = None
+        self.entry_cost = None  # budget engage a l'entree (suivi pnl/duree par trade)
         self.last_trade_ts = 0.0
         mode = "DRY-RUN (aucun ordre envoye)" if dry_run else "REEL (ordres envoyes !)"
         _log(f"LiveTrader initialise en mode {mode}")
@@ -60,6 +64,12 @@ class LiveTrader(_Trader):
     def _set_peak(self, value):
         self.peak = value
 
+    def _cash(self):
+        return self._quote_balance()
+
+    def _units(self):
+        return self._base_balance()
+
     def _cooldown_ok(self):
         if time.time() - self.last_trade_ts < config.MIN_TRADE_INTERVAL_SEC:
             _log("Ordre ignore : delai minimum entre trades non ecoule (garde-fou).")
@@ -71,17 +81,17 @@ class LiveTrader(_Trader):
 
         if desired == 1 and not invested:                       # ACHAT
             if not self._cooldown_ok():
-                return
+                return None
             if fraction <= 0:
                 _log("Achat ignore : fraction de sizing nulle (volatilite trop elevee).")
-                return
+                return None
             # Sizing par volatilite, puis plafonds (garde-fous) : le plus serre gagne.
             budget = min(self._quote_balance() * fraction, config.MAX_TRADE_VALUE_USD)
             room = config.MAX_POSITION_VALUE_USD - self._base_balance() * price
             budget = max(0.0, min(budget, room))
             if budget < 1.0:
                 _log("Achat ignore : budget sous le plafond/minimum (garde-fou).")
-                return
+                return None
             amount = budget / price
             if self.dry_run:
                 _log(f"[DRY-RUN] ACHAT prevu : {amount:.5f} {self.base} (~{budget:.2f} {self.quote}) @ {price:.2f}")
@@ -91,11 +101,20 @@ class LiveTrader(_Trader):
                 self.last_trade_ts = time.time()
             self.entry_price = price
             self.peak = price
+            self.entry_ts = time.time()
+            self.entry_cost = budget
+            return {"action": "buy", "pnl": 0.0, "fee_paid": budget * config.FEE, "hold_secs": ""}
 
         elif desired == 0 and invested:                         # VENTE
             if not self._cooldown_ok():
-                return
+                return None
             amount = self._base_balance()
+            # PnL APPROXIMATIF en live : on ignore les fills/slippage reels (inconnus
+            # ici), on suppose une vente au prix observe, frais Kraken deduits.
+            proceeds = amount * price
+            fee_sell = amount * price * config.FEE
+            pnl = proceeds * (1 - config.FEE) - (self.entry_cost or 0.0)
+            hold = time.time() - (self.entry_ts or time.time())
             tag = f" [{reason}]" if reason else ""
             if self.dry_run:
                 _log(f"[DRY-RUN] VENTE prevue{tag} : {amount:.5f} {self.base} @ {price:.2f}")
@@ -105,6 +124,11 @@ class LiveTrader(_Trader):
                 self.last_trade_ts = time.time()
             self.entry_price = None
             self.peak = None
+            self.entry_ts = None
+            self.entry_cost = None
+            return {"action": "sell", "pnl": pnl, "fee_paid": fee_sell,
+                    "hold_secs": hold, "reason": reason}
+        return None
 
     def _log_status(self, price):
         try:

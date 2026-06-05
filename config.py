@@ -41,3 +41,14 @@ MAX_POSITION_VALUE_USD = 500.0
 MIN_TRADE_INTERVAL_SEC = 3600
 
 VERIFY_SSL = True
+
+# Robustesse SSL : si un antivirus/proxy intercepte le HTTPS (MITM legitime, ex. Avast),
+# le certificat est re-signe par une CA locale absente du bundle certifi. truststore fait
+# utiliser le magasin de certificats de l'OS (qui contient cette CA) -- SANS desactiver la
+# verification. Centralise ici (politique SSL unique). Absent => comportement par defaut.
+if VERIFY_SSL:
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass

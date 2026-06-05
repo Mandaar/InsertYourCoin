@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 paper_state.json
 live_trades.log
+paper_trades.log
 *.png
 .venv/
 venv/
 .pytest_cache/
+paper_stats.csv
+*_stats.csv

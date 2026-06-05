@@ -11,7 +11,7 @@ import time
 import pandas as pd
 import ccxt
 
-import config
+import config  # importe en premier : declenche l'injection truststore (politique SSL) avant tout appel reseau
 
 
 class KrakenExchange:
@@ -23,6 +23,7 @@ class KrakenExchange:
         })
         verify = config.VERIFY_SSL if verify_ssl is None else verify_ssl
         self.client.verify = verify
+        self.client.timeout = 30000  # 30s (defaut 10s trop court sur reseau lent)
         if not verify:
             import warnings, urllib3
             warnings.simplefilter("ignore")

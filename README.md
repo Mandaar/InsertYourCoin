@@ -27,10 +27,18 @@ Progression recommandée :
 ## Installation
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env   # clés Kraken (inutiles pour backtest/optimize/portfolio)
+python -m venv .venv                        # environnement isolé (recommandé)
+# Windows : .\.venv\Scripts\Activate.ps1    |  macOS/Linux : source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py check                        # vérifie l'install + la connexion Kraken
+cp .env.example .env                         # clés Kraken (inutiles pour backtest/optimize/portfolio)
 ```
 Conseil : crée une clé Kraken **sans permission de retrait** (coche seulement *Query* + *Trade*).
+
+> **Derrière un antivirus/proxy qui scanne le HTTPS** (Avast, Kaspersky, proxy d'entreprise…) :
+> géré automatiquement via `truststore` (magasin de certificats de l'OS), **sans** désactiver la
+> vérification SSL. Si `python main.py check` affiche un prix, tout va bien. Détails et dépannage :
+> **[SETUP.md](SETUP.md)**.
 
 ---
 
@@ -38,6 +46,7 @@ Conseil : crée une clé Kraken **sans permission de retrait** (coche seulement 
 
 | Commande | Rôle |
 |---|---|
+| `check` | Diagnostic install + connexion Kraken (à lancer en premier) |
 | `backtest` | Tester une stratégie sur l'historique |
 | `compare` | Comparer toutes les stratégies |
 | `optimize` | Meilleurs paramètres **avec validation train/test** |
@@ -46,6 +55,7 @@ Conseil : crée une clé Kraken **sans permission de retrait** (coche seulement 
 | `portfolio` | Backtester un **panier** de cryptos (diversification) |
 | `paper` | Paper trading (argent fictif, temps réel) |
 | `live` | Trading réel (dry-run par défaut) |
+| `stats` | Synthèse descriptive du CSV accumulé en paper/live (labo de stats) |
 
 **Options de risque** (sur backtest/compare/optimize/walkforward/dashboard/portfolio
 **et désormais paper/live**) :
@@ -64,6 +74,7 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
 python main.py paper     --strategy sma --timeframe 1h --trailing-stop 12 --position-sizing vol --target-vol 40
 python main.py live      --strategy sma --stop-loss 8 --take-profit 20            # dry-run
 python main.py live      --strategy sma --stop-loss 8 --take-profit 20 --execute  # réel
+python main.py stats                                                              # synthèse du paper_stats.csv
 ```
 
 ---
@@ -115,7 +126,7 @@ corrélé du groupe (~0,63).
 
 ```
 InsertYourCoin/
-├── main.py              # CLI (8 commandes)
+├── main.py              # CLI (10 commandes)
 ├── config.py            # paramètres + risque + garde-fous
 ├── requirements.txt
 ├── .env.example
@@ -129,12 +140,14 @@ InsertYourCoin/
     ├── portfolio.py     # backtest multi-actifs (diversification)
     ├── dashboard.py     # tableau de bord HTML
     ├── paper_trader.py  # paper trading + boucle commune
-    └── live_trader.py   # trading réel (verrouillé par défaut)
+    ├── live_trader.py   # trading réel (verrouillé par défaut)
+    └── stats.py         # labo de stats : enregistreur CSV + synthèse
 ```
 
 ## Pistes pour la suite (dans Claude Code, sur ta machine)
 
 - ✅ Trailing stop + sizing volatilité **dans le paper/live** (fait — aligné sur le backtest, couvert par `tests/`).
+- ✅ Labo de stats : `paper`/`live` enregistrent un CSV horodaté ; `python main.py stats` en fait la synthèse.
 - Filtre de tendance long terme (ne trader que dans le sens du marché).
 - Pondération du portefeuille par risque (risk parity).
 - Recherche d'une stratégie à vrai edge (le walk-forward reste juge).

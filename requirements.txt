@@ -1,5 +1,15 @@
-ccxt>=4.0.0
-pandas>=2.0.0
-numpy>=1.24.0
-matplotlib>=3.7.0
-python-dotenv>=1.0.0
+# Dependances InsertYourCoin.
+# Versions testees : ccxt 4.5.56, pandas 3.0.3, numpy 2.4.6, matplotlib 3.10.9,
+# python-dotenv 1.2.2, truststore 0.10.4 (Python 3.11 a 3.14).
+# Bornes hautes = on exclut la prochaine version MAJEURE potentiellement cassante
+# (reproductibilite : pip installe la derniere version sous la borne, proche du teste).
+ccxt>=4.5,<5
+pandas>=2.2,<3.1
+numpy>=1.26,<3
+matplotlib>=3.7,<4
+python-dotenv>=1.0,<2
+
+# truststore : fait utiliser le magasin de certificats de l'OS (Windows/macOS/Linux),
+# indispensable derriere un antivirus/proxy qui intercepte le HTTPS (ex. Avast) -- sans
+# jamais desactiver la verification SSL. Voir SETUP.md (section Antivirus/proxy).
+truststore>=0.9,<1
