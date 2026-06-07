@@ -50,6 +50,7 @@ fait gagner des heures et evite de re-deriver depuis zero.
 |----|------|-----|----------|--------------|--------------------|---------------------|---------|--------|
 | BUG-001 | 2026-06-05 | P1 | `CERTIFICATE_VERIFY_FAILED` contre Kraken | Avast intercepte le HTTPS ; sa CA racine est absente du bundle `certifi` | `9c17bac` puis centralise `5816567` (`truststore` -> magasin de certificats de l'OS ; `VERIFY_SSL=True`) | `tests/test_healthcheck.py` (`diagnose_error` -> ssl) | carnet §2 (#0) | **Ferme** |
 | BUG-002 | 2026-06-05 | P1 | `kraken GET .../OHLC` en boucle la nuit + collecte morte ; process arrete | Timeouts reseau nocturnes **non journalises** (aucun log paper) + mise en veille du PC | `b9cf6d0` (logs paper typuees, backoff, timeout 30s, detection refus Kraken/DDoSProtection) + `42ae373` (dashboard) | `tests/test_resilience.py` | carnet §2 (#1) | **Ferme** |
+| BUG-003 | 2026-06-07 | P2 | `config.FEE=0.0026` sous-estime le taker Kraken reel -> backtests & paper FLATTES (conclusions optimistes) | Taker spot Kraken palier de base = **0.40%** (maker 0.25%) d'apres la doc officielle, pas 0.26% | A FAIRE : `config.FEE` -> `0.0040` (taker), ou parametrer maker/taker selon le type d'ordre | A AJOUTER (assert que le backtester applique bien le frais configure) | panel §0 (hygiene de mesure) | **Ouvert** |
 
 > **Nouveau bug** -> ajouter une ligne ici (statut *Ouvert*), puis suivre le cycle §2.
 > Severite des le constat ; ne jamais fermer sans test.
