@@ -27,6 +27,15 @@ Exemples :
 import argparse
 import sys
 
+# Windows : forcer stdout/stderr en UTF-8 -- la console cp1252 ne peut pas encoder
+# certains caracteres des sorties (sigma de Bollinger, fleches du walk-forward) et
+# leve UnicodeEncodeError. Cf. SQA BUG-004. errors='replace' => jamais de crash.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
+
 import config
 from trading.exchange import KrakenExchange
 from trading.strategies import build_strategy, STRATEGIES
