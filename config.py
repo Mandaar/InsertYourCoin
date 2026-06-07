@@ -18,7 +18,7 @@ KRAKEN_API_SECRET = os.getenv("KRAKEN_API_SECRET", "")
 DEFAULT_SYMBOL = "ETH/USD"
 DEFAULT_TIMEFRAME = "1d"
 INITIAL_CAPITAL = 10_000.0
-FEE = 0.0026  # taker Kraken ~0.26%
+FEE = 0.0040  # taker Kraken spot, palier de base ~0.40% (doc officielle) -- on trade au marche (taker). Maker (ordres LIMIT) = ~0.25%.
 
 # --- Gestion du risque (fractions ; None = desactive) ---
 STOP_LOSS = None        # ex: 0.08 -> coupe a -8% du prix d'entree
