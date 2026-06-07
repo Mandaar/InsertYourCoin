@@ -50,6 +50,17 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - Corrige par `truststore` (magasin de certificats de l'OS), **sans** desactiver `VERIFY_SSL`.
   Cf. `CLAUDE.md` (section environnement) + `SETUP.md` (section Antivirus/SSL).
 
+### Incident #2 — 2026-06-07 — `compare`/`walkforward` crashent (UnicodeEncodeError)
+- **Etape 0 (vecu)** : variante du gotcha cp1252 deja connu (cote `.ps1`), ici applique a **stdout Python** sur Windows.
+- **Cause** : la console Windows encode en cp1252 ; un caractere non-cp1252 dans une sortie `print()` (sigma de Bollinger, accents FR, fleches/emoji du verdict) leve `UnicodeEncodeError`. `walkforward` (le juge) etait inutilisable.
+- **Correction durable** : `main.py` force `stdout/stderr` en **UTF-8** (`errors='replace'`). Cf. SQA BUG-004 (+ test garde-fou).
+
+### Resultat d'etude #1 — 2026-06-07 — SMA daily : in-sample flatteur, OOS negatif
+- Test (Etape 1 du panel) : `SMA` sur ETH/USD en **daily**, frais 0.40%, ~2 ans d'historique.
+- **In-sample** (`compare`) : **+43.8%** vs Buy&Hold **-53.6%** -> semble exceller (sort en death-cross pendant le bear).
+- **Hors-echantillon** (`walkforward`, optimise glissant, 4 fenetres) : **-13.6%**, 25% de fenetres profitables -> **verdict : ne pas trader**.
+- **Lecon** : l'in-sample ET l'**optimisation** des parametres FLATTENT ; le walk-forward demasque le mirage. Prochain test a faire : `SMA` **50/200 FIGE** (sans optimisation) pour distinguer 'pas d'edge' de 'overfit d'optimisation'.
+
 ## 3. Etude du logiciel — quoi observer
 
 Donnees : `paper_stats.csv` (1 ligne / cycle), `paper_trades.log` (events + erreurs typuees),
