@@ -95,7 +95,16 @@ class Backtester:
         frac = frac.shift(1).fillna(0.0).clip(lower=0.0)  # vol de la derniere bougie close
         return frac.values
 
-    def run(self, df, strategy) -> BacktestResult:
+    def run(self, df, strategy, warmup=0) -> BacktestResult:
+        """
+        `warmup` (B1) : nb de bougies de tete servant UNIQUEMENT a amorcer les
+        indicateurs (warm-up SMA/EMA/RSI/...). Les signaux et l'execution sont
+        calcules sur TOUT le df fourni (warm-up correct), mais l'equity, les
+        trades, le buy&hold et les metriques ne comptent QU'A PARTIR de l'indice
+        `warmup`. L'equity hors-echantillon redemarre au capital initial au point
+        `warmup`, comme si on lancait le bot a cet instant (toute position deja
+        ouverte est ignoree au demarrage du segment compte).
+        """
         df = df.copy()
         ppy = self._periods_per_year(df)
         signal = strategy.generate_signals(df).astype(int)
@@ -124,6 +133,17 @@ class Backtester:
                            "pnl": (exit_price / entry_price) * mult - 1, "reason": reason})
 
         for i in range(n):
+            # B1) au point `warmup`, on (re)demarre le segment compte : capital
+            # initial frais, aucune position heritee (le warm-up n'a servi qu'a
+            # amorcer les indicateurs, pas a porter du capital).
+            if i == warmup and warmup > 0:
+                cash = self.initial_capital
+                units = 0.0
+                in_pos = False
+                blocked = False
+                entry_price = entry_time = peak = None
+                trades = []
+
             # A) action sur signal, a l'ouverture
             if desired[i] == 0:
                 blocked = False
@@ -171,8 +191,16 @@ class Backtester:
             append_trade(c[-1], idx[-1], "ouvert", closed=False)
 
         df["equity"] = equity
-        df["buy_hold"] = self.initial_capital * c / c[0]
         df["position"] = pos_flag
+
+        # B1) on ne RAPPORTE que le segment hors-warm-up : equity / buy&hold /
+        # trades / metriques portent uniquement sur [warmup, n). buy&hold est
+        # rebase sur le 1er close du segment compte (comparaison juste).
+        if warmup > 0:
+            df = df.iloc[warmup:].copy()
+            c = df["close"].values
+            ppy = self._periods_per_year(df)
+        df["buy_hold"] = self.initial_capital * c / c[0]
         df["drawdown"] = df["equity"] / df["equity"].cummax() - 1
 
         metrics = self._metrics(df, trades, ppy)
@@ -188,20 +216,28 @@ class Backtester:
         years = n / ppy
         annual = (final_equity / self.initial_capital) ** (1 / years) - 1 if years > 0 else 0.0
 
+        n_trades = len(trades)
+        # B2) metriques DEGENEREES -> NaN (jamais 0.0 ni inf), pour qu'elles ne
+        # soient ni selectionnables (argmax) ni traitees comme "neutres". Une combo
+        # "flat" (0 trade) ou tous-gagnants ne doit pas battre une vraie strategie.
+        nan = float("nan")
         rets = df["equity"].pct_change().fillna(0)
         std = rets.std()
         vol_annual = std * np.sqrt(ppy)
-        sharpe = (rets.mean() / std * np.sqrt(ppy)) if std > 0 else 0.0
+        degenerate = n_trades == 0
+        sharpe = (rets.mean() / std * np.sqrt(ppy)) if (std > 0 and not degenerate) else nan
         downside = rets[rets < 0].std()
-        sortino = (rets.mean() / downside * np.sqrt(ppy)) if downside and downside > 0 else 0.0
+        sortino = (rets.mean() / downside * np.sqrt(ppy)) if (downside and downside > 0 and not degenerate) else nan
         max_dd = df["drawdown"].min()
-        calmar = (annual / abs(max_dd)) if max_dd < 0 else 0.0
+        calmar = (annual / abs(max_dd)) if (max_dd < 0 and not degenerate) else nan
 
         pnls = [t["pnl"] for t in trades]
         wins = [p for p in pnls if p > 0]
         losses = [p for p in pnls if p < 0]
         gw, gl = sum(wins), abs(sum(losses))
-        profit_factor = (gw / gl) if gl > 0 else (float("inf") if gw > 0 else 0.0)
+        # profit_factor : NaN si 0 perte (jamais inf -> non selectionnable / ne casse
+        # pas les moyennes) ; NaN aussi si 0 trade.
+        profit_factor = (gw / gl) if gl > 0 else nan
 
         return {
             "initial_capital": self.initial_capital,
@@ -215,7 +251,7 @@ class Backtester:
             "max_drawdown": max_dd,
             "volatility": vol_annual,
             "profit_factor": profit_factor,
-            "n_trades": len(trades),
+            "n_trades": n_trades,
             "win_rate": (len(wins) / len(pnls)) if pnls else 0.0,
             "avg_trade": (sum(pnls) / len(pnls)) if pnls else 0.0,
             "exposure": df["position"].mean(),

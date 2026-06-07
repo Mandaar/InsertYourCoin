@@ -26,6 +26,24 @@ DEFAULT_GRIDS = {
     "bollinger": ({"period": [10, 20, 30], "num_std": [1.5, 2.0, 2.5]}, None),
 }
 
+# B1) Marge de warm-up (en bougies) ajoutee EN AMONT de chaque fenetre OOS pour
+# amorcer les indicateurs avant de compter le segment hors-echantillon. Doit
+# couvrir la plus longue periode de toutes les grilles (SMA slow=200) avec une
+# marge confortable pour que l'EMA/RSI/MACD soient bien stabilises (un EMA n'est
+# jamais "warm" a 100% mais converge ; 250 bougies de marge >> tout periode de
+# grille). Choix : 250.
+WARMUP = 250
+
+
+def _max_period(grid):
+    """Plus grande periode entiere apparaissant dans une grille (borne du warm-up reel)."""
+    longest = 0
+    for vals in grid.values():
+        for v in vals:
+            if isinstance(v, int) and v > longest:
+                longest = v
+    return longest
+
 
 def _combos(grid, is_valid):
     keys = list(grid)
@@ -41,16 +59,45 @@ def _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target
                       target_vol=target_vol)
 
 
-def _best_on(bt, df, strat_cls, grid, is_valid, metric):
-    best, best_m, best_metrics = None, -float("inf"), None
+# B2) Nb minimum de trades sur la fenetre pour qu'une combinaison soit ELIGIBLE
+# a la selection. Une combo "flat" (0 trade) ou quasi-flat (1-2 trades chanceux)
+# ne doit pas remporter l'argmax : sa metrique n'est pas statistiquement fiable.
+MIN_TRADES = 5
+
+
+def _best_on(bt, df, strat_cls, grid, is_valid, metric, warmup=0):
+    """
+    Retourne (best_params, best_metrics).
+
+    B2) Selection en deux temps, du plus fiable au moins fiable :
+      1. combos ELIGIBLES : metrique FINIE (ni NaN ni inf) ET `n_trades >= MIN_TRADES`.
+      2. si aucune eligible : on retombe sur la combo "moins pire" a metrique finie
+         (meme avec peu de trades) pour ne jamais renvoyer None silencieusement ;
+         l'info `degenerate=True` est portee dans les metriques retournees.
+    Une combo a metrique non-finie (NaN/inf) n'est JAMAIS selectionnee.
+    """
+    best, best_m, best_metrics = None, -float("inf"), None          # eligible
+    fb, fb_m, fb_metrics = None, -float("inf"), None                # fallback fini
     for params in _combos(grid, is_valid):
         try:
-            m = bt.run(df, strat_cls(**params)).metrics
+            m = bt.run(df, strat_cls(**params), warmup=warmup).metrics
         except Exception:
             continue
-        if m[metric] > best_m:
-            best, best_m, best_metrics = params, m[metric], m
-    return best, best_metrics
+        val = m[metric]
+        if not np.isfinite(val):
+            continue
+        if m["n_trades"] >= MIN_TRADES:
+            if val > best_m:
+                best, best_m, best_metrics = params, val, m
+        if val > fb_m:
+            fb, fb_m, fb_metrics = params, val, m
+
+    if best is not None:
+        return best, best_metrics
+    if fb is not None:
+        fb_metrics = dict(fb_metrics, degenerate=True)
+        return fb, fb_metrics
+    return None, None
 
 
 def optimize(df, strategy_name, train_frac=0.6, metric="sharpe", fee=None,
@@ -63,12 +110,21 @@ def optimize(df, strategy_name, train_frac=0.6, metric="sharpe", fee=None,
     train, test = df.iloc[:split], df.iloc[split:]
     bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol)
 
+    # Selection sur le TRAIN (in-sample). Pas de warm-up amont possible : il n'y a
+    # pas de donnee avant l'indice 0 ; les premieres ~slow bougies sont degenerees,
+    # ce qui est inherent a l'in-sample (memes conditions pour toutes les combos).
     best_params, train_m = _best_on(bt, train, strat_cls, grid, is_valid, metric)
     if best_params is None:
         raise RuntimeError("Aucune combinaison valide.")
+
+    # B1) le TEST (hors-echantillon) est backteste sur une fenetre ETENDUE incluant
+    # le warm-up amont, mais seul [split, fin) est compte.
+    t_start = max(0, split - WARMUP)
+    test_ext = df.iloc[t_start:]
+    test_m = bt.run(test_ext, strat_cls(**best_params), warmup=split - t_start).metrics
     return {
         "strategy": name, "metric": metric, "best_params": best_params,
-        "train": train_m, "test": bt.run(test, strat_cls(**best_params)).metrics,
+        "train": train_m, "test": test_m,
         "full": bt.run(df, strat_cls(**best_params)).metrics,
         "train_period": (train.index[0], train.index[-1]),
         "test_period": (test.index[0], test.index[-1]),
@@ -94,19 +150,29 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
     for w in range(n_windows):
         test_start = train_initial + w * fold
         test_end = n if w == n_windows - 1 else test_start + fold
+        # Selection sur tout le passe disponible (deja warm depuis l'indice 0).
         train = df.iloc[:test_start]
-        test = df.iloc[test_start:test_end]
         best_params, _ = _best_on(bt, train, strat_cls, grid, is_valid, metric)
-        tm = bt.run(test, strat_cls(**best_params)).metrics
+        # B1) OOS [test_start, test_end) backteste avec warm-up amont, mais seul
+        # ce segment est compte (equity/trades/metriques).
+        t_start = max(0, test_start - WARMUP)
+        test_ext = df.iloc[t_start:test_end]
+        tm = bt.run(test_ext, strat_cls(**best_params), warmup=test_start - t_start).metrics
         compounded *= (1 + tm["total_return"])
+        test = df.iloc[test_start:test_end]
         windows.append({"period": (test.index[0], test.index[-1]),
                         "params": best_params, "metrics": tm})
 
     returns = [win["metrics"]["total_return"] for win in windows]
+    # B2) avg_window_metric ignore les fenetres degenerees (NaN/inf) au lieu de
+    # se faire contaminer (np.mean d'un NaN = NaN ; un inf domine tout).
+    metric_vals = np.array([w["metrics"][metric] for w in windows], dtype=float)
+    finite = metric_vals[np.isfinite(metric_vals)]
+    avg_metric = float(finite.mean()) if finite.size else float("nan")
     return {
         "strategy": name, "metric": metric, "windows": windows,
         "oos_total_return": compounded - 1,
-        "avg_window_metric": float(np.mean([w["metrics"][metric] for w in windows])),
+        "avg_window_metric": avg_metric,
         "pct_profitable": sum(1 for r in returns if r > 0) / len(returns),
     }
 
@@ -157,6 +223,11 @@ def format_walk_forward(res) -> str:
 
 def _verdict(test_metric, train_metric, test_return, wf=False):
     label = "cumulee hors-echantillon" if wf else "hors-echantillon"
+    # B2) une metrique non-finie (NaN) = trop peu de trades fiables -> on ne
+    # conclut PAS un succes par defaut (nan < 0 vaut False en Python).
+    if test_metric is None or not np.isfinite(test_metric):
+        return [f"⚠️  Verdict : metrique {label} non fiable (trop peu de trades ou cas",
+                "   degenere) -> indecidable. Ne pas se fier a ce chiffre."]
     if test_return < 0 or test_metric < 0:
         return [f"⚠️  Verdict : performance {label} negative -> stratégie peu fiable",
                 "   telle quelle. Ne pas trader."]
