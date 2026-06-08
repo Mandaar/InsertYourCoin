@@ -18,7 +18,7 @@ KRAKEN_API_SECRET = os.getenv("KRAKEN_API_SECRET", "")
 DEFAULT_SYMBOL = "ETH/USD"
 DEFAULT_TIMEFRAME = "1d"
 INITIAL_CAPITAL = 10_000.0
-FEE = 0.0040  # taker Kraken spot, palier de base ~0.40% (doc officielle) -- on trade au marche (taker). Maker (ordres LIMIT) = ~0.25%.
+FEE = 0.0080  # taker Kraken spot palier de base A PARTIR DU 9 JUILLET 2026 (maker passe a 0.40%). Avant cette date : taker 0.40% / maker 0.25%. Le moteur simule des ordres MARCHE (taker) et on developpe pour trader DANS LE FUTUR -> on prend le taker FUTUR (prudent, ne flatte pas). Si on passe en ordres LIMIT (maker), mettre 0.0040.
 
 # --- Gestion du risque (fractions ; None = desactive) ---
 STOP_LOSS = None        # ex: 0.08 -> coupe a -8% du prix d'entree

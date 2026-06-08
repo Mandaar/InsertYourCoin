@@ -7,10 +7,12 @@ import config
 
 
 def test_fee_ne_sous_estime_pas_le_taker_kraken():
-    # BUG-003 : config.FEE doit refleter le taker Kraken reel (palier de base ~0.40%).
-    # Sous-estimer le frais flatte TOUS les backtests et le paper (conclusions optimistes).
-    # Ne jamais redescendre sous 0.40% sans passer explicitement en ordres LIMIT (maker).
-    assert config.FEE >= 0.004
+    # BUG-003 : config.FEE doit refleter le taker Kraken reel du comportement simule
+    # (ordres MARCHE). Taker palier de base = 0.80% des le 9 juillet 2026 (0.40% avant).
+    # On developpe pour trader dans le futur -> on ne descend pas sous le taker FUTUR.
+    # Sous-estimer le frais flatte TOUS les backtests/paper. (Si passage en ordres LIMIT
+    # = maker 0.40%, ajuster CONSCIEMMENT ce seuil a 0.004.)
+    assert config.FEE >= 0.008
 
 
 def test_verify_ssl_reste_actif():
