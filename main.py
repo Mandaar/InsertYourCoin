@@ -21,6 +21,8 @@ Exemples :
   python main.py walkforward --strategy sma --windows 4
   python main.py walkforward --strategy sma --timeframe 1d --fixed "fast=50,slow=200"
   python main.py walkforward --strategy tsmom --timeframe 1d --fixed "lookback=365"
+  python main.py walkforward --strategy sma --fixed "fast=50,slow=200" --holdout 20 --symbols BTC/USD,ETH/USD,SOL/USD
+  python main.py walkforward --strategy sma --fixed "fast=50,slow=200" --holdout 20 --final
   python main.py portfolio --symbols BTC/USD,ETH/USD,SOL/USD --strategy sma --stop-loss 8 --take-profit 20
   python main.py dashboard --strategy sma --stop-loss 8 --take-profit 20
   python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-profit 10
@@ -89,12 +91,24 @@ def _bt_kwargs(args):
 
 
 def _load_data(ex, symbol, timeframe, days):
-    if days and days > 720:
-        return ex.fetch_ohlcv_range(symbol, timeframe, since_days=days)
-    return ex.fetch_ohlcv(symbol, timeframe, limit=min(days or 720, 720))
+    # B11/FIX2) Router selon les BARRES ATTENDUES, pas les jours : en intraday
+    # (--timeframe 1h --days 700), un fetch_ohlcv(limit=720) ne couvre que ~30
+    # jours (720 bougies horaires) -- troncature silencieuse. On bascule sur la
+    # pagination des qu'on attend plus de 720 bougies (qui, elle, avertit B11 si
+    # la couverture reste courte). Sinon fetch_ohlcv simple suffit.
+    expected_bars = (days * 86400 / KrakenExchange._timeframe_seconds(timeframe)) if days else 0
+    if expected_bars > 720:
+        df = ex.fetch_ohlcv_range(symbol, timeframe, since_days=days)
+    else:
+        df = ex.fetch_ohlcv(symbol, timeframe, limit=min(days or 720, 720))
+    # B4) la DERNIERE bougie est potentiellement EN FORMATION (non close) : on
+    # l'exclut de tout backtest/optimisation (convention unique backtest == paper ;
+    # le paper fait SA propre exclusion dans sa boucle, ne pas la doubler ici ET la-bas).
+    return df.iloc[:-1] if len(df) > 1 else df
 
 
 def _load_basket(ex, symbols, timeframe, days):
+    # Herite de l'exclusion B4 (bougie en formation) via _load_data.
     data = {}
     for s in symbols:
         try:
@@ -146,13 +160,58 @@ def cmd_optimize(args):
 
 
 def cmd_walkforward(args):
-    from trading.optimizer import walk_forward, format_walk_forward
-    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
+    from trading.optimizer import (walk_forward, format_walk_forward,
+                                   walk_forward_multi, format_walk_forward_multi,
+                                   holdout_check, format_holdout, holdout_split)
     fixed = _parse_fixed(getattr(args, "fixed", None))
-    res = walk_forward(df, args.strategy, n_windows=args.windows,
-                       train_frac=args.train_frac, metric=args.metric,
-                       fixed_params=fixed, **_bt_kwargs(args))
-    print(format_walk_forward(res))
+    holdout_frac = (getattr(args, "holdout", 0.0) or 0.0) / 100.0
+    if not (0.0 <= holdout_frac < 0.9):
+        sys.exit("--holdout : pourcentage attendu dans [0, 90[.")
+    if getattr(args, "final", False) and holdout_frac <= 0:
+        sys.exit("--final exige --holdout > 0 (sans holdout, pas de segment sacre).")
+
+    ex = KrakenExchange()
+    if getattr(args, "symbols", None):
+        # Multi-actifs : --symbols prime, --symbol est ignore.
+        symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+        data = _load_basket(ex, symbols, args.timeframe, args.days)
+    else:
+        data = {args.symbol: _load_data(ex, args.symbol, args.timeframe, args.days)}
+
+    # B7) holdout SACRE : les dernieres bougies sont RETIREES avant tout --
+    # ni l'optimisation ni les fenetres OOS du walk-forward ne les voient JAMAIS.
+    research = {}
+    for sym, df in data.items():
+        if holdout_frac > 0:
+            cut = holdout_split(len(df), holdout_frac)
+            tag = f" [{sym}]" if len(data) > 1 else ""
+            print(f"Holdout reserve{tag} : {len(df) - cut} bougies "
+                  f"({args.holdout:g}% recents) -- JAMAIS utilises pour la recherche")
+            research[sym] = df.iloc[:cut]
+        else:
+            research[sym] = df
+
+    wf_kwargs = dict(n_windows=args.windows, train_frac=args.train_frac,
+                     metric=args.metric, fixed_params=fixed, **_bt_kwargs(args))
+    if len(data) > 1:
+        res = walk_forward_multi(research, args.strategy, **wf_kwargs)
+        print(format_walk_forward_multi(res))
+    else:
+        res = walk_forward(research[next(iter(data))], args.strategy, **wf_kwargs)
+        print(format_walk_forward(res))
+
+    if getattr(args, "final", False):
+        # B7) evaluation UNIQUE sur le holdout (warm-up B1 etendu en amont).
+        for sym, df in data.items():
+            if len(data) > 1:
+                print(f"\n--- {sym} ---")
+            try:
+                hres = holdout_check(df, holdout_frac, args.strategy,
+                                     fixed_params=fixed, metric=args.metric,
+                                     **_bt_kwargs(args))
+                print(format_holdout(hres))
+            except RuntimeError as e:
+                print(f"Validation finale impossible pour {sym} : {e}")
 
 
 def cmd_dashboard(args):
@@ -352,6 +411,15 @@ def build_parser():
     w.add_argument("--fixed", default=None, metavar="k=v,...",
                    help="parametres FIGES (sans optimisation, anti-data-mining). "
                         "Ex: --fixed \"fast=50,slow=200\" ou --fixed \"lookback=365\"")
+    w.add_argument("--holdout", type=float, default=0.0, metavar="PCT",
+                   help="%% de bougies RECENTES reservees (holdout sacre, jamais vues "
+                        "par la recherche). Ex: 20")
+    w.add_argument("--final", action="store_true",
+                   help="VALIDATION FINALE unique sur le holdout (exige --holdout ; de "
+                        "preference avec --fixed). A ne faire qu'UNE fois par strategie.")
+    w.add_argument("--symbols", default=None, metavar="A,B,C",
+                   help="plusieurs paires separees par des virgules (robustesse "
+                        "multi-actifs ; ignore --symbol). Ex: BTC/USD,ETH/USD,SOL/USD")
     w.set_defaults(func=cmd_walkforward)
 
     d = sub.add_parser("dashboard"); common(d); _risk_args(d); _adv_risk_args(d)

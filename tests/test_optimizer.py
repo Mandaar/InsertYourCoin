@@ -280,3 +280,206 @@ def test_walk_forward_fixed_params_n_trials_is_one(make_df):
     assert res["n_trials"] == 1
     if np.isfinite(res["psr"]) and np.isfinite(res["dsr"]):
         assert res["dsr"] == pytest.approx(res["psr"])
+
+
+# --------------------------------------------------------------------------- #
+#  B7 : holdout SACRE (jamais vu par la recherche)                             #
+# --------------------------------------------------------------------------- #
+def test_holdout_split_excludes_recent_candles_from_research(make_df):
+    """Le decoupage retire bien les bougies recentes : la recherche (walk-forward
+    complet sur le segment de recherche) ne touche JAMAIS le holdout."""
+    df = make_df(_trend_then_reversal(600))
+    cut = opt.holdout_split(len(df), 0.20)
+    assert cut == 480                                  # 20% recents reserves
+    research, holdout = df.iloc[:cut], df.iloc[cut:]
+    assert research.index.max() < holdout.index.min()
+    res = opt.walk_forward(research, "sma", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0)
+    last_oos_end = res["windows"][-1]["period"][1]
+    assert last_oos_end == research.index[-1]          # la recherche va au bout...
+    assert last_oos_end < holdout.index.min()          # ...mais JAMAIS dans le holdout
+
+
+def test_holdout_split_rejects_degenerate_fractions():
+    with pytest.raises(ValueError):
+        opt.holdout_split(100, 0.0)
+    with pytest.raises(ValueError):
+        opt.holdout_split(100, 1.0)
+
+
+def test_holdout_check_counts_only_holdout_segment(make_df):
+    """holdout_check rapporte EXACTEMENT le segment holdout (periode + nb de
+    bougies) et ses metriques == celles d'un run warm-up direct equivalent."""
+    df = make_df(_trend_then_reversal(700))
+    fixed = {"fast": 10, "slow": 50}
+    res = opt.holdout_check(df, 0.20, "sma", fixed_params=fixed,
+                            metric="sharpe", fee=0.0)
+    cut = opt.holdout_split(len(df), 0.20)
+    assert res["holdout_period"][0] == df.index[cut]
+    assert res["holdout_period"][1] == df.index[-1]
+    assert res["n_holdout"] == len(df) - cut
+    assert res["params"] == fixed
+    assert res["optimised_on_research"] is False
+    # Reference : run direct Backtester avec le meme warm-up amont (B1).
+    bt = Backtester(fee=0.0)
+    margin = opt._params_warmup(fixed)
+    t_start = max(0, cut - margin)
+    expected = bt.run(df.iloc[t_start:], SMACrossover(**fixed),
+                      warmup=cut - t_start).metrics
+    assert res["metrics"]["total_return"] == pytest.approx(expected["total_return"])
+    assert res["metrics"]["n_trades"] == expected["n_trades"]
+
+
+def test_holdout_check_warmup_preserved(make_df):
+    """B1 dans le holdout : une SMA lente (slow=200) sur un holdout court serait
+    MORTE sans warm-up amont ; holdout_check l'amorce et elle trade."""
+    df = make_df(_trend_then_reversal(700))
+    cut = opt.holdout_split(len(df), 0.15)             # holdout de 105 bougies
+    bt = Backtester(fee=0.0)
+    isolated = bt.run(df.iloc[cut:], SMACrossover(fast=10, slow=200))
+    res = opt.holdout_check(df, 0.15, "sma", fixed_params={"fast": 10, "slow": 200},
+                            metric="sharpe", fee=0.0)
+    assert isolated.metrics["n_trades"] == 0           # sans warm-up : degeneree
+    assert res["metrics"]["n_trades"] >= 1             # avec warm-up : vivante
+
+
+def test_holdout_check_optimises_on_research_only(make_df, monkeypatch):
+    """Sans fixed_params, la selection (_best_on) ne voit QUE la recherche."""
+    df = make_df(_trend_then_reversal(700))
+    cut = opt.holdout_split(len(df), 0.20)
+    seen = {}
+    real = opt._best_on
+
+    def spy(bt, d, *a, **k):
+        seen["max_index"] = d.index.max()
+        return real(bt, d, *a, **k)
+
+    monkeypatch.setattr(opt, "_best_on", spy)
+    res = opt.holdout_check(df, 0.20, "sma", fixed_params=None,
+                            metric="sharpe", fee=0.0)
+    assert seen["max_index"] < df.index[cut]           # jamais le holdout
+    assert res["optimised_on_research"] is True
+
+
+def test_holdout_check_guard_too_short():
+    import pandas as pd
+    idx = pd.date_range("2022-01-01", periods=20, freq="1D", tz="UTC")
+    df = pd.DataFrame({"open": 100.0, "high": 101.0, "low": 99.0,
+                       "close": 100.0, "volume": 1.0}, index=idx)
+    with pytest.raises(RuntimeError):
+        opt.holdout_check(df, 0.10, "sma", fixed_params={"fast": 10, "slow": 50},
+                          fee=0.0)                     # holdout de 2 bougies < 5
+
+
+def test_format_holdout_carries_strong_warning(make_df):
+    df = make_df(_trend_then_reversal(700))
+    res = opt.holdout_check(df, 0.20, "sma", fixed_params={"fast": 10, "slow": 50},
+                            metric="sharpe", fee=0.0)
+    txt = opt.format_holdout(res)
+    assert "VALIDATION FINALE" in txt
+    assert "data-mining" in txt
+    assert "UNE fois" in txt
+
+
+# --------------------------------------------------------------------------- #
+#  Multi-actifs : agregation walk_forward_multi (sans reseau)                  #
+# --------------------------------------------------------------------------- #
+def _fake_wf_result(oos, sharpes=(1.0, 0.5), pct=0.5):
+    return {"strategy": "sma", "metric": "sharpe",
+            "windows": [{"period": None, "params": {},
+                         "metrics": {"sharpe": s, "total_return": 0.0}}
+                        for s in sharpes],
+            "oos_total_return": oos, "avg_window_metric": float(np.mean(sharpes)),
+            "pct_profitable": pct, "fixed_params": None,
+            "n_trials": 1, "n_obs_oos": 100, "psr": 0.6, "dsr": 0.6}
+
+
+def _patch_wf(monkeypatch, data, results, failing=()):
+    """walk_forward monkeypatche : retrouve le symbole par identite du df."""
+    def fake_wf(d, name, **k):
+        for sym, dd in data.items():
+            if dd is d:
+                if sym in failing:
+                    raise RuntimeError("Pas assez de donnees pour ce walk-forward.")
+                return results[sym]
+        raise AssertionError("df inconnu passe a walk_forward")
+    monkeypatch.setattr(opt, "walk_forward", fake_wf)
+
+
+def test_walk_forward_multi_aggregates(monkeypatch, make_df):
+    """2 actifs positifs sur 3 : agregation correcte + robuste (majorite)."""
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD", "SOL/USD")}
+    results = {"BTC/USD": _fake_wf_result(0.10), "ETH/USD": _fake_wf_result(-0.05),
+               "SOL/USD": _fake_wf_result(0.20)}
+    _patch_wf(monkeypatch, data, results)
+    res = opt.walk_forward_multi(data, "sma", n_windows=4)
+    s = res["summary"]
+    assert s["n_assets"] == 3 and s["n_positive"] == 2
+    assert s["avg_oos_return"] == pytest.approx((0.10 - 0.05 + 0.20) / 3)
+    assert s["robust"] is True
+    assert set(res["per_symbol"]) == set(data)
+
+
+def test_walk_forward_multi_robust_consistent_with_display(monkeypatch, make_df):
+    """FIX 3 : majorite positive (2/3) MAIS moyenne OOS negative -> robust=False
+    partout. Le dict et l'affichage doivent dire la MEME chose (source unique)."""
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD", "SOL/USD")}
+    # 2 petits gains + 1 grosse perte : majorite > 0 mais moyenne < 0.
+    results = {"BTC/USD": _fake_wf_result(0.02), "ETH/USD": _fake_wf_result(0.03),
+               "SOL/USD": _fake_wf_result(-0.30)}
+    _patch_wf(monkeypatch, data, results)
+    res = opt.walk_forward_multi(data, "sma", n_windows=4)
+    s = res["summary"]
+    assert s["n_positive"] == 2 and s["n_assets"] == 3   # majorite positive...
+    assert s["avg_oos_return"] < 0                        # ...mais moyenne negative
+    assert s["robust"] is False                           # dict : NON robuste
+    assert "NON robuste" in opt.format_walk_forward_multi(res)   # affichage idem
+
+
+def test_walk_forward_multi_one_positive_out_of_three_not_robust(monkeypatch, make_df):
+    """1 actif positif sur 3 = PAS robuste (verdict honnete)."""
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD", "SOL/USD")}
+    results = {"BTC/USD": _fake_wf_result(0.30), "ETH/USD": _fake_wf_result(-0.10),
+               "SOL/USD": _fake_wf_result(-0.02)}
+    _patch_wf(monkeypatch, data, results)
+    res = opt.walk_forward_multi(data, "sma", n_windows=4)
+    assert res["summary"]["robust"] is False
+    txt = opt.format_walk_forward_multi(res)
+    assert "NON robuste" in txt
+
+
+def test_walk_forward_multi_skips_failing_asset(monkeypatch, make_df):
+    """Un actif en echec est signale et ignore, jamais masque."""
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD", "SOL/USD")}
+    results = {"BTC/USD": _fake_wf_result(0.10), "SOL/USD": _fake_wf_result(0.05)}
+    _patch_wf(monkeypatch, data, results, failing=("ETH/USD",))
+    res = opt.walk_forward_multi(data, "sma", n_windows=4)
+    assert set(res["per_symbol"]) == {"BTC/USD", "SOL/USD"}
+    assert "ETH/USD" in res["errors"]
+    assert res["summary"]["n_assets"] == 2
+    txt = opt.format_walk_forward_multi(res)
+    assert "ignore ETH/USD" in txt
+
+
+def test_walk_forward_multi_all_fail_raises(monkeypatch, make_df):
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD")}
+    _patch_wf(monkeypatch, data, {}, failing=("BTC/USD", "ETH/USD"))
+    with pytest.raises(RuntimeError):
+        opt.walk_forward_multi(data, "sma", n_windows=4)
+
+
+def test_format_walk_forward_multi_table_lists_each_asset(monkeypatch, make_df):
+    base = make_df(_oscillating(100))
+    data = {s: base.copy() for s in ("BTC/USD", "ETH/USD", "SOL/USD")}
+    results = {s: _fake_wf_result(0.10) for s in data}
+    _patch_wf(monkeypatch, data, results)
+    res = opt.walk_forward_multi(data, "sma", n_windows=4)
+    txt = opt.format_walk_forward_multi(res)
+    for s in data:
+        assert s in txt
+    assert "Synthese" in txt and "3 actifs evalues" in txt
