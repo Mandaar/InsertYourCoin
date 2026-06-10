@@ -242,3 +242,41 @@ def test_fixed_params_warmup_revives_long_lookback(make_df):
     # Le warm-up etendu doit couvrir le lookback (sinon le signal serait flat).
     assert opt._params_warmup({"lookback": 365}) >= 365
     assert any(w["metrics"]["exposure"] > 0 for w in res["windows"])
+
+
+# --------------------------------------------------------------------------- #
+#  B12+ : Sharpe deflate (PSR/DSR) expose par walk_forward                     #
+# --------------------------------------------------------------------------- #
+def test_walk_forward_exposes_psr_dsr_and_trials(make_df):
+    """walk_forward retourne psr/dsr/n_trials/n_obs_oos coherents."""
+    df = make_df(_oscillating(600))
+    res = opt.walk_forward(df, "sma", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0)
+    assert "psr" in res and "dsr" in res
+    assert res["n_obs_oos"] > 0
+    # En mode OPTIMISE, n_trials = nb de combos valides de la grille SMA.
+    grid, is_valid = opt.DEFAULT_GRIDS["sma"]
+    n_combos = sum(1 for _ in opt._combos(grid, is_valid))
+    assert res["n_trials"] == n_combos and n_combos > 1
+    # PSR/DSR sont des probas (ou NaN propre), jamais inf.
+    for v in (res["psr"], res["dsr"]):
+        assert np.isnan(v) or (0.0 <= v <= 1.0)
+
+
+def test_walk_forward_dsr_below_psr_when_optimised(make_df):
+    """Mode optimise (n_trials > 1) : DSR <= PSR (le data-mining est penalise)."""
+    df = make_df(_oscillating(600))
+    res = opt.walk_forward(df, "sma", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0)
+    if np.isfinite(res["psr"]) and np.isfinite(res["dsr"]):
+        assert res["dsr"] <= res["psr"] + 1e-12
+
+
+def test_walk_forward_fixed_params_n_trials_is_one(make_df):
+    """Mode fige : 1 seul essai -> DSR == PSR (aucune penalite de data-mining)."""
+    df = make_df(_trend_then_reversal(700))
+    res = opt.walk_forward(df, "sma", n_windows=4, train_frac=0.5, metric="sharpe",
+                           fee=0.0, fixed_params={"fast": 50, "slow": 200})
+    assert res["n_trials"] == 1
+    if np.isfinite(res["psr"]) and np.isfinite(res["dsr"]):
+        assert res["dsr"] == pytest.approx(res["psr"])

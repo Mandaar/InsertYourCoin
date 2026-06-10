@@ -51,7 +51,9 @@ def test_round_trip_applies_fee_twice(make_df):
     df = make_df([100, 100, 100, 100, 100], opens=[100, 100, 100, 100, 100])
     strat = FixedSignal([0, 1, 1, 0, 0])  # entree puis sortie sur signal, prix constant
     fee = 0.0026
-    res = Backtester(fee=fee, initial_capital=10_000).run(df, strat)
+    # slippage=0.0 pour ISOLER la mecanique de frais (le slippage est teste a part,
+    # cf. test_slippage_*). Sinon le defaut config.SLIPPAGE renchirit l'aller-retour.
+    res = Backtester(fee=fee, slippage=0.0, initial_capital=10_000).run(df, strat)
     assert len(res.trades) == 1
     t = res.trades[0]
     assert t["reason"] == "signal"
@@ -61,9 +63,45 @@ def test_round_trip_applies_fee_twice(make_df):
 def test_fees_reduce_final_equity(make_df):
     df = make_df([100, 101, 102, 101, 103, 104, 102, 105])
     strat = FixedSignal([0, 1, 0, 1, 0, 1, 0, 1])  # plusieurs aller-retours
-    no_fee = Backtester(fee=0.0, initial_capital=10_000).run(df, strat)
-    with_fee = Backtester(fee=0.01, initial_capital=10_000).run(df, strat)
+    no_fee = Backtester(fee=0.0, slippage=0.0, initial_capital=10_000).run(df, strat)
+    with_fee = Backtester(fee=0.01, slippage=0.0, initial_capital=10_000).run(df, strat)
     assert with_fee.metrics["final_equity"] < no_fee.metrics["final_equity"]
+
+
+# --------------------------------------------------------------------------- #
+#  Slippage (B6 : cout d'execution defavorable)                               #
+# --------------------------------------------------------------------------- #
+def test_slippage_costs_more_than_fees_alone(make_df):
+    # Aller-retour au MEME prix : avec slippage > 0, la perte depasse celle des
+    # seuls frais (on achete plus cher, on vend moins cher, EN PLUS du frais).
+    df = make_df([100, 100, 100, 100, 100], opens=[100, 100, 100, 100, 100])
+    strat = FixedSignal([0, 1, 1, 0, 0])
+    fee = 0.0026
+    no_slip = Backtester(fee=fee, slippage=0.0, initial_capital=10_000).run(df, strat)
+    with_slip = Backtester(fee=fee, slippage=0.005, initial_capital=10_000).run(df, strat)
+    assert with_slip.trades[0]["pnl"] < no_slip.trades[0]["pnl"]
+    assert with_slip.metrics["final_equity"] < no_slip.metrics["final_equity"]
+    # Sans frais, un aller-retour au meme prix devrait etre nul ; le slippage seul
+    # cree deja une perte (~ 2 cotes de slippage).
+    only_slip = Backtester(fee=0.0, slippage=0.005, initial_capital=10_000).run(df, strat)
+    assert only_slip.trades[0]["pnl"] < 0.0
+
+
+def test_slippage_zero_reproduces_legacy_behaviour(make_df):
+    # slippage=0 doit reproduire EXACTEMENT l'ancien comportement (frais seuls).
+    df = make_df([100, 100, 100, 100, 100], opens=[100, 100, 100, 100, 100])
+    strat = FixedSignal([0, 1, 1, 0, 0])
+    fee = 0.0026
+    res = Backtester(fee=fee, slippage=0.0, initial_capital=10_000).run(df, strat)
+    assert res.trades[0]["pnl"] == pytest.approx((1 - fee) ** 2 - 1, rel=1e-9)
+
+
+def test_slippage_default_comes_from_config(make_df):
+    # Le defaut (slippage=None) doit lire config.SLIPPAGE, pas 0.
+    import config
+    bt = Backtester()
+    assert bt.slippage == config.SLIPPAGE
+    assert config.SLIPPAGE > 0.0
 
 
 # --------------------------------------------------------------------------- #

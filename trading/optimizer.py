@@ -12,9 +12,11 @@ Deux outils :
 import itertools
 
 import numpy as np
+import pandas as pd
 
 from .backtester import Backtester
 from .strategies import STRATEGIES
+from .stats_metrics import probabilistic_sharpe_ratio, deflated_sharpe_ratio
 
 DEFAULT_GRIDS = {
     "sma": ({"fast": [10, 20, 30, 50], "slow": [50, 100, 150, 200]},
@@ -54,10 +56,13 @@ def _combos(grid, is_valid):
             yield params
 
 
-def _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol):
+def _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol,
+             slippage=None):
+    # B6) slippage propage tel quel : None => le Backtester prend config.SLIPPAGE,
+    # donc optimize / walk_forward heritent automatiquement du cout d'execution.
     return Backtester(fee=fee, stop_loss=stop_loss, take_profit=take_profit,
                       trailing_stop=trailing_stop, position_sizing=position_sizing,
-                      target_vol=target_vol)
+                      target_vol=target_vol, slippage=slippage)
 
 
 # B2) Nb minimum de trades sur la fenetre pour qu'une combinaison soit ELIGIBLE
@@ -103,13 +108,14 @@ def _best_on(bt, df, strat_cls, grid, is_valid, metric, warmup=0):
 
 def optimize(df, strategy_name, train_frac=0.6, metric="sharpe", fee=None,
              stop_loss=None, take_profit=None, trailing_stop=None,
-             position_sizing=None, target_vol=None):
+             position_sizing=None, target_vol=None, slippage=None):
     name = strategy_name.lower()
     strat_cls = STRATEGIES[name]
     grid, is_valid = DEFAULT_GRIDS[name]
     split = int(len(df) * train_frac)
     train, test = df.iloc[:split], df.iloc[split:]
-    bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol)
+    bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol,
+                  slippage)
 
     # Selection sur le TRAIN (in-sample). Pas de warm-up amont possible : il n'y a
     # pas de donnee avant l'indice 0 ; les premieres ~slow bougies sont degenerees,
@@ -149,7 +155,7 @@ def _params_warmup(params):
 
 def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe",
                  fee=None, stop_loss=None, take_profit=None, trailing_stop=None,
-                 position_sizing=None, target_vol=None, fixed_params=None):
+                 position_sizing=None, target_vol=None, fixed_params=None, slippage=None):
     """
     Walk-forward hors-echantillon.
 
@@ -169,7 +175,8 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
         raise RuntimeError("Pas assez de donnees pour ce walk-forward. "
                            "Augmente l'historique (--days) ou reduis --windows.")
     fold = (n - train_initial) // n_windows
-    bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol)
+    bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol,
+                  slippage)
 
     warmup_margin = _params_warmup(fixed_params) if fixed_params else WARMUP
 
@@ -201,13 +208,64 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
     metric_vals = np.array([w["metrics"][metric] for w in windows], dtype=float)
     finite = metric_vals[np.isfinite(metric_vals)]
     avg_metric = float(finite.mean()) if finite.size else float("nan")
+
+    # B12+) Sharpe deflate / probabiliste : penalise le nb d'essais et la
+    # non-normalite. n_trials = nb de combinaisons de la grille en mode OPTIMISE
+    # (chaque fenetre re-choisit la meilleure parmi autant de combos => data-mining),
+    # = 1 en mode FIGE (aucune selection). n_obs = total des bougies hors-echantillon.
+    n_trials = 1 if fixed_params else sum(1 for _ in _combos(grid, is_valid))
+    n_obs = _oos_n_obs(df, train_initial, fold, n_windows, n)
+    psr, dsr = _walk_forward_sharpe_deflated(df, windows, n_obs, n_trials)
+
     return {
         "strategy": name, "metric": metric, "windows": windows,
         "oos_total_return": compounded - 1,
         "avg_window_metric": avg_metric,
         "pct_profitable": sum(1 for r in returns if r > 0) / len(returns),
         "fixed_params": fixed_params,
+        "n_trials": n_trials,
+        "n_obs_oos": n_obs,
+        "psr": psr,
+        "dsr": dsr,
     }
+
+
+def _oos_n_obs(df, train_initial, fold, n_windows, n):
+    """Total des bougies effectivement comptees hors-echantillon (somme des fenetres)."""
+    total = 0
+    for w in range(n_windows):
+        test_start = train_initial + w * fold
+        test_end = n if w == n_windows - 1 else test_start + fold
+        total += (test_end - test_start)
+    return total
+
+
+def _periods_per_year(index):
+    """Bougies/an a partir d'un index temporel (pour de-annualiser le Sharpe)."""
+    if len(index) < 2:
+        return 365.0
+    sec = pd.Series(index).diff().dt.total_seconds().median()
+    return (365 * 24 * 3600) / sec if sec and not np.isnan(sec) else 365.0
+
+
+def _walk_forward_sharpe_deflated(df, windows, n_obs, n_trials):
+    """
+    PSR (proba que le vrai Sharpe > 0) et DSR (proba que le vrai Sharpe > seuil de
+    data-mining pour n_trials essais), calcules sur le Sharpe MOYEN hors-echantillon.
+
+    Le Sharpe stocke est ANNUALISE ; PSR/DSR raisonnent par observation -> on
+    de-annualise (sharpe_obs = sharpe_annuel / sqrt(bougies/an)) pour rester coherent
+    avec n_obs (nb de bougies). Aucune fenetre a Sharpe fini -> (NaN, NaN).
+    """
+    sharpes = np.array([w["metrics"]["sharpe"] for w in windows], dtype=float)
+    finite = sharpes[np.isfinite(sharpes)]
+    if finite.size == 0:
+        return float("nan"), float("nan")
+    ppy = _periods_per_year(df.index)
+    sharpe_obs = float(finite.mean()) / np.sqrt(ppy)
+    psr = probabilistic_sharpe_ratio(sharpe_obs, n_obs)
+    dsr = deflated_sharpe_ratio(sharpe_obs, n_obs, n_trials)
+    return psr, dsr
 
 
 # ---------------------------------------------------------------------- #
@@ -255,10 +313,42 @@ def format_walk_forward(res) -> str:
         f"Rendement cumule HORS-ECHANTILLON : {res['oos_total_return']*100:+.1f} %",
         f"Fenetres profitables             : {res['pct_profitable']*100:.0f} %",
         f"Critere moyen ({res['metric']})              : {res['avg_window_metric']:.2f}",
-        "",
     ]
+    out += _format_deflated_sharpe(res)
+    out.append("")
     out += _verdict(res["avg_window_metric"], 1.0, res["oos_total_return"], wf=True)
     return "\n".join(out)
+
+
+def _format_deflated_sharpe(res):
+    """Ligne 'Sharpe deflate (PSR/DSR)' + interpretation honnete (B12+).
+
+    PSR = proba que le vrai Sharpe OOS soit > 0 (tient compte de la taille
+    d'echantillon). DSR = la meme proba mais contre le seuil de data-mining attendu
+    pour `n_trials` essais : en mode optimise, plus la grille est grande, plus le DSR
+    chute. Un DSR << PSR signale que l'edge apparent vient surtout du nombre d'essais.
+    """
+    psr = res.get("psr")
+    dsr = res.get("dsr")
+    n_trials = res.get("n_trials", 1)
+    if psr is None or dsr is None:
+        return []
+    def _pct(x):
+        return "n/a" if (x is None or not np.isfinite(x)) else f"{x*100:.0f} %"
+    lines = [
+        f"Sharpe deflate (PSR/DSR)         : PSR {_pct(psr)} / DSR {_pct(dsr)} "
+        f"(essais testes : {n_trials})",
+    ]
+    if not np.isfinite(dsr):
+        lines.append("   -> Sharpe OOS non fiable (trop peu d'observations ou degenere) ; indecidable.")
+    elif n_trials > 1:
+        lines.append("   -> DSR = proba que l'edge soit reel APRES correction du data-mining "
+                     f"({n_trials} combos testes).")
+        lines.append("      DSR faible (< 50 %) = l'edge apparent vient surtout du nombre d'essais. "
+                     "Figer les parametres et re-tester.")
+    else:
+        lines.append("   -> Parametres figes (1 essai) : DSR = PSR, pas de penalite de data-mining ici.")
+    return lines
 
 
 def _verdict(test_metric, train_metric, test_return, wf=False):

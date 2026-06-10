@@ -12,7 +12,11 @@ Regles d'execution (realistes) :
   objectif sont touches dans la meme bougie, le STOP prime (prudence).
 - Apres un stop/objectif, pas de re-entree tant que le signal n'est pas retombe
   a 0 puis remonte a 1 (evite les aller-retours en boucle).
-- Frais preleves a chaque ordre. Pas de slippage modelise.
+- Frais preleves a chaque ordre. Slippage (B6) applique au prix d'execution :
+  ACHAT au prix*(1+slippage), VENTE au prix*(1-slippage), EN PLUS des frais.
+  Les prix `entry_price`/`exit_price` enregistres dans les trades restent les prix
+  de marche NOMINAUX (lisibilite) ; le slippage est integre au cash et au pnl reels.
+  slippage=0 reproduit l'ancien comportement.
 """
 import numpy as np
 import pandas as pd
@@ -68,8 +72,12 @@ class BacktestResult:
 class Backtester:
     def __init__(self, fee=None, initial_capital=None, stop_loss=None, take_profit=None,
                  trailing_stop=None, position_sizing=None, target_vol=None,
-                 vol_window=None, max_fraction=None):
+                 vol_window=None, max_fraction=None, slippage=None):
         self.fee = config.FEE if fee is None else fee
+        # B6) slippage = cout d'execution defavorable, applique au PRIX d'execution
+        # (achat plus cher, vente moins chere) EN PLUS des frais. slippage=0 reproduit
+        # exactement l'ancien comportement (resultats optimistes d'avant).
+        self.slippage = config.SLIPPAGE if slippage is None else slippage
         self.initial_capital = config.INITIAL_CAPITAL if initial_capital is None else initial_capital
         self.stop_loss = config.STOP_LOSS if stop_loss is None else stop_loss
         self.take_profit = config.TAKE_PROFIT if take_profit is None else take_profit
@@ -116,6 +124,7 @@ class Backtester:
         idx = df.index
         n = len(df)
         fee = self.fee
+        slip = self.slippage
 
         cash = self.initial_capital
         units = 0.0
@@ -127,10 +136,15 @@ class Backtester:
         trades = []
 
         def append_trade(exit_price, exit_time, reason, closed=True):
+            # B6) le pnl reflete le slippage REEL : on est entre a entry_price*(1+slip)
+            # et on sort a exit_price*(1-slip). On garde les prix NOMINAUX dans le trade
+            # (lisibilite), mais le rendement comptabilise le cout d'execution.
+            entry_eff = entry_price * (1 + slip)
+            exit_eff = exit_price * (1 - slip)
             mult = (1 - fee) ** 2 if closed else (1 - fee)
             trades.append({"entry_time": entry_time, "entry_price": entry_price,
                            "exit_time": exit_time, "exit_price": exit_price,
-                           "pnl": (exit_price / entry_price) * mult - 1, "reason": reason})
+                           "pnl": (exit_eff / entry_eff) * mult - 1, "reason": reason})
 
         for i in range(n):
             # B1) au point `warmup`, on (re)demarre le segment compte : capital
@@ -151,14 +165,16 @@ class Backtester:
                 frac = size_arr[i]
                 if frac > 0:
                     spend = cash * frac
-                    units = spend * (1 - fee) / o[i]
+                    # B6) achat au prix d'execution defavorable : o[i]*(1+slip).
+                    units = spend * (1 - fee) / (o[i] * (1 + slip))
                     cash -= spend
                     in_pos = True
-                    entry_price = o[i]
+                    entry_price = o[i]            # prix NOMINAL (le slippage est dans units)
                     entry_time = idx[i]
                     peak = o[i]
             elif desired[i] == 0 and in_pos:
-                cash += units * o[i] * (1 - fee)
+                # B6) vente au prix d'execution defavorable : o[i]*(1-slip).
+                cash += units * o[i] * (1 - slip) * (1 - fee)
                 append_trade(o[i], idx[i], "signal")
                 units = 0.0
                 in_pos = False
@@ -176,11 +192,13 @@ class Backtester:
                 tp_p = entry_price * (1 + self.take_profit) if self.take_profit else None
 
                 if stop_p is not None and l[i] <= stop_p:
-                    cash += units * stop_p * (1 - fee)
+                    # B6) vente au prix d'execution defavorable : stop_p*(1-slip).
+                    cash += units * stop_p * (1 - slip) * (1 - fee)
                     append_trade(stop_p, idx[i], stop_reason)
                     units = 0.0; in_pos = False; blocked = True
                 elif tp_p is not None and h[i] >= tp_p:
-                    cash += units * tp_p * (1 - fee)
+                    # B6) vente au prix d'execution defavorable : tp_p*(1-slip).
+                    cash += units * tp_p * (1 - slip) * (1 - fee)
                     append_trade(tp_p, idx[i], "objectif")
                     units = 0.0; in_pos = False; blocked = True
 
