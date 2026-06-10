@@ -19,6 +19,7 @@ from .strategies import STRATEGIES
 DEFAULT_GRIDS = {
     "sma": ({"fast": [10, 20, 30, 50], "slow": [50, 100, 150, 200]},
             lambda p: p["fast"] < p["slow"]),
+    "tsmom": ({"lookback": [90, 180, 365]}, None),
     "rsi": ({"period": [7, 14, 21], "oversold": [20, 25, 30], "overbought": [70, 75, 80]},
             None),
     "macd": ({"fast": [8, 12, 16], "slow": [21, 26, 34], "signal": [7, 9, 12]},
@@ -131,9 +132,34 @@ def optimize(df, strategy_name, train_frac=0.6, metric="sharpe", fee=None,
     }
 
 
+def _params_warmup(params):
+    """Marge de warm-up suffisante pour des parametres FIGES donnes.
+
+    B5) en mode parametres figes, la strategie peut avoir une periode plus longue
+    que la plus longue grille (ex. TSMOM lookback=365 > WARMUP=250). On etend le
+    warm-up pour ne pas amputer artificiellement le signal fige sur les fenetres
+    OOS courtes (memes garanties B1 que pour le mode optimise).
+    """
+    longest = 0
+    for v in params.values():
+        if isinstance(v, int) and v > longest:
+            longest = v
+    return max(WARMUP, longest + 50)
+
+
 def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe",
                  fee=None, stop_loss=None, take_profit=None, trailing_stop=None,
-                 position_sizing=None, target_vol=None):
+                 position_sizing=None, target_vol=None, fixed_params=None):
+    """
+    Walk-forward hors-echantillon.
+
+    B5) `fixed_params` (dict) : mode PARAMETRES FIGES. Si fourni, on N'OPTIMISE
+    PAS (jamais d'appel a `_best_on`) ; on instancie la strategie avec ces
+    parametres et on l'applique telle quelle sur CHAQUE fenetre OOS. Cela separe
+    l'edge d'un bot a parametres fixes (50/200, lookback 12 mois) de l'overfit
+    introduit par l'optimisation de la grille (data-mining, cf. AUDIT B5). Le
+    warm-up amont (B1) et le comptage OOS restent identiques.
+    """
     name = strategy_name.lower()
     strat_cls = STRATEGIES[name]
     grid, is_valid = DEFAULT_GRIDS[name]
@@ -145,23 +171,29 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
     fold = (n - train_initial) // n_windows
     bt = _make_bt(fee, stop_loss, take_profit, trailing_stop, position_sizing, target_vol)
 
+    warmup_margin = _params_warmup(fixed_params) if fixed_params else WARMUP
+
     windows = []
     compounded = 1.0
     for w in range(n_windows):
         test_start = train_initial + w * fold
         test_end = n if w == n_windows - 1 else test_start + fold
-        # Selection sur tout le passe disponible (deja warm depuis l'indice 0).
-        train = df.iloc[:test_start]
-        best_params, _ = _best_on(bt, train, strat_cls, grid, is_valid, metric)
+        if fixed_params:
+            # B5) aucune optimisation : params figes appliques tels quels.
+            params = dict(fixed_params)
+        else:
+            # Selection sur tout le passe disponible (deja warm depuis l'indice 0).
+            train = df.iloc[:test_start]
+            params, _ = _best_on(bt, train, strat_cls, grid, is_valid, metric)
         # B1) OOS [test_start, test_end) backteste avec warm-up amont, mais seul
         # ce segment est compte (equity/trades/metriques).
-        t_start = max(0, test_start - WARMUP)
+        t_start = max(0, test_start - warmup_margin)
         test_ext = df.iloc[t_start:test_end]
-        tm = bt.run(test_ext, strat_cls(**best_params), warmup=test_start - t_start).metrics
+        tm = bt.run(test_ext, strat_cls(**params), warmup=test_start - t_start).metrics
         compounded *= (1 + tm["total_return"])
         test = df.iloc[test_start:test_end]
         windows.append({"period": (test.index[0], test.index[-1]),
-                        "params": best_params, "metrics": tm})
+                        "params": params, "metrics": tm})
 
     returns = [win["metrics"]["total_return"] for win in windows]
     # B2) avg_window_metric ignore les fenetres degenerees (NaN/inf) au lieu de
@@ -174,6 +206,7 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
         "oos_total_return": compounded - 1,
         "avg_window_metric": avg_metric,
         "pct_profitable": sum(1 for r in returns if r > 0) / len(returns),
+        "fixed_params": fixed_params,
     }
 
 
@@ -200,7 +233,14 @@ def format_report(res) -> str:
 
 
 def format_walk_forward(res) -> str:
+    fixed = res.get("fixed_params")
+    if fixed:
+        bp = ", ".join(f"{k}={v}" for k, v in fixed.items())
+        mode = f"parametres FIGES ({bp}) -- aucune optimisation (anti-data-mining)"
+    else:
+        mode = "parametres OPTIMISES sur chaque train (re-selection de la grille)"
     out = [f"\n=== Walk-forward : {res['strategy'].upper()} (critere : {res['metric']}) ===",
+           f"Mode : {mode}",
            f"{len(res['windows'])} fenetres hors-echantillon enchainees\n",
            f"{'Fenetre (hors-ech.)':28s} {'Parametres':22s} {'Rendement':>10s} {'Sharpe':>7s}"]
     out.append("-" * 70)

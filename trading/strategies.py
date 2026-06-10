@@ -44,6 +44,25 @@ class SMACrossover(Strategy):
         return signal.where(slow.notna(), 0)
 
 
+class TSMomentum(Strategy):
+    """
+    Time-series momentum (momentum de serie temporelle), long/flat.
+    Long quand le prix actuel est au-dessus de son niveau d'il y a `lookback`
+    bougies (rendement glissant positif), flat sinon. Tant que le decalage
+    `shift(lookback)` est NaN (debut de serie, indicateurs pas amorces), on reste
+    flat (0). C'est l'anomalie la plus documentee de la finance quant (Moskowitz-
+    Ooi-Pedersen 2012). Signal lent -> tres peu d'ordres -> frais negligeables.
+    """
+    def __init__(self, lookback: int = 365):
+        self.lookback = lookback
+        self.name = f"TSMOM({lookback}j)"
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        past = df["close"].shift(self.lookback)
+        signal = (df["close"] > past).astype(int)
+        return signal.where(past.notna(), 0)
+
+
 class RSIStrategy(Strategy):
     """
     Retour a la moyenne via le RSI.
@@ -97,6 +116,7 @@ class BollingerStrategy(Strategy):
 # Registre pour selectionner une stratégie par son nom court (CLI)
 STRATEGIES = {
     "sma": SMACrossover,
+    "tsmom": TSMomentum,
     "rsi": RSIStrategy,
     "macd": MACDStrategy,
     "bollinger": BollingerStrategy,

@@ -19,6 +19,8 @@ Exemples :
   python main.py backtest  --strategy sma --stop-loss 8 --take-profit 20 --chart bt.png
   python main.py backtest  --strategy sma --trailing-stop 12 --position-sizing vol --target-vol 40
   python main.py walkforward --strategy sma --windows 4
+  python main.py walkforward --strategy sma --timeframe 1d --fixed "fast=50,slow=200"
+  python main.py walkforward --strategy tsmom --timeframe 1d --fixed "lookback=365"
   python main.py portfolio --symbols BTC/USD,ETH/USD,SOL/USD --strategy sma --stop-loss 8 --take-profit 20
   python main.py dashboard --strategy sma --stop-loss 8 --take-profit 20
   python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-profit 10
@@ -44,6 +46,34 @@ from trading.backtester import Backtester
 
 def _frac(pct):
     return None if pct is None else pct / 100.0
+
+
+def _parse_fixed(spec):
+    """
+    Parse une chaine "k1=v1,k2=v2" en dict (int si entier, sinon float).
+    Ex: "fast=50,slow=200" -> {"fast": 50, "slow": 200} ;
+        "lookback=365"     -> {"lookback": 365}.
+    Retourne None si `spec` est None/vide (mode optimise par defaut).
+    """
+    if not spec:
+        return None
+    out = {}
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" not in part:
+            sys.exit(f"--fixed : '{part}' invalide (attendu k=v).")
+        k, v = part.split("=", 1)
+        k, v = k.strip(), v.strip()
+        try:
+            out[k] = int(v)
+        except ValueError:
+            try:
+                out[k] = float(v)
+            except ValueError:
+                sys.exit(f"--fixed : valeur non numerique pour '{k}' : '{v}'.")
+    return out or None
 
 
 def _bt_kwargs(args):
@@ -118,8 +148,10 @@ def cmd_optimize(args):
 def cmd_walkforward(args):
     from trading.optimizer import walk_forward, format_walk_forward
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
+    fixed = _parse_fixed(getattr(args, "fixed", None))
     res = walk_forward(df, args.strategy, n_windows=args.windows,
-                       train_frac=args.train_frac, metric=args.metric, **_bt_kwargs(args))
+                       train_frac=args.train_frac, metric=args.metric,
+                       fixed_params=fixed, **_bt_kwargs(args))
     print(format_walk_forward(res))
 
 
@@ -317,6 +349,9 @@ def build_parser():
                    choices=["sharpe", "sortino", "calmar", "total_return", "profit_factor"])
     w.add_argument("--windows", type=int, default=4, help="nombre de fenetres hors-echantillon")
     w.add_argument("--train-frac", type=float, default=0.5, help="part initiale d'entrainement")
+    w.add_argument("--fixed", default=None, metavar="k=v,...",
+                   help="parametres FIGES (sans optimisation, anti-data-mining). "
+                        "Ex: --fixed \"fast=50,slow=200\" ou --fixed \"lookback=365\"")
     w.set_defaults(func=cmd_walkforward)
 
     d = sub.add_parser("dashboard"); common(d); _risk_args(d); _adv_risk_args(d)

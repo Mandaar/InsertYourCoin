@@ -188,3 +188,57 @@ def test_walk_forward_metric_finite_or_clean_nan(make_df):
     v = res["avg_window_metric"]
     assert not np.isinf(v)
     assert np.isfinite(v) or np.isnan(v)
+
+
+# --------------------------------------------------------------------------- #
+#  B5 : mode PARAMETRES FIGES (aucune optimisation -> anti-data-mining)        #
+# --------------------------------------------------------------------------- #
+def test_fixed_params_used_verbatim_on_every_window(make_df):
+    """
+    Avec fixed_params, AUCUNE optimisation : chaque fenetre porte EXACTEMENT les
+    parametres figes (pas de re-selection de la grille).
+    """
+    df = make_df(_trend_then_reversal(700))
+    fixed = {"fast": 50, "slow": 200}
+    res = opt.walk_forward(df, "sma", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0, fixed_params=fixed)
+    assert res["fixed_params"] == fixed
+    for w in res["windows"]:
+        assert w["params"] == fixed          # jamais re-optimise
+
+
+def test_fixed_params_does_not_call_best_on(make_df, monkeypatch):
+    """Garde-fou explicite : en mode fige, `_best_on` n'est JAMAIS appele."""
+    df = make_df(_trend_then_reversal(700))
+
+    def _boom(*a, **k):
+        raise AssertionError("_best_on ne doit pas etre appele en mode fige")
+
+    monkeypatch.setattr(opt, "_best_on", _boom)
+    res = opt.walk_forward(df, "tsmom", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0, fixed_params={"lookback": 365})
+    assert all(w["params"] == {"lookback": 365} for w in res["windows"])
+
+
+def test_fixed_params_windows_do_not_overlap(make_df):
+    """Le decoupage temporel (non-chevauchement) est preserve en mode fige."""
+    df = make_df(_trend_then_reversal(700))
+    res = opt.walk_forward(df, "sma", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0, fixed_params={"fast": 50, "slow": 200})
+    periods = [w["period"] for w in res["windows"]]
+    for (s0, e0), (s1, e1) in zip(periods, periods[1:]):
+        assert e0 < s1, f"fenetres qui se chevauchent : {e0} >= {s1}"
+
+
+def test_fixed_params_warmup_revives_long_lookback(make_df):
+    """
+    B1 preserve en mode fige : un TSMOM lookback=365 sur des fenetres OOS courtes
+    n'est PAS mort grace au warm-up amont etendu (>= lookback). Au moins une
+    fenetre est investie une partie du temps (exposure > 0).
+    """
+    df = make_df(_trend_then_reversal(900))
+    res = opt.walk_forward(df, "tsmom", n_windows=4, train_frac=0.5,
+                           metric="sharpe", fee=0.0, fixed_params={"lookback": 365})
+    # Le warm-up etendu doit couvrir le lookback (sinon le signal serait flat).
+    assert opt._params_warmup({"lookback": 365}) >= 365
+    assert any(w["metrics"]["exposure"] > 0 for w in res["windows"])
