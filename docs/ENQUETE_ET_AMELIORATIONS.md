@@ -67,6 +67,18 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - **TSMOM 365 fige** : OOS cumule **-6.6%**, **2/4** fenetres profitables -> pas d'edge net (mais mieux reparti que SMA).
 - **Lecon** : aucune pepite ; surtout l'echantillon OOS est **trop court (~1 an, ETH baissier)** pour conclure (cf. AUDIT B12). Le frais 0.80% ne penalise PAS ces strategies (bas turnover) -> la basse frequence est la bonne voie. Pour juger vraiment : **multi-actifs + plus d'historique + holdout + Deflated Sharpe** (= Phase B / harness).
 
+### Resultat d'etude #3 — 2026-06-10 — SMA 50/200 fige MULTI-ACTIFS (harness complet : holdout 20%, slippage, DSR)
+- Test : BTC/ETH/SOL daily, params figes, holdout 20% sacre (144 bougies/actif jamais vues), frais 0.80% + slippage 5 bps.
+- **Verdict : NON robuste — ne pas trader.** BTC -24.4% / ETH +20.2% / SOL -24.9% (OOS cumule), 1/3 actifs positif, moyenne -9.7%. Le +21.4% d'ETH (etude #2) etait bien un artefact d'actif/periode unique, pas un edge.
+- **Limite decouverte (B11 a fonctionne)** : l'API OHLC publique de Kraken ne sert que ~720 bougies par timeframe -> en daily on n'a QUE ~2 ans, quel que soit --days. Pour juger sur un cycle complet il faudra une source d'historique longue (CSV d'archives Kraken, autre API). -> backlog.
+- Etat des pistes du panel : SMA 50/200 fige REJETE multi-actifs ; TSMOM 365 deja negatif mono-actif. Prochaines pistes : TSMOM multi-actifs, filtre regime + vol-targeting par-dessus, et SURTOUT plus d'historique avant de re-conclure.
+
+## 6. Backlog technique (issu des reviews du 2026-06-10)
+- **Source d'historique LONGUE** (limite API Kraken ~720 bougies/timeframe) : CSV d'archives Kraken ou autre source, pour juger sur >= 1 cycle complet. PRIORITAIRE pour la recherche d'edge.
+- `lancer.py --status` : faux negatif transitoire sur le port juste apres le demarrage (course au bind, ~1s) -> petit retry possible.
+- Holdout : ancrer la frontiere sur une DATE explicite + journaliser chaque --final (registre des validations consommees).
+- `psutil` installe et requis -> protection maximale du --stop active (sans lui : fallback image python* seulement).
+
 ## 3. Etude du logiciel — quoi observer
 
 Donnees : `paper_stats.csv` (1 ligne / cycle), `paper_trades.log` (events + erreurs typuees),
