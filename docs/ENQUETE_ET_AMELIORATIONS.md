@@ -80,6 +80,13 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - **Nuance (2e occurrence, meme jour)** : `Start-Process lancer.py` ne suffit PAS -- les petits-enfants Popen de lancer.py meurent aussi (~quelques minutes). Seul le `Start-Process` DIRECT du process final (python main.py paper ...) est prouve (2 jours). Depuis la session : un Start-Process PAR service. La validation du double-clic `lancer.bat` (hors session) reste a faire par l'utilisateur -- attendue OK (pas de job).
 - **Lecon** : "le port repond" != "MON service tourne" (un squatteur peut repondre) -- la verification de signature du monitor (FIX 4) et l'identite des PID (FIX 1) existent precisement pour ca, et ont bien fonctionne.
 
+### Resultat d'etude #4 — 2026-06-10 — PREMIER SIGNAL D'EDGE : TSMOM 3/3 et SMA 2/3 sur ~8 ans
+- Test : source longue Binance (BTC/ETH depuis 2017-08, SOL depuis 2020-08), params FIGES, holdout 20% sacre (INTACT, --final jamais lance), frais 0.80% + slippage, walk-forward 4 fenetres, DSR.
+- **TSMOM 365j : 3/3 actifs positifs** — BTC +118.9% (Sharpe 1.05, DSR 97%), ETH +4.9% (DSR 83%), SOL +308.6% (Sharpe 1.35, DSR 98%). OOS moyen +144%.
+- **SMA 50/200 : 2/3 positifs** — BTC +75.9% (DSR 89%), ETH -11.7%, SOL +48.7%. Le verdict "non robuste" de l'etude #3 venait bien de l'echantillon trop court (2 ans baissiers), pas forcement d'une absence d'edge.
+- **Nuances d'honnetete (a relire avant toute decision)** : (1) PAS de comparaison Buy&Hold affichee -- sur 2017-2026 le B&H BTC bat probablement ces cumuls en rendement BRUT ; l'edge attendu de TSMOM est le rendement AJUSTE DU RISQUE (Sharpe/drawdown), pas de battre le B&H en absolu. (2) ETH a peine positif (+4.9%). (3) Recherche sur Binance USDT, execution future sur Kraken USD. (4) Periode = 1 cycle et demi seulement. (5) Le HOLDOUT RESTE VIERGE : la validation finale --final = decision explicite de Mandar, UNE seule fois.
+- **Prochaines etapes proposees** : comparer Sharpe/DD vs B&H par actif ; couche vol-targeting + filtre regime (panel #3) par-dessus TSMOM ; puis decision --final.
+
 ## 6. Backlog technique (issu des reviews du 2026-06-10)
 - **Source d'historique LONGUE** (limite API Kraken ~720 bougies/timeframe) : CSV d'archives Kraken ou autre source, pour juger sur >= 1 cycle complet. PRIORITAIRE pour la recherche d'edge.
 - `lancer.py --status` : faux negatif transitoire sur le port juste apres le demarrage (course au bind, ~1s) -> petit retry possible.
