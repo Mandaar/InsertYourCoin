@@ -13,3 +13,9 @@ python-dotenv>=1.0,<2
 # indispensable derriere un antivirus/proxy qui intercepte le HTTPS (ex. Avast) -- sans
 # jamais desactiver la verification SSL. Voir SETUP.md (section Antivirus/proxy).
 truststore>=0.9,<1
+
+# psutil : verification d'IDENTITE des process avant tout arret (lancer.py --stop).
+# Sans lui, le lanceur retombe sur des fallbacks plus grossiers (tasklist, /proc) qui ne
+# verifient que l'image python* -- avec psutil on confirme cmdline + service + timestamp
+# de demarrage (ne JAMAIS tuer un process tiers via un PID recycle).
+psutil>=5.9,<8

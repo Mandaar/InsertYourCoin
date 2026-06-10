@@ -13,3 +13,7 @@ paper_stats.csv
 
 # Config locale Claude Code (preview / launch) -- chemins specifiques a la machine
 .claude/launch.json
+
+# Lanceur : fichiers pid + consoles des process detaches
+run/
+logs/

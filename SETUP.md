@@ -111,6 +111,25 @@ python main.py dashboard --strategy sma --stop-loss 8 --take-profit 20   # ouvre
 
 ---
 
+## Lancer en un double-clic (paper + monitoring)
+Pour « lancer et laisser tourner » sans taper de commande :
+- **Windows** : double-clique `lancer.bat` ;
+- **macOS / Linux** : `./lancer.sh` (une fois `chmod +x lancer.sh`).
+
+Le lanceur fait, dans l'ordre : `main.py check` (diagnostic), démarre le **paper
+trading** en arrière-plan (console dans `logs/paper_console.log`), démarre le
+**monitoring** sur `http://127.0.0.1:8765` et ouvre ton navigateur dessus.
+Relancer ne double rien : si paper/monitor tournent déjà, il les réutilise.
+
+- **Arrêt** : double-clique `arreter.bat` (Windows) ou `python lancer.py --stop`.
+- **État** : `python lancer.py --status` ; aperçu sans rien lancer : `python lancer.py --dry-run`.
+- **Paper-only par construction** : ce lanceur ne sait lancer **que** paper + monitor
+  (jamais `live`), n'exige **aucune clé API** et le monitoring reste en local (`127.0.0.1`).
+- Les paramètres du paper (stratégie, timeframe, stop/objectif/trailing) se modifient
+  en tête de `lancer.py`, en attendant une page Options.
+
+---
+
 ## 10. Sécurité git (si tu publies le dépôt)
 **Règle d'or : ne jamais committer de secret.** `.env` (clés Kraken), `paper_state.json`,
 `live_trades.log` et les `*_stats.csv` sont déjà dans `.gitignore`. Avant chaque commit :
