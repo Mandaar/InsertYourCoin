@@ -73,6 +73,12 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - **Limite decouverte (B11 a fonctionne)** : l'API OHLC publique de Kraken ne sert que ~720 bougies par timeframe -> en daily on n'a QUE ~2 ans, quel que soit --days. Pour juger sur un cycle complet il faudra une source d'historique longue (CSV d'archives Kraken, autre API). -> backlog.
 - Etat des pistes du panel : SMA 50/200 fige REJETE multi-actifs ; TSMOM 365 deja negatif mono-actif. Prochaines pistes : TSMOM multi-actifs, filtre regime + vol-targeting par-dessus, et SURTOUT plus d'historique avant de re-conclure.
 
+### Incident #3 — 2026-06-10 — process du lanceur morts silencieusement (~1 min apres lancement)
+- **Symptome** : paper+monitor demarres par `lancer.py` morts sans trace (consoles vides, 1 seul cycle CSV) ; `--status` les declare orphelins alors que le port 8765 repond encore (squatte par le Preview de l'outil Claude qui avait relance ses propres monitors).
+- **Cause racine** : les process lances DEPUIS une commande Bash/PowerShell de la session Claude appartiennent au *job* de cette commande -> ils sont TUES a la fin de la commande, meme "detaches" (DETACHED_PROCESS ne suffit pas face a un Job Object kill-on-close). Preuve inverse : un paper lance via `Start-Process` (hors job) avait survecu 2 jours.
+- **Correction durable** : depuis la session Claude, TOUJOURS lancer le long-vivant via `Start-Process` (PowerShell). Le DOUBLE-CLIC utilisateur (`lancer.bat`) n'est PAS affecte (cmd.exe normal, pas de job). Verification de survie = controler les process dans une COMMANDE SEPAREE de celle qui les a lances.
+- **Lecon** : "le port repond" != "MON service tourne" (un squatteur peut repondre) -- la verification de signature du monitor (FIX 4) et l'identite des PID (FIX 1) existent precisement pour ca, et ont bien fonctionne.
+
 ## 6. Backlog technique (issu des reviews du 2026-06-10)
 - **Source d'historique LONGUE** (limite API Kraken ~720 bougies/timeframe) : CSV d'archives Kraken ou autre source, pour juger sur >= 1 cycle complet. PRIORITAIRE pour la recherche d'edge.
 - `lancer.py --status` : faux negatif transitoire sur le port juste apres le demarrage (course au bind, ~1s) -> petit retry possible.
