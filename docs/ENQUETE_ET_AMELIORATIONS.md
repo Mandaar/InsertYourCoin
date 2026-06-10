@@ -61,6 +61,12 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - **Hors-echantillon** (`walkforward`, optimise glissant, 4 fenetres) : **-13.6%**, 25% de fenetres profitables -> **verdict : ne pas trader**.
 - **Lecon** : l'in-sample ET l'**optimisation** des parametres FLATTENT ; le walk-forward demasque le mirage. Prochain test a faire : `SMA` **50/200 FIGE** (sans optimisation) pour distinguer 'pas d'edge' de 'overfit d'optimisation'.
 
+### Resultat d'etude #2 — 2026-06-08 — SMA 50/200 fige & TSMOM 365 fige (moteur REPARE, frais 0.80%)
+- Test : parametres FIGES (zero optimisation), walk-forward 4 fenetres OOS (~1 an), daily, taker futur 0.80%.
+- **SMA 50/200 fige** : OOS cumule **+21.4%** MAIS porte par UNE SEULE fenetre (+94.5% en bull) ; les 3 autres flat/perte -> **1/4 profitable** = non robuste (coup concentre, pas un edge). Profil DEFENSIF (sort en bear) a creuser.
+- **TSMOM 365 fige** : OOS cumule **-6.6%**, **2/4** fenetres profitables -> pas d'edge net (mais mieux reparti que SMA).
+- **Lecon** : aucune pepite ; surtout l'echantillon OOS est **trop court (~1 an, ETH baissier)** pour conclure (cf. AUDIT B12). Le frais 0.80% ne penalise PAS ces strategies (bas turnover) -> la basse frequence est la bonne voie. Pour juger vraiment : **multi-actifs + plus d'historique + holdout + Deflated Sharpe** (= Phase B / harness).
+
 ## 3. Etude du logiciel — quoi observer
 
 Donnees : `paper_stats.csv` (1 ligne / cycle), `paper_trades.log` (events + erreurs typuees),
