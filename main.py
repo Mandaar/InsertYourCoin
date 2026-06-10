@@ -19,6 +19,7 @@ Exemples :
   python main.py backtest  --strategy sma --stop-loss 8 --take-profit 20 --chart bt.png
   python main.py backtest  --strategy sma --trailing-stop 12 --position-sizing vol --target-vol 40
   python main.py walkforward --strategy sma --windows 4
+  python main.py walkforward --source binance --days 2900 --strategy sma --fixed "fast=50,slow=200" --symbols BTC/USD,ETH/USD,SOL/USD
   python main.py walkforward --strategy sma --timeframe 1d --fixed "fast=50,slow=200"
   python main.py walkforward --strategy tsmom --timeframe 1d --fixed "lookback=365"
   python main.py walkforward --strategy sma --fixed "fast=50,slow=200" --holdout 20 --symbols BTC/USD,ETH/USD,SOL/USD
@@ -90,29 +91,38 @@ def _bt_kwargs(args):
     )
 
 
-def _load_data(ex, symbol, timeframe, days):
-    # B11/FIX2) Router selon les BARRES ATTENDUES, pas les jours : en intraday
-    # (--timeframe 1h --days 700), un fetch_ohlcv(limit=720) ne couvre que ~30
-    # jours (720 bougies horaires) -- troncature silencieuse. On bascule sur la
-    # pagination des qu'on attend plus de 720 bougies (qui, elle, avertit B11 si
-    # la couverture reste courte). Sinon fetch_ohlcv simple suffit.
-    expected_bars = (days * 86400 / KrakenExchange._timeframe_seconds(timeframe)) if days else 0
-    if expected_bars > 720:
-        df = ex.fetch_ohlcv_range(symbol, timeframe, since_days=days)
+def _load_data(ex, symbol, timeframe, days, source="kraken"):
+    # source="binance" : historique LONG pour la RECHERCHE (Binance USDT, sans cle ;
+    # l'execution reelle reste Kraken USD). On mappe le symbole et on pagine depuis
+    # le debut du listing. `ex` (Kraken) est ignore sur ce chemin -- le paper/live ne
+    # passent jamais par source=binance.
+    if source == "binance":
+        from trading.history import fetch_long_ohlcv
+        df = fetch_long_ohlcv(symbol, timeframe, since_days=days)
     else:
-        df = ex.fetch_ohlcv(symbol, timeframe, limit=min(days or 720, 720))
+        # B11/FIX2) Router selon les BARRES ATTENDUES, pas les jours : en intraday
+        # (--timeframe 1h --days 700), un fetch_ohlcv(limit=720) ne couvre que ~30
+        # jours (720 bougies horaires) -- troncature silencieuse. On bascule sur la
+        # pagination des qu'on attend plus de 720 bougies (qui, elle, avertit B11 si
+        # la couverture reste courte). Sinon fetch_ohlcv simple suffit.
+        expected_bars = (days * 86400 / KrakenExchange._timeframe_seconds(timeframe)) if days else 0
+        if expected_bars > 720:
+            df = ex.fetch_ohlcv_range(symbol, timeframe, since_days=days)
+        else:
+            df = ex.fetch_ohlcv(symbol, timeframe, limit=min(days or 720, 720))
     # B4) la DERNIERE bougie est potentiellement EN FORMATION (non close) : on
     # l'exclut de tout backtest/optimisation (convention unique backtest == paper ;
     # le paper fait SA propre exclusion dans sa boucle, ne pas la doubler ici ET la-bas).
+    # Vaut pour les deux sources (Binance re-telecharge toujours sa derniere bougie).
     return df.iloc[:-1] if len(df) > 1 else df
 
 
-def _load_basket(ex, symbols, timeframe, days):
+def _load_basket(ex, symbols, timeframe, days, source="kraken"):
     # Herite de l'exclusion B4 (bougie en formation) via _load_data.
     data = {}
     for s in symbols:
         try:
-            data[s] = _load_data(ex, s, timeframe, days)
+            data[s] = _load_data(ex, s, timeframe, days, source=source)
         except Exception as e:
             print(f"  (ignore {s} : {e})")
     if not data:
@@ -127,7 +137,8 @@ def _run_all_strategies(df, **bt_kwargs):
 
 
 def cmd_backtest(args):
-    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
+    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
+                    source=getattr(args, "source", "kraken"))
     result = Backtester(**_bt_kwargs(args)).run(df, build_strategy(args.strategy))
     print(result.summary())
     if args.chart:
@@ -135,7 +146,8 @@ def cmd_backtest(args):
 
 
 def cmd_compare(args):
-    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
+    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
+                    source=getattr(args, "source", "kraken"))
     rows = _run_all_strategies(df, **_bt_kwargs(args))
     print(f"\nComparaison sur {args.symbol} ({args.timeframe}), "
           f"{df.index[0].date()} -> {df.index[-1].date()}")
@@ -154,7 +166,8 @@ def cmd_compare(args):
 
 def cmd_optimize(args):
     from trading.optimizer import optimize, format_report
-    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
+    df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
+                    source=getattr(args, "source", "kraken"))
     res = optimize(df, args.strategy, train_frac=args.train_frac, metric=args.metric, **_bt_kwargs(args))
     print(format_report(res))
 
@@ -171,12 +184,14 @@ def cmd_walkforward(args):
         sys.exit("--final exige --holdout > 0 (sans holdout, pas de segment sacre).")
 
     ex = KrakenExchange()
+    source = getattr(args, "source", "kraken")
     if getattr(args, "symbols", None):
         # Multi-actifs : --symbols prime, --symbol est ignore.
         symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
-        data = _load_basket(ex, symbols, args.timeframe, args.days)
+        data = _load_basket(ex, symbols, args.timeframe, args.days, source=source)
     else:
-        data = {args.symbol: _load_data(ex, args.symbol, args.timeframe, args.days)}
+        data = {args.symbol: _load_data(ex, args.symbol, args.timeframe, args.days,
+                                        source=source)}
 
     # B7) holdout SACRE : les dernieres bougies sont RETIREES avant tout --
     # ni l'optimisation ni les fenetres OOS du walk-forward ne les voient JAMAIS.
@@ -358,6 +373,19 @@ def _save_chart(result, path):
     print(f"Graphique enregistre : {path}")
 
 
+def _source_arg(sp):
+    """Source de donnees pour l'ANALYSE (backtest/compare/optimize/walkforward).
+
+    'kraken' (defaut) = donnees Kraken (~720 bougies max, l'exchange d'execution).
+    'binance' = historique LONG pour la RECHERCHE (Binance USDT, sans cle, depuis
+    2017-08 en daily) -- l'execution reelle reste Kraken USD (ecart minime affiche).
+    Le paper/live ne sont PAS concernes (100% Kraken).
+    """
+    sp.add_argument("--source", choices=["kraken", "binance"], default="kraken",
+                    help="source de donnees d'analyse : 'kraken' (defaut) ou 'binance' "
+                         "(historique long pour la recherche, sans cle)")
+
+
 def _risk_args(sp):
     sp.add_argument("--stop-loss", type=float, default=None, metavar="PCT",
                     help="stop-loss en %% (ex: 8)")
@@ -391,19 +419,19 @@ def build_parser():
         if days:
             sp.add_argument("--days", type=int, default=720)
 
-    b = sub.add_parser("backtest"); common(b); _risk_args(b); _adv_risk_args(b)
+    b = sub.add_parser("backtest"); common(b); _source_arg(b); _risk_args(b); _adv_risk_args(b)
     b.add_argument("--chart", metavar="FICHIER.png"); b.set_defaults(func=cmd_backtest)
 
-    c = sub.add_parser("compare"); common(c); _risk_args(c); _adv_risk_args(c)
+    c = sub.add_parser("compare"); common(c); _source_arg(c); _risk_args(c); _adv_risk_args(c)
     c.set_defaults(func=cmd_compare)
 
-    o = sub.add_parser("optimize"); common(o); _risk_args(o); _adv_risk_args(o)
+    o = sub.add_parser("optimize"); common(o); _source_arg(o); _risk_args(o); _adv_risk_args(o)
     o.add_argument("--metric", default="sharpe",
                    choices=["sharpe", "sortino", "calmar", "total_return", "profit_factor"])
     o.add_argument("--train-frac", type=float, default=0.6)
     o.set_defaults(func=cmd_optimize)
 
-    w = sub.add_parser("walkforward"); common(w); _risk_args(w); _adv_risk_args(w)
+    w = sub.add_parser("walkforward"); common(w); _source_arg(w); _risk_args(w); _adv_risk_args(w)
     w.add_argument("--metric", default="sharpe",
                    choices=["sharpe", "sortino", "calmar", "total_return", "profit_factor"])
     w.add_argument("--windows", type=int, default=4, help="nombre de fenetres hors-echantillon")

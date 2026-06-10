@@ -12,6 +12,9 @@ paper_stats.csv
 *_stats.csv
 options.json
 
+# Cache d'historique de recherche (Binance, re-telechargeable a la demande)
+data/
+
 # Config locale Claude Code (preview / launch) -- chemins specifiques a la machine
 .claude/launch.json
 
