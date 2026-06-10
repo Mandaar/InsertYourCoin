@@ -20,9 +20,14 @@ import datetime as dt
 import html
 import http.server
 import json
+import secrets
+import urllib.parse
 from pathlib import Path
 
 import config
+from .options import (
+    read_options, write_options, update_env_file, keys_configured, LOG_LEVELS,
+)
 
 
 def project_root() -> Path:
@@ -374,7 +379,8 @@ def _page(fragment):
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Paper trading - monitoring</title>"
         f"<style>{_CSS}</style></head><body>"
-        "<div class='head'><h1>Paper trading - monitoring</h1></div>"
+        "<div class='head'><h1>Paper trading - monitoring</h1>"
+        "<a class='navlink' href='/options'>Options</a></div>"
         f"<div id='content'>{fragment}</div>"
         + _JS_REFRESH
         + "</body></html>"
@@ -382,18 +388,172 @@ def _page(fragment):
 
 
 # --------------------------------------------------------------------------- #
+#  Page Options (niveau de logs, liaison Kraken, lien wallet)                 #
+#                                                                             #
+#  SECURITE : aucune VALEUR de cle n'apparait jamais dans le HTML, ni dans un #
+#  log, ni dans une reponse. Un token anti-CSRF est exige au POST. L'en-tete  #
+#  Host est verifie cote serveur (anti DNS-rebinding).                        #
+# --------------------------------------------------------------------------- #
+_WITHDRAW_URL = "https://www.kraken.com/u/funding/withdraw"
+
+_OPTIONS_CSS = _CSS + """
+.navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
+.navlink:hover { text-decoration: underline; }
+form.opt { margin: 0; }
+.radio-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 4px; }
+.radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.field { margin: 12px 0; }
+.field label.flabel { display: block; font-size: 12px; color: #9fb0c3;
+  margin-bottom: 4px; }
+.field input[type=password] { width: 100%; max-width: 460px; padding: 8px 10px;
+  background: #0e1116; color: #d7dee8; border: 1px solid #2a333f; border-radius: 6px;
+  font-family: ui-monospace, Consolas, monospace; }
+.check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
+  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+.btn:hover { background: #2a7bff; }
+.help { font-size: 12px; color: #7f8c9c; margin: 6px 0; line-height: 1.5; }
+.ok { color: #46c46f; font-weight: 600; }
+.no { color: #e5534b; font-weight: 600; }
+.saved { background: #12331d; border: 1px solid #46c46f; color: #9ff0b8;
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600; }
+.warn { color: #f0b429; }
+a.wallet { color: #6cb6ff; }
+"""
+
+
+def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
+    """
+    Page HTML COMPLETE de la page Options (fonction PURE, testable sans serveur).
+    NE CONTIENT JAMAIS la valeur d'une cle, meme si configuree : seul l'etat
+    booleen `keys_ok` est affiche. `csrf_token` est injecte en champ cache du form.
+    """
+    if log_level not in LOG_LEVELS:
+        log_level = "moyen"
+
+    saved_html = (
+        "<div class='saved'>Modifications enregistrees.</div>" if saved else ""
+    )
+
+    # Boutons radio niveau de logs (l'actif est coche).
+    radios = []
+    labels = {"leger": "Leger (evenements seuls)",
+              "moyen": "Moyen (defaut : + statut par cycle)",
+              "complet": "Complet (+ detail par cycle)"}
+    for lvl in LOG_LEVELS:
+        checked = " checked" if lvl == log_level else ""
+        radios.append(
+            f"<label><input type='radio' name='log_level' value='{lvl}'{checked}> "
+            f"{_esc(labels.get(lvl, lvl))}</label>"
+        )
+    radio_html = "<div class='radio-row'>" + "".join(radios) + "</div>"
+
+    etat_cles = (
+        "<span class='ok'>OUI</span>" if keys_ok else "<span class='no'>NON</span>"
+    )
+
+    token = _esc(csrf_token)
+
+    body = (
+        "<div class='head'><h1>Options</h1>"
+        "<a class='navlink' href='/'>&larr; Retour au monitoring</a></div>"
+        + saved_html
+        + "<form class='opt' method='post' action='/options'>"
+        f"<input type='hidden' name='csrf_token' value='{token}'>"
+
+        # (a) Niveau de logs
+        "<div class='card'><h2>Niveau de logs du paper</h2>"
+        + radio_html
+        + "<p class='help'>Applique a chaud (le paper relit ce reglage a chaque "
+          "cycle). Les ACHAT/VENTE et les erreurs sont toujours journalises.</p>"
+        "</div>"
+
+        # (b) Liaison Kraken
+        "<div class='card'><h2>Liaison Kraken</h2>"
+        f"<p>Cles configurees : {etat_cles}</p>"
+        "<div class='field'><label class='flabel' for='api_key'>Cle API "
+        "(publique)</label>"
+        "<input type='password' id='api_key' name='api_key' autocomplete='off' "
+        "placeholder='(laisser vide pour ne pas changer)'></div>"
+        "<div class='field'><label class='flabel' for='api_secret'>Cle privee "
+        "(secret)</label>"
+        "<input type='password' id='api_secret' name='api_secret' "
+        "autocomplete='off' placeholder='(laisser vide pour ne pas changer)'></div>"
+        "<div class='check-row'><input type='checkbox' id='persist' "
+        "name='persist' value='1'>"
+        "<label for='persist'>Enregistrer dans .env (sinon : session seulement, "
+        "rien n'est ecrit sur disque)</label></div>"
+        "<p class='help'>Cree ta cle sur Kraken avec UNIQUEMENT "
+        "<strong>Query Funds</strong> + <strong>Create &amp; Modify Orders</strong>. "
+        "<span class='warn'>JAMAIS</span> <strong>Withdraw Funds</strong> : cette "
+        "application n'a aucun besoin de retirer des fonds.</p>"
+        "<button class='btn' type='submit'>Enregistrer</button>"
+        "</div>"
+        "</form>"
+
+        # (c) Wallet
+        "<div class='card'><h2>Wallet</h2>"
+        f"<p><a class='wallet' href='{_WITHDRAW_URL}' target='_blank' "
+        "rel='noopener'>Transferer vers mon wallet (page officielle Kraken)</a></p>"
+        "<p class='help'>Le retrait se fait sur Kraken avec ton 2FA. Conseil : "
+        "active la <strong>whitelist d'adresses</strong> de retrait. "
+        "CETTE APP NE FAIT JAMAIS DE RETRAIT ET N'ENREGISTRE RIEN COTE WALLET.</p>"
+        "</div>"
+    )
+
+    return (
+        "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<title>Options - monitoring</title>"
+        f"<style>{_OPTIONS_CSS}</style></head><body>"
+        + body
+        + "</body></html>"
+    )
+
+
+def csrf_valid(submitted_token, expected_token) -> bool:
+    """Comparaison anti-CSRF en temps constant. Faux si l'un est vide/absent."""
+    if not submitted_token or not expected_token:
+        return False
+    return secrets.compare_digest(str(submitted_token), str(expected_token))
+
+
+def host_allowed(host_header, port) -> bool:
+    """
+    L'en-tete Host doit cibler 127.0.0.1/localhost sur le bon port (anti
+    DNS-rebinding). Le port peut etre omis par certains clients -> tolere.
+    """
+    if not host_header:
+        return False
+    allowed = {f"127.0.0.1:{port}", f"localhost:{port}", "127.0.0.1", "localhost"}
+    return host_header.strip().lower() in allowed
+
+
+# --------------------------------------------------------------------------- #
 #  Serveur (relit les fichiers a CHAQUE requete)                              #
 # --------------------------------------------------------------------------- #
-def run_monitor(port=8765, host="127.0.0.1",
-                stats_path=None, log_path=None, state_path=None):
+def build_monitor_server(port=8765, host="127.0.0.1",
+                         stats_path=None, log_path=None, state_path=None):
     """
-    Demarre le serveur de monitoring (bloquant). Les chemins None sont resolus
-    par defaut depuis project_root() (robuste au repertoire de lancement).
+    Construit le serveur de monitoring et le RETOURNE (sans le demarrer).
+    Separe de run_monitor pour etre testable en integration (port=0 = port
+    ephemere choisi par l'OS). Les chemins None sont resolus par defaut depuis
+    project_root() (robuste au repertoire de lancement).
     """
     root = project_root()
+    # Port reellement lie (mis a jour apres bind ; port=0 -> ephemere). Le
+    # Handler lit bound_port[0] pour la verification Host (anti DNS-rebinding).
+    bound_port = [port]
     stats_path = Path(stats_path) if stats_path else root / "paper_stats.csv"
     log_path = Path(log_path) if log_path else root / "paper_trades.log"
     state_path = Path(state_path) if state_path else root / "paper_state.json"
+
+    # Token anti-CSRF genere au demarrage du serveur : un site malveillant ouvert
+    # dans le navigateur peut POSTer vers 127.0.0.1, mais ne connait pas ce token.
+    csrf_token = secrets.token_hex(32)
+    # Cles "session seulement" (case decochee) : gardees EN MEMOIRE du process
+    # monitor, JAMAIS ecrites sur disque. Utilisables pour un futur test de liaison.
+    _session_keys = {}
 
     def _compute_view_now():
         """Relit les 3 fichiers et calcule la vue (factorise pour les deux routes)."""
@@ -404,8 +564,36 @@ def run_monitor(port=8765, host="127.0.0.1",
         return compute_view(state, stats, log_lines, config.INITIAL_CAPITAL, now_str)
 
     class Handler(http.server.BaseHTTPRequestHandler):
+        def _send_html(self, content, code=200):
+            body = content.encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _host_ok(self):
+            if not host_allowed(self.headers.get("Host"), bound_port[0]):
+                self._send_html("<h1>403 - Host non autorise</h1>", code=403)
+                return False
+            return True
+
+        def _options_page(self, saved=False):
+            opts = read_options()
+            return render_options_page(
+                opts.get("log_level", "moyen"), keys_configured(), csrf_token,
+                saved=saved,
+            )
+
         def do_GET(self):
             try:
+                if self.path.startswith("/options"):
+                    if not self._host_ok():
+                        return
+                    saved = "saved=1" in (self.path.split("?", 1)[1]
+                                          if "?" in self.path else "")
+                    self._send_html(self._options_page(saved=saved))
+                    return
                 view = _compute_view_now()
                 if self.path.startswith("/fragment"):
                     # Route fragment : retourne uniquement le contenu (pas la coquille).
@@ -413,23 +601,90 @@ def run_monitor(port=8765, host="127.0.0.1",
                 else:
                     # Route principale : page complete (coquille + fragment + script JS).
                     content = build_html(view)
+                self._send_html(content)
             except Exception as exc:  # ne JAMAIS crasher le serveur
-                content = (
+                # NE JAMAIS inclure de donnee sensible : str(exc) ne porte pas de cle.
+                self._send_html(
                     "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
                     "<title>Erreur monitoring</title></head><body>"
                     f"<h1>Erreur monitoring : {html.escape(str(exc))}</h1>"
                     "</body></html>"
                 )
-            body = content.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
+
+        def do_POST(self):
+            # Seule /options accepte un POST ; tout le reste -> 404.
+            if not self.path.startswith("/options"):
+                self._send_html("<h1>404</h1>", code=404)
+                return
+            if not self._host_ok():
+                return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                length = 0
+            raw = self.rfile.read(length) if length > 0 else b""
+            form = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+
+            def _one(name):
+                vals = form.get(name)
+                return vals[0] if vals else ""
+
+            # Verification anti-CSRF AVANT toute action.
+            if not csrf_valid(_one("csrf_token"), csrf_token):
+                self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                return
+
+            try:
+                # 1) Niveau de logs (ecrit dans options.json si valide).
+                level = _one("log_level")
+                if level in LOG_LEVELS:
+                    opts = read_options()
+                    opts["log_level"] = level
+                    write_options(opts)
+
+                # 2) Cles API : seulement si fournies. Persistance .env si case cochee,
+                #    sinon stockage memoire (session). Les VALEURS ne sont jamais
+                #    loggees ni renvoyees.
+                api_key = _one("api_key")
+                api_secret = _one("api_secret")
+                persist = _one("persist") == "1"
+                updates = {}
+                if api_key:
+                    updates["KRAKEN_API_KEY"] = api_key
+                if api_secret:
+                    updates["KRAKEN_API_SECRET"] = api_secret
+                if updates:
+                    if persist:
+                        update_env_file(updates)        # ecrit .env (preserve le reste)
+                        _session_keys.clear()
+                    else:
+                        _session_keys.update(updates)   # memoire seulement
+            except ValueError:
+                # Valeur refusee (ex : retour a la ligne dans une cle). On NE remonte
+                # PAS la valeur : message generique.
+                self._send_html("<h1>400 - valeur invalide</h1>", code=400)
+                return
+            except Exception:
+                self._send_html("<h1>500 - erreur enregistrement</h1>", code=500)
+                return
+
+            # Redirection 303 (Post/Redirect/Get) -> evite le re-POST au refresh.
+            self.send_response(303)
+            self.send_header("Location", "/options?saved=1")
             self.end_headers()
-            self.wfile.write(body)
 
         def log_message(self, *args):
             pass  # silence les logs http (ne pas polluer la console)
 
     server = http.server.ThreadingHTTPServer((host, port), Handler)
-    print(f"Monitoring sur http://{host}:{port}  (Ctrl+C pour arreter)")
+    bound_port[0] = server.server_address[1]   # port reel (utile si port=0)
+    return server
+
+
+def run_monitor(port=8765, host="127.0.0.1",
+                stats_path=None, log_path=None, state_path=None):
+    """Demarre le serveur de monitoring (bloquant). Cf. build_monitor_server."""
+    server = build_monitor_server(port=port, host=host, stats_path=stats_path,
+                                  log_path=log_path, state_path=state_path)
+    print(f"Monitoring sur http://{host}:{server.server_address[1]}  (Ctrl+C pour arreter)")
     server.serve_forever()

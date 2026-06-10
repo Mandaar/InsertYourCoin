@@ -19,6 +19,12 @@ import ccxt
 
 import config
 from .stats import StatsRecorder, market_features
+from .options import read_options, LOG_LEVELS
+
+# Verbosite croissante : un message de niveau X n'est ecrit que si le niveau ACTIF
+# est >= X. "leger" = evenements seuls ; "moyen" (defaut) ajoute la ligne de statut
+# par cycle ; "complet" ajoute une ligne de detail par cycle.
+_LEVEL_RANK = {name: i for i, name in enumerate(LOG_LEVELS)}
 
 _TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
                "1h": 3600, "4h": 14400, "1d": 86400}
@@ -84,10 +90,29 @@ class _Trader:
         self.poll_seconds = poll_seconds or _TF_SECONDS.get(self.timeframe, 3600)
         self.base = self.symbol.split("/")[0]
         self.quote = self.symbol.split("/")[1]
+        # Niveau de logs ACTIF. Defaut = comportement historique ("moyen"). Rafraichi
+        # une fois par cycle dans run() via read_options() -> changement a chaud sans
+        # redemarrer (cf. page /options).
+        self._log_level = "moyen"
 
-    def _trace(self, msg):
-        """Trace lisible (console + fichier si log_file). N'ecrit le fichier
-        que lazy, a la 1ere trace ; un echec d'ecriture ne casse jamais le run."""
+    def _refresh_log_level(self):
+        """Relit le niveau de logs depuis options.json (1 lecture / cycle max).
+        Ne casse jamais le run : sur erreur, on garde le niveau courant."""
+        try:
+            self._log_level = read_options().get("log_level", self._log_level)
+        except Exception:
+            pass
+
+    def _trace(self, msg, level="moyen"):
+        """
+        Trace lisible (console + fichier si log_file). `level` = verbosite minimale
+        requise pour ECRIRE ce message : il n'est emis que si le niveau ACTIF est
+        au moins aussi verbeux. Les erreurs (level="leger") passent TOUJOURS.
+        N'ecrit le fichier que lazy ; un echec d'ecriture ne casse jamais le run.
+        Le FORMAT des messages reste inchange (compat des logs/monitoring).
+        """
+        if _LEVEL_RANK.get(level, 0) > _LEVEL_RANK.get(self._log_level, 1):
+            return
         line = f"[{now()}] {msg}"
         print(line)
         if self.log_file:
@@ -163,10 +188,13 @@ class _Trader:
         if self.position_sizing == "vol":
             risk.append(f"sizing vol cible {self.target_vol*100:g}%")
         risk_txt = (" | " + ", ".join(risk)) if risk else ""
-        self._trace(f"Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}")
-        self._trace(f"Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.")
+        self._refresh_log_level()
+        self._trace(f"Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}", level="leger")
+        self._trace(f"Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.", level="leger")
         while True:
             try:
+                # 1 lecture/cycle du niveau de logs -> changement a chaud via /options.
+                self._refresh_log_level()
                 df = self._closed_candles()
                 signal = self._latest_signal(df)
                 fraction = self._entry_fraction(df)
@@ -174,23 +202,35 @@ class _Trader:
                 desired, reason = self._risk_overlay(signal, price)
                 trade = self._rebalance(desired, price, reason, fraction)
                 self._log_status(price)
+                self._trace_cycle_detail(signal, desired, fraction, reason)
                 if self.recorder:
                     self._record_cycle(df, price, signal, desired, fraction, reason, trade)
                 if self.consec_failures:
-                    self._trace(f"Reconnexion OK apres {self.consec_failures} echec(s) consecutif(s).")
+                    self._trace(f"Reconnexion OK apres {self.consec_failures} echec(s) consecutif(s).", level="leger")
                     self.consec_failures = 0
             except KeyboardInterrupt:
-                self._trace("Arret demande. A bientot.")
+                self._trace("Arret demande. A bientot.", level="leger")
                 break
             except Exception as e:
                 self.consec_failures += 1
                 info = describe_error(e)
                 wait = backoff_seconds(self.consec_failures, info["category"], self.poll_seconds)
+                # Les erreurs sont TOUJOURS loggees (level="leger"), quel que soit le reglage.
                 self._trace(f"Erreur cycle [{info['category']}] ({self.consec_failures}e echec consecutif) : "
-                            f"{info['detail']} -> nouvelle tentative dans {wait}s")
+                            f"{info['detail']} -> nouvelle tentative dans {wait}s", level="leger")
                 time.sleep(wait)
                 continue
             time.sleep(self.poll_seconds)
+
+    def _trace_cycle_detail(self, signal, desired, fraction, reason):
+        """Ligne de DETAIL par cycle (niveau "complet" uniquement) : signal brut,
+        desired, fraction, et motif risk-overlay s'il y en a un."""
+        motif = f", risk-overlay={reason}" if reason else ""
+        self._trace(
+            f"detail cycle : signal={signal}, desired={desired}, "
+            f"fraction={fraction:.4f}{motif}",
+            level="complet",
+        )
 
     def _record_cycle(self, df, price, signal, desired, fraction, reason, trade):
         """Assemble et enregistre une ligne de stats pour le cycle courant."""
@@ -282,7 +322,7 @@ class PaperTrader(_Trader):
             s["entry_cost"] = spend  # cout total engage (cash sorti), frais inclus
             s["trades"].append({"time": now(), "side": "buy", "price": price})
             extra = f" (sizing {fraction*100:.0f}%)" if self.position_sizing == "vol" else ""
-            print(f"[{now()}] >>> ACHAT (simule) : {s['base_amount']:.5f} {self.base} @ {price:.2f}{extra}")
+            self._trace(f">>> ACHAT (simule) : {s['base_amount']:.5f} {self.base} @ {price:.2f}{extra}", level="leger")
             self._save()
             return {"action": "buy", "pnl": 0.0, "fee_paid": spend * self.fee, "hold_secs": ""}
         elif desired == 0 and s["invested"]:
@@ -293,7 +333,7 @@ class PaperTrader(_Trader):
             hold = time.time() - (s.get("entry_ts") or time.time())
             s["cash"] += proceeds
             tag = f" [{reason}]" if reason else ""
-            print(f"[{now()}] >>> VENTE (simule){tag} : {amount:.5f} {self.base} @ {price:.2f}")
+            self._trace(f">>> VENTE (simule){tag} : {amount:.5f} {self.base} @ {price:.2f}", level="leger")
             s["base_amount"] = 0.0
             s["invested"] = False
             s["entry_price"] = None
@@ -310,5 +350,6 @@ class PaperTrader(_Trader):
         s = self.state
         value = s["cash"] + s["base_amount"] * price
         etat = "INVESTI" if s["invested"] else "CASH"
-        print(f"[{now()}] {etat:7s} | prix {price:.2f} | portefeuille {value:,.2f} {self.quote} "
-              f"| {len(s['trades'])} ordres")
+        # Ligne de STATUT par cycle : niveau "moyen" (defaut). Format inchange.
+        self._trace(f"{etat:7s} | prix {price:.2f} | portefeuille {value:,.2f} {self.quote} "
+                    f"| {len(s['trades'])} ordres", level="moyen")

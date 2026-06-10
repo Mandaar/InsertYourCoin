@@ -56,6 +56,8 @@ fait gagner des heures et evite de re-deriver depuis zero.
 | BUG-006 | 2026-06-08 | P1 | optimizer selectionne sur metrique non bornee (flat=0 bat les negatives ; `inf` gagne) -> biais de selection (inaction presentee "robuste") | `_best_on` argmax sans garde (`optimizer.py:45,51`) | metriques degenerees -> `NaN` (jamais 0.0 ni inf) cote backtester ; `_best_on` n'eligir qu'une combo a metrique FINIE ET `n_trades>=MIN_TRADES=5` (sinon fallback fini marque `degenerate`) ; `avg_window_metric` ignore NaN/inf (non commite) | `tests/test_optimizer.py::test_best_on_skips_flat_combo_when_a_trading_one_exists` + `::test_best_on_fallback_is_finite_and_flagged_when_no_eligible` + `::test_avg_window_metric_ignores_nan_and_inf` | AUDIT_MOTEUR B2 | **Verifie** |
 | BUG-007 | 2026-06-08 | P2 | `optimizer.py` (le "juge" du projet) sans AUCUN test de non-regression | aucun `test_optimizer.py` | `tests/test_optimizer.py` cree : non-chevauchement fenetres, train precede test, garde "pas assez de donnees", reproductibilite, + couverture B1/B2 (non commite) | `tests/test_optimizer.py` (12 tests) | AUDIT_MOTEUR B3 | **Verifie** |
 
+| BUG-008 | 2026-06-10 | P1 | Page Options inenregistrable : TOUT POST repondait 404 | Typo de route dans `do_POST` : backslash-options au lieu de `/options` (les 33 tests purs ne couvraient pas le handler HTTP) | Route corrigee + `build_monitor_server` extrait (serveur testable port ephemere) | `tests/test_monitor_server.py` (5 tests d'INTEGRATION : vraies requetes loopback, POST CSRF de bout en bout) | trouve en review orchestrateur AVANT commit | **Ferme** |
+
 > **Nouveau bug** -> ajouter une ligne ici (statut *Ouvert*), puis suivre le cycle §2.
 > Severite des le constat ; ne jamais fermer sans test.
 
