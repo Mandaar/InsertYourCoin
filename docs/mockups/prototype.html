@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin — Maquette (validation direction visuelle)</title>
+<style>
+/*
+  Maquette de validation visuelle — 100% autonome, zéro CDN, zéro police externe.
+  Langage visuel ancré dans la prod (trading/monitor.py + trading/dashboard.py) :
+  fond sombre chaud, accent or, serif pour les titres (fallback système Georgia),
+  monospace pour les chiffres, cartes KPI, style .log.
+  Données FICTIVES mais réalistes. Aucun appel réseau.
+*/
+:root{
+  --bg:#0e1116;
+  --bg-deep:#0a0c10;
+  --panel:#171c24;
+  --panel2:#1b212b;
+  --line:#232b36;
+  --line-gold:rgba(214,170,90,.22);
+  --txt:#d7dee8;
+  --muted:#7f8c9c;
+  --muted2:#6b7787;
+  --gold:#d6aa5a;
+  --gold-bright:#f0b429;
+  --gold-soft:rgba(214,170,90,.10);
+  --up:#46c46f;
+  --down:#e5534b;
+  --blue:#6cb6ff;
+  /* polices SYSTEME uniquement (aucun chargement externe) */
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:
+    radial-gradient(1100px 560px at 82% -12%, rgba(214,170,90,.06), transparent 60%),
+    radial-gradient(820px 460px at -8% 112%, rgba(70,196,111,.04), transparent 60%),
+    var(--bg);
+  color:var(--txt);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+  line-height:1.5;
+  padding-bottom:60px;
+}
+
+/* ---------------- Barre de nav persistante (spec 3.1) ---------------- */
+.nav-group{position:relative}
+.nav-group .menu{display:none; position:absolute; top:46px; left:0; z-index:60;
+  background:rgba(13,16,21,.98); border:1px solid var(--line); border-radius:9px;
+  padding:5px; min-width:188px; box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.nav-group.open .menu{display:block}
+.nav-group .menu .tab{display:block; width:100%; text-align:left}
+.nav .tab.has-caret::after{content:" \25be"; opacity:.6}
+.nav{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; gap:4px;
+  padding:0 22px; height:56px;
+  background:rgba(11,13,17,.92);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.nav .brand{
+  font-family:var(--serif); font-weight:700; font-size:18px;
+  letter-spacing:-.01em; color:var(--txt); margin-right:18px; white-space:nowrap;
+}
+.nav .brand .coin{color:var(--gold)}
+.nav .tabs{display:flex; gap:2px; flex-wrap:wrap}
+.nav .tab{
+  appearance:none; background:none; border:none; cursor:pointer;
+  color:var(--muted); font-family:var(--sans); font-size:13.5px;
+  padding:8px 12px; border-radius:7px; letter-spacing:.01em;
+}
+.nav .tab:hover{color:var(--txt); background:rgba(255,255,255,.03)}
+.nav .tab.active{color:var(--gold); background:var(--gold-soft)}
+.nav .tab.danger{color:var(--down)}
+.nav .tab.danger.active{color:var(--down); background:rgba(229,83,75,.12)}
+.nav .spacer{flex:1}
+.nav .status{display:flex; gap:8px; align-items:center}
+.pill{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:var(--mono); font-size:11.5px; color:var(--muted);
+  border:1px solid var(--line); border-radius:999px; padding:4px 10px;
+  white-space:nowrap;
+}
+.pill .dot{width:7px; height:7px; border-radius:50%; background:var(--up); box-shadow:0 0 6px rgba(70,196,111,.6)}
+.pill.ssl{color:var(--up); border-color:rgba(70,196,111,.35)}
+
+/* ---------------- Layout general ---------------- */
+.wrap{max-width:1160px; margin:0 auto; padding:30px 26px 0}
+.eyebrow{
+  font-family:var(--mono); font-size:11px; letter-spacing:.30em;
+  text-transform:uppercase; color:var(--gold); margin-bottom:10px;
+}
+h1.page{
+  font-family:var(--serif); font-weight:700; font-size:clamp(28px,4.4vw,46px);
+  margin:0; letter-spacing:-.015em; line-height:1.04;
+}
+.page-sub{color:var(--muted); font-size:13.5px; margin-top:10px; max-width:760px}
+h2{
+  font-family:var(--serif); font-weight:600; font-size:20px; letter-spacing:-.01em;
+  margin:36px 0 14px; display:flex; align-items:baseline; gap:12px;
+}
+h2::after{content:""; flex:1; height:1px; background:var(--line)}
+h3{font-family:var(--serif); font-weight:600; font-size:16px; margin:0 0 10px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono)}
+
+/* ---------------- Cartes ---------------- */
+.card{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line); border-radius:12px; padding:18px 20px;
+}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+.grid-kpi{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+
+.kpi{background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line); border-radius:12px; padding:15px 17px}
+.kpi .label{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted)}
+.kpi .value{font-family:var(--serif); font-weight:600; font-size:26px; margin-top:8px; letter-spacing:-.01em}
+.value.up{color:var(--up)} .value.down{color:var(--down)} .value.neu{color:var(--txt)}
+.value.gold{color:var(--gold-bright)} .value.blue{color:var(--blue)}
+
+/* hub cards (accueil) */
+.hub-card{display:flex; flex-direction:column; min-height:148px}
+.hub-card .top{display:flex; justify-content:space-between; align-items:flex-start}
+.hub-card .rows{flex:1; margin:12px 0; font-size:13.5px}
+.hub-card .row{display:flex; gap:8px; align-items:center; margin:6px 0}
+.hub-card .actions{display:flex; gap:8px; flex-wrap:wrap}
+.statline{font-family:var(--mono); font-size:13px}
+
+/* ---------------- Boutons ---------------- */
+.btn{appearance:none; cursor:pointer; font-family:var(--sans); font-size:14px;
+  border-radius:8px; padding:10px 18px; min-height:42px; border:1px solid transparent;}
+.btn.primary{background:var(--gold); color:#1a140a; font-weight:600; border-color:var(--gold)}
+.btn.primary:hover{background:var(--gold-bright)}
+.btn.ghost{background:transparent; color:var(--txt); border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--gold); color:var(--gold)}
+.btn.danger{background:var(--down); color:#fff; border-color:var(--down)}
+.btn.danger:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.4; cursor:not-allowed; filter:grayscale(.5)}
+.btn.sm{padding:7px 12px; min-height:34px; font-size:13px}
+.linklike{color:var(--blue); text-decoration:none; font-size:13px}
+.linklike:hover{text-decoration:underline}
+.live-link{color:var(--muted); font-size:12.5px; text-decoration:none; border-bottom:1px dotted var(--muted)}
+.live-link:hover{color:var(--down); border-color:var(--down)}
+
+/* ---------------- Formulaires ---------------- */
+.form-row{display:flex; flex-wrap:wrap; gap:16px 22px; align-items:flex-end; margin:4px 0}
+.field{display:flex; flex-direction:column; gap:5px}
+.field label{font-family:var(--mono); font-size:11px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted)}
+.field input,.field select{
+  background:var(--bg-deep); color:var(--txt); border:1px solid var(--line);
+  border-radius:7px; padding:9px 11px; font-family:var(--mono); font-size:13.5px;
+  min-height:40px; min-width:120px;
+}
+.field input:focus,.field select:focus{outline:none; border-color:var(--gold)}
+.field.small input{width:78px; min-width:0}
+.radio-row{display:flex; gap:18px; flex-wrap:wrap; margin-top:4px}
+.radio-row label{display:flex; align-items:center; gap:7px; cursor:pointer; font-size:13.5px}
+.check{display:flex; align-items:center; gap:9px; margin:9px 0; font-size:13.5px}
+.help{font-size:12px; color:var(--muted); line-height:1.55; margin:6px 0 0}
+.warn{color:var(--gold-bright); font-weight:600}
+.tip{font-size:11.5px; color:var(--muted2); font-style:italic}
+
+/* ---------------- Bandeaux ---------------- */
+.banner{border-radius:10px; padding:13px 17px; font-size:13.5px; line-height:1.55; margin:14px 0}
+.banner.note{background:var(--gold-soft); border:1px solid var(--line-gold); color:#e7d6b6}
+.banner.danger{background:#2a120e; border:1px solid var(--down); color:#ffb4ad; font-weight:600}
+.banner.danger .big{font-family:var(--serif); font-size:16px; display:block; margin-bottom:3px}
+
+/* badge in-sample / verdict pill */
+.badge{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono);
+  font-size:11.5px; letter-spacing:.04em; padding:5px 11px; border-radius:999px}
+.badge.insample{background:rgba(240,180,41,.12); border:1px solid rgba(240,180,41,.45); color:var(--gold-bright)}
+.badge .ic{font-weight:700}
+
+/* ---------------- Verdict (LE JUGE) ---------------- */
+.verdict{
+  border-radius:14px; padding:26px 28px; margin:6px 0 18px;
+  display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+  border:2px solid;
+}
+.verdict .vico{
+  width:60px; height:60px; flex:none; border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-weight:700; font-size:34px;
+}
+.verdict .vbody{flex:1; min-width:240px}
+.verdict .vlabel{font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; opacity:.85}
+.verdict .vmain{font-family:var(--serif); font-weight:700; font-size:clamp(26px,3.6vw,38px); line-height:1.05; margin:4px 0 6px}
+.verdict .vsub{font-size:14px; opacity:.92}
+.verdict .vscore{font-family:var(--mono); font-size:clamp(28px,4vw,44px); font-weight:600; text-align:right; flex:none}
+.verdict.bad{background:#2a120e; border-color:var(--down); color:#ffd2cd}
+.verdict.bad .vico{background:rgba(229,83,75,.18); color:var(--down)}
+.verdict.bad .vscore{color:var(--down)}
+.verdict.mid{background:#2b2410; border-color:var(--gold-bright); color:#f5e3bb}
+.verdict.mid .vico{background:rgba(240,180,41,.18); color:var(--gold-bright)}
+.verdict.mid .vscore{color:var(--gold-bright)}
+.verdict.good{background:#10271a; border-color:var(--up); color:#bff0cf}
+.verdict.good .vico{background:rgba(70,196,111,.18); color:var(--up)}
+.verdict.good .vscore{color:var(--up)}
+
+/* ---------------- Tableaux ---------------- */
+table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px}
+th,td{text-align:right; padding:9px 11px; border-bottom:1px solid var(--line)}
+th{color:var(--muted); font-weight:500; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:none}
+td.up{color:var(--up)} td.down{color:var(--down)} td.gold{color:var(--gold)}
+.tag{font-size:10px; padding:2px 8px; border-radius:999px}
+.tag.up{background:rgba(70,196,111,.15); color:var(--up)}
+.tag.down{background:rgba(229,83,75,.15); color:var(--down)}
+.tag.neu{background:rgba(146,138,120,.15); color:var(--muted)}
+
+/* log style (repris du monitor) */
+.log{font-family:var(--mono); font-size:12px; line-height:1.6; background:var(--bg-deep);
+  border:1px solid var(--line); border-radius:8px; padding:12px 14px; max-height:200px;
+  overflow-y:auto; white-space:pre-wrap; color:var(--muted)}
+.log .ok{color:var(--up)} .log .err{color:var(--down)} .log .info{color:var(--blue)}
+
+/* equity SVG */
+.equity-box{position:relative}
+.equity-legend{display:flex; gap:18px; font-family:var(--mono); font-size:11.5px; margin-top:8px}
+.equity-legend .k{display:flex; align-items:center; gap:6px; color:var(--muted)}
+.equity-legend .sw{width:18px; height:3px; border-radius:2px}
+
+/* prereq checklist */
+.prereq{display:flex; flex-direction:column; gap:2px}
+.prereq .item{display:flex; align-items:flex-start; gap:11px; padding:11px 4px; border-bottom:1px solid var(--line)}
+.prereq .item:last-child{border-bottom:none}
+.prereq .box{width:22px; height:22px; flex:none; border-radius:6px; border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; cursor:pointer;
+  background:var(--bg-deep); color:transparent; user-select:none}
+.prereq .item.checked .box{background:var(--up); border-color:var(--up); color:#0a1f12}
+.prereq .item .txt{font-size:13.5px}
+.prereq .item .sub{font-size:12px; color:var(--muted); margin-top:2px}
+
+/* modale */
+.overlay{position:fixed; inset:0; background:rgba(6,8,11,.78); z-index:100;
+  display:none; align-items:center; justify-content:center; padding:24px}
+.overlay.show{display:flex}
+.modal{background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:2px solid var(--down); border-radius:14px; max-width:520px; width:100%;
+  padding:24px 26px; box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.modal h3{color:var(--down); font-size:19px}
+.modal .recap{font-family:var(--mono); font-size:12.5px; background:var(--bg-deep);
+  border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:14px 0}
+.modal .recap div{display:flex; justify-content:space-between; padding:3px 0}
+.modal .recap .k{color:var(--muted)}
+.confirm-input{width:100%; background:var(--bg-deep); color:var(--txt); border:1px solid var(--line);
+  border-radius:7px; padding:11px 13px; font-family:var(--mono); font-size:15px; letter-spacing:.05em; text-align:center}
+.confirm-input.match{border-color:var(--up); color:var(--up)}
+.modal .acts{display:flex; gap:10px; justify-content:flex-end; margin-top:16px}
+
+/* footer disclaimer */
+.disclaimer{margin-top:34px; padding:16px 18px; border-top:1px solid var(--line);
+  color:var(--muted); font-size:12px; line-height:1.7}
+.disclaimer b{color:var(--gold)}
+
+/* ---------------- Composants ecrans supplementaires ---------------- */
+/* statut paper (point + libelle, jamais la couleur seule) */
+.statusline{display:flex; align-items:center; gap:11px; font-size:15px}
+.statusline .sdot{width:11px; height:11px; border-radius:50%; flex:none}
+.statusline .sdot.run{background:var(--up); box-shadow:0 0 8px rgba(70,196,111,.55)}
+.statusline .sdot.stop{background:var(--muted)}
+.statusline .sdot.warn{background:var(--gold-bright); box-shadow:0 0 8px rgba(240,180,41,.5)}
+.statusline .stxt{font-family:var(--serif); font-weight:600}
+
+/* deux panneaux train/test cote a cote */
+.panes{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media(max-width:760px){.panes{grid-template-columns:1fr}}
+.pane{border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.pane.test{border-color:var(--line-gold); box-shadow:0 0 0 1px var(--line-gold) inset}
+.pane .pane-h{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:8px}
+.pane.test .pane-h{color:var(--gold-bright)}
+.pane .line{display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px;
+  padding:6px 0; border-bottom:1px solid var(--line)}
+.pane .line:last-child{border-bottom:none}
+.pane .line .k{color:var(--muted)}
+
+/* heatmap correlation */
+.heat{border-collapse:separate; border-spacing:4px; width:auto; font-family:var(--mono)}
+.heat th{font-size:11px; color:var(--muted); padding:4px 8px; letter-spacing:.04em; text-transform:none}
+.heat td{text-align:center; padding:0; border:none}
+.heat .cell{width:74px; height:50px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:#0a0c10; font-weight:600}
+.heat .rowlabel{text-align:right; color:var(--muted); font-size:11px; padding-right:8px; white-space:nowrap}
+
+/* mini barres (ventilation horaire/journaliere) */
+.bars{display:flex; align-items:flex-end; gap:4px; height:120px; padding:8px 2px 0}
+.bars .bar{flex:1; min-width:6px; background:linear-gradient(180deg,var(--gold),rgba(214,170,90,.35));
+  border-radius:3px 3px 0 0; position:relative}
+.bars .bar span{position:absolute; bottom:-18px; left:0; right:0; text-align:center;
+  font-family:var(--mono); font-size:9px; color:var(--muted2)}
+.bars-wrap{margin-bottom:22px}
+
+/* mise en evidence part des frais */
+.fees-hi{border:1px solid var(--gold-bright); background:rgba(240,180,41,.07)}
+
+/* etat booleen cle */
+.kv{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:13px}
+.kv .badge.yes{background:rgba(70,196,111,.14); border:1px solid rgba(70,196,111,.45); color:var(--up)}
+.kv .badge.no{background:rgba(229,83,75,.14); border:1px solid rgba(229,83,75,.45); color:var(--down)}
+
+/* liste ordres monitoring */
+.orderlist td .side-buy{color:var(--up)}
+.orderlist td .side-sell{color:var(--down)}
+
+.screen{display:none}
+.screen.active{display:block}
+.mock-note{font-family:var(--mono); font-size:11px; color:var(--muted2);
+  text-align:center; padding:18px; letter-spacing:.04em}
+</style>
+</head>
+<body>
+
+<!-- ===================== NAV PERSISTANTE ===================== -->
+<nav class="nav">
+  <div class="brand">Insert<span class="coin">Your</span>Coin</div>
+  <div class="tabs">
+    <button class="tab active" data-go="home">Accueil</button>
+    <button class="tab" data-go="check">Diagnostic</button>
+    <div class="nav-group" id="grp-research">
+      <button class="tab has-caret" type="button" id="grp-research-btn">Recherche</button>
+      <div class="menu">
+        <button class="tab" data-go="bt">Backtest</button>
+        <button class="tab" data-go="compare">Comparer</button>
+        <button class="tab" data-go="optimize">Optimiser</button>
+        <button class="tab" data-go="wf">Walk-forward &middot; le juge</button>
+        <button class="tab" data-go="portfolio">Portefeuille</button>
+      </div>
+    </div>
+    <button class="tab" data-go="paper">Paper</button>
+    <button class="tab" data-go="monitoring">Monitoring</button>
+    <button class="tab" data-go="stats">Stats</button>
+    <button class="tab" data-go="options">Options</button>
+    <button class="tab" data-go="help">Aide</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status">
+    <span class="pill"><span class="dot"></span>Local 127.0.0.1</span>
+    <span class="pill ssl">SSL &#10003;</span>
+  </div>
+</nav>
+
+<!-- ===================== 1. ACCUEIL / HUB ===================== -->
+<section class="screen active" id="home">
+<div class="wrap">
+  <div class="eyebrow">Tableau de bord</div>
+  <h1 class="page">Accueil</h1>
+  <p class="page-sub">En un coup d'oeil : ce qui tourne, l'état de la connexion, et le dernier verdict de recherche. Outil de recherche &mdash; aucun gain promis.</p>
+
+  <div class="banner note">
+    <b>Outil de recherche et de paper trading.</b> Aucun gain n'est promis ni garanti. Le live engage de l'argent réel et reste <b>verrouillé par défaut</b>. Performances passées &ne; performances futures.
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <!-- Diagnostic -->
+    <div class="card hub-card">
+      <div class="top"><h3>Diagnostic</h3><span class="badge insample" style="background:rgba(70,196,111,.12);border-color:rgba(70,196,111,.4);color:var(--up)"><span class="ic">&#10003;</span> Tout OK</span></div>
+      <div class="rows">
+        <div class="row"><span class="value up" style="font-size:14px">&#10003;</span> <span>Connexion Kraken &mdash; <span class="mono">ETH/USD = 3 120,50 $</span></span></div>
+        <div class="row"><span class="value up" style="font-size:14px">&#10003;</span> <span>truststore actif (magasin SSL de l'OS)</span></div>
+      </div>
+      <div class="actions"><button class="btn ghost sm" data-go="check">Relancer le diagnostic</button></div>
+    </div>
+
+    <!-- Paper -->
+    <div class="card hub-card">
+      <div class="top"><h3>Paper trading</h3><span class="badge" style="background:rgba(108,182,255,.12);border:1px solid rgba(108,182,255,.4);color:var(--blue)">EN COURS</span></div>
+      <div class="rows">
+        <div class="row statline">Statut : <span class="value blue" style="font-size:14px;margin-left:4px">CASH</span></div>
+        <div class="row statline">Équity : <span style="color:var(--txt)">10 042 $</span> <span class="value up" style="font-size:13px">(+0,42 %)</span></div>
+        <div class="row statline muted">SMA &middot; ETH/USD &middot; 5m &middot; depuis 14:00</div>
+      </div>
+      <div class="actions"><a class="btn ghost sm" data-go="monitoring" href="#">Voir le monitoring &rarr;</a></div>
+    </div>
+
+    <!-- Recherche / dernier verdict -->
+    <div class="card hub-card">
+      <div class="top"><h3>Recherche</h3><span class="badge" style="background:rgba(229,83,75,.12);border:1px solid rgba(229,83,75,.4);color:var(--down)">PAS D'EDGE</span></div>
+      <div class="rows">
+        <div class="row statline muted">Dernier walk-forward : ETH / SMA</div>
+        <div class="row statline"><span class="value down" style="font-size:14px">Verdict : PAS D'EDGE FIABLE</span></div>
+        <div class="row statline muted">0 / 4 fenêtres profitables</div>
+      </div>
+      <div class="actions">
+        <button class="btn primary sm" data-go="wf">Nouvelle analyse &rarr;</button>
+        <button class="btn ghost sm" data-go="bt">Backtest</button>
+      </div>
+    </div>
+
+    <!-- Reglages -->
+    <div class="card hub-card">
+      <div class="top"><h3>Réglages</h3></div>
+      <div class="rows">
+        <div class="row statline">Clés Kraken : <span class="value up" style="font-size:13px;margin-left:4px">configurées</span></div>
+        <div class="row statline muted">Niveau de logs : moyen</div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost sm" data-go="options">Options</button>
+        <button class="btn ghost sm" data-go="help">Aide</button>
+        <a class="live-link" data-go="live" href="#" style="margin-left:auto;align-self:center">passer en live &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <b>Avertissement.</b> Performances passées &ne; futures. Ceci n'est pas un conseil en investissement. Les décisions et le risque appartiennent à l'utilisateur. Le walk-forward (hors-échantillon) est le seul juge fiable d'un edge.
+  </div>
+</div>
+</section>
+
+<!-- ===================== 2. WALK-FORWARD (LE JUGE) ===================== -->
+<section class="screen" id="wf">
+<div class="wrap">
+  <div class="eyebrow">Recherche &middot; le juge</div>
+  <h1 class="page">Walk-forward</h1>
+  <p class="page-sub">Le test honnête central : optimisation glissante <b>hors-échantillon</b>, multi-actifs, holdout sacré. C'est lui qui tranche &mdash; pas le backtest in-sample.</p>
+
+  <!-- VERDICT EN PREMIER : element le plus visible de toute la maquette -->
+  <div class="verdict bad" role="status" aria-live="polite">
+    <div class="vico" aria-hidden="true">&#10007;</div>
+    <div class="vbody">
+      <div class="vlabel">Verdict</div>
+      <div class="vmain">PAS D'EDGE FIABLE</div>
+      <div class="vsub">Aucune fenêtre hors-échantillon n'est profitable. Cette stratégie ne présente pas d'avantage exploitable sur la période testée.</div>
+    </div>
+    <div class="vscore">0&#8202;/&#8202;4</div>
+  </div>
+  <p class="tip">Le verdict combine couleur + libellé + position (jamais la couleur seule). Vert = edge plausible, orange = fragile, rouge = pas d'edge.</p>
+
+  <h2>Détail par fenêtre</h2>
+  <div class="card" style="padding:6px 14px">
+    <table>
+      <thead><tr><th>Fenêtre</th><th>Période OOS</th><th>Params retenus</th><th>Rendement OOS</th><th>Sharpe</th><th>DD max</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>2023-01 &rarr; 2023-06</td><td>fast=50 slow=200</td><td class="down">-7,4 %</td><td class="down">-0,31</td><td class="down">-22,1 %</td></tr>
+        <tr><td>2</td><td>2023-07 &rarr; 2023-12</td><td>fast=50 slow=200</td><td class="down">-3,1 %</td><td class="down">-0,18</td><td class="down">-14,8 %</td></tr>
+        <tr><td>3</td><td>2024-01 &rarr; 2024-06</td><td>fast=50 slow=200</td><td class="down">-11,9 %</td><td class="down">-0,52</td><td class="down">-28,6 %</td></tr>
+        <tr><td>4</td><td>2024-07 &rarr; 2024-12</td><td>fast=50 slow=200</td><td class="down">-2,2 %</td><td class="down">-0,09</td><td class="down">-9,7 %</td></tr>
+        <tr><td class="gold">Buy &amp; Hold</td><td>référence</td><td>&mdash;</td><td class="up">+18,3 %</td><td>0,44</td><td class="down">-31,2 %</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="help">Holdout sacré : <b style="color:var(--up)">NON consommé</b> &mdash; aucune validation finale lancée. Le segment récent reste vierge pour un futur test unique.</p>
+
+  <h2>Lancer une analyse</h2>
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Stratégie</label>
+        <select><option>SMA &mdash; croisement de moyennes mobiles</option><option>TSMOM &mdash; momentum temporel</option><option>RSI &mdash; survente/surachat</option><option>MACD</option><option>Bollinger</option></select></div>
+      <div class="field"><label>Symboles</label><input value="BTC/USD,ETH/USD,SOL/USD" style="min-width:230px"></div>
+      <div class="field"><label>Timeframe</label><select><option>1d</option><option>4h</option><option>1h</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Source d'analyse</label>
+        <div class="radio-row">
+          <label><input type="radio" name="wfsrc" checked> Binance <span class="muted">(historique long, recommandé)</span></label>
+          <label><input type="radio" name="wfsrc"> Kraken</label>
+        </div>
+      </div>
+    </div>
+    <p class="tip">Binance = recherche longue ; l'exécution reste toujours Kraken USD.</p>
+    <div class="form-row" style="margin-top:8px">
+      <div class="field small"><label>Fenêtres</label><input value="4"></div>
+      <div class="field small"><label>Train-frac</label><input value="0.5"></div>
+      <div class="field"><label>Métrique</label><select><option>sharpe</option><option>sortino</option><option>calmar</option><option>total_return</option><option>profit_factor</option></select></div>
+      <div class="field"><label>Params figés (anti data-mining)</label><input value="fast=50,slow=200" style="min-width:180px"></div>
+      <div class="field small"><label>Holdout %</label><input value="20"></div>
+    </div>
+    <div class="check">
+      <input type="checkbox" id="wf-final">
+      <label for="wf-final"><b style="color:var(--gold-bright)">VALIDATION FINALE</b> &mdash; consomme le holdout sacré (1 seule fois par stratégie)</label>
+    </div>
+    <p class="help"><span class="warn">Attention :</span> cocher cette case brûle le segment sacré. Une confirmation sera demandée.</p>
+    <div style="margin-top:14px"><button class="btn primary" id="wf-launch">Lancer le verdict</button></div>
+  </div>
+
+  <div class="banner note" style="margin-top:18px">
+    <b>Pourquoi le walk-forward est le juge ?</b> Il optimise sur le passé et mesure <b>uniquement</b> sur le futur jamais vu. Un backtest peut être brillant par sur-apprentissage ; seul le hors-échantillon dit s'il y a un vrai edge.
+  </div>
+
+  <div class="disclaimer"><b>Avertissement.</b> Performances passées &ne; futures. Pas un conseil en investissement. Le walk-forward dit la réalité, même quand elle déçoit.</div>
+</div>
+</section>
+
+<!-- ===================== 3. BACKTEST -> RAPPORT ===================== -->
+<section class="screen" id="bt">
+<div class="wrap">
+  <div class="eyebrow">Recherche &middot; analyse rapide</div>
+  <h1 class="page">Backtest</h1>
+  <p class="page-sub">Tester une stratégie sur l'historique et produire un rapport. Résultat <b>in-sample</b> : à valider ensuite au walk-forward.</p>
+
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Stratégie</label>
+        <select><option>SMA &mdash; croisement de moyennes mobiles</option><option>TSMOM</option><option>RSI</option><option>MACD</option><option>Bollinger</option></select></div>
+      <div class="field"><label>Symbole (marché)</label><input value="ETH/USD"></div>
+      <div class="field"><label>Timeframe</label><select><option>1d</option><option>4h</option><option>1h</option></select></div>
+      <div class="field small"><label>Jours</label><input value="720"></div>
+    </div>
+    <div class="form-row">
+      <div class="field"><label>Source</label>
+        <div class="radio-row">
+          <label><input type="radio" name="btsrc" checked> Kraken <span class="muted">(exchange d'exécution)</span></label>
+          <label><input type="radio" name="btsrc"> Binance <span class="muted">(recherche longue)</span></label>
+        </div></div>
+    </div>
+    <div class="form-row" style="margin-top:8px">
+      <div class="field small"><label>Stop %</label><input value="8"></div>
+      <div class="field small"><label>Objectif %</label><input value="20"></div>
+      <div class="field small"><label>Trailing %</label><input placeholder="&mdash;"></div>
+      <div class="field"><label>Sizing</label><select><option>none</option><option>vol</option></select></div>
+      <div class="field small"><label>Vol cible %</label><input placeholder="&mdash;"></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn primary">Lancer le backtest</button></div>
+  </div>
+
+  <h2>Rapport <span style="flex:none"><span class="badge insample"><span class="ic">&#9888;</span> IN-SAMPLE &mdash; non validé hors-échantillon</span></span></h2>
+
+  <div class="grid-kpi">
+    <div class="kpi"><div class="label">Rendement total</div><div class="value up">+34,2 %</div></div>
+    <div class="kpi"><div class="label">vs Buy &amp; Hold</div><div class="value down">-12,1 %</div></div>
+    <div class="kpi"><div class="label">Ratio de Sharpe</div><div class="value neu">0,71</div></div>
+    <div class="kpi"><div class="label">Drawdown max</div><div class="value down">-19,4 %</div></div>
+    <div class="kpi"><div class="label">Profit factor</div><div class="value up">1,38</div></div>
+    <div class="kpi"><div class="label">Taux de réussite</div><div class="value neu">47 %</div></div>
+    <div class="kpi"><div class="label">Nb de trades</div><div class="value neu">38</div></div>
+    <div class="kpi"><div class="label">Temps investi</div><div class="value neu">52 %</div></div>
+  </div>
+
+  <h2>Courbe de capital</h2>
+  <div class="card equity-box">
+    <svg viewBox="0 0 720 240" width="100%" height="240" preserveAspectRatio="none" role="img" aria-label="Courbe d'équity de la stratégie comparée au buy and hold">
+      <!-- grille -->
+      <g stroke="#232b36" stroke-width="1">
+        <line x1="0" y1="60" x2="720" y2="60"/><line x1="0" y1="120" x2="720" y2="120"/><line x1="0" y1="180" x2="720" y2="180"/>
+      </g>
+      <!-- buy & hold (reference, gris) -->
+      <polyline fill="none" stroke="#7f8c9c" stroke-width="2" stroke-dasharray="5 5"
+        points="0,200 90,184 180,150 270,168 360,118 450,96 540,70 630,58 720,40"/>
+      <!-- strategie (or) -->
+      <polyline fill="none" stroke="#d6aa5a" stroke-width="2.5"
+        points="0,200 90,192 180,176 270,182 360,150 450,138 540,128 630,116 720,108"/>
+      <!-- remplissage doux sous la strategie -->
+      <polygon fill="rgba(214,170,90,.08)" points="0,200 90,192 180,176 270,182 360,150 450,138 540,128 630,116 720,108 720,240 0,240"/>
+    </svg>
+    <div class="equity-legend">
+      <span class="k"><span class="sw" style="background:#d6aa5a"></span> Stratégie SMA</span>
+      <span class="k"><span class="sw" style="background:#7f8c9c;height:2px;border-top:2px dashed #7f8c9c"></span> Buy &amp; Hold (référence)</span>
+    </div>
+  </div>
+
+  <div class="banner note" style="margin-top:18px">
+    Ces chiffres sont <b>in-sample</b> : de bons résultats passés ne garantissent jamais le futur. <a class="linklike" data-go="wf" href="#">Valider au walk-forward &rarr;</a> avec les mêmes paramètres.
+  </div>
+
+  <div class="disclaimer"><b>Avertissement.</b> Performances passées &ne; futures. Frais Kraken (0,26 %) inclus. Pas un conseil en investissement.</div>
+</div>
+</section>
+
+<!-- ===================== 4. LIVE (VERROUILLE) ===================== -->
+<section class="screen" id="live">
+<div class="wrap">
+  <div class="eyebrow" style="color:var(--down)">Danger &middot; argent réel</div>
+  <h1 class="page">Live</h1>
+
+  <div class="banner danger" role="alert">
+    <span class="big">&#9888; ARGENT RÉEL &mdash; PERTES POSSIBLES JUSQU'À LA TOTALITÉ DU CAPITAL.</span>
+    Outil sans garantie. Le live est <b>verrouillé par défaut</b> et volontairement pénible à activer : c'est un choix de sécurité.
+  </div>
+
+  <h2>Pré-requis</h2>
+  <p class="help">Tous obligatoires. Le bouton RÉEL reste grisé tant que la liste est incomplète.</p>
+  <div class="card prereq" id="prereq">
+    <div class="item checked" data-req><span class="box">&#10003;</span><div><div class="txt">Clés Kraken configurées <span class="muted">(Query Funds + Orders, <b style="color:var(--gold-bright)">PAS Withdraw</b>)</span></div></div></div>
+    <div class="item checked" data-req><span class="box">&#10003;</span><div><div class="txt">Diagnostic check OK</div><div class="sub">ETH/USD = 3 120,50 $ &mdash; connexion vérifiée</div></div></div>
+    <div class="item" data-req><span class="box">&#10003;</span><div><div class="txt">J'ai lancé un paper sur cette config et compris le risque</div><div class="sub">cliquez pour cocher</div></div></div>
+    <div class="item" data-req><span class="box">&#10003;</span><div><div class="txt">J'ai lu les plafonds : ordre max <b class="mono">100 $</b> / position max <b class="mono">500 $</b></div><div class="sub">cliquez pour cocher</div></div></div>
+  </div>
+
+  <h2>Mode d'exécution</h2>
+  <div class="card">
+    <div class="radio-row" style="gap:26px">
+      <label><input type="radio" name="livemode" value="sim" checked> <b style="color:var(--blue)">Simulation (dry-run)</b> <span class="muted">&mdash; aucun ordre réel</span></label>
+      <label><input type="radio" name="livemode" value="real"> <b style="color:var(--down)">RÉEL</b> <span class="muted">&mdash; passe de vrais ordres</span></label>
+    </div>
+    <div class="recap-inline" style="margin-top:14px">
+      <table style="font-size:12px">
+        <tbody>
+          <tr><td class="muted">Paire</td><td>ETH/USD</td></tr>
+          <tr><td class="muted">Stratégie</td><td>SMA (fast=50, slow=200)</td></tr>
+          <tr><td class="muted">Stop / Objectif</td><td>-8 % / +20 %</td></tr>
+          <tr><td class="muted">Plafond ordre (config.py)</td><td>100,00 $</td></tr>
+          <tr><td class="muted">Plafond position (config.py)</td><td>500,00 $</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:16px"><button class="btn danger" id="live-start" disabled>Démarrer</button>
+      <span class="help" id="live-hint" style="display:inline-block;margin-left:12px">Cochez tous les pré-requis pour débloquer le mode RÉEL.</span></div>
+  </div>
+
+  <p style="margin-top:18px"><a class="live-link" data-go="home" href="#" style="color:var(--blue);border-color:var(--blue)">&larr; Revenir à l'accueil (annuler)</a></p>
+
+  <div class="disclaimer"><b>Sécurité.</b> Dry-run par défaut &middot; double confirmation &middot; phrase exacte requise &middot; plafonds config.py appliqués (jamais contournés par l'UI) &middot; clés jamais affichées &middot; aucun retrait possible. La friction est le design, pas un bug.</div>
+</div>
+</section>
+
+<!-- ===================== 5. DIAGNOSTIC (/check) ===================== -->
+<section class="screen" id="check">
+<div class="wrap">
+  <div class="eyebrow">Réglages &middot; vérification</div>
+  <h1 class="page">Diagnostic</h1>
+  <p class="page-sub">Équivalent de <span class="mono">python main.py check</span> : vérifier l'installation des paquets, l'état du magasin SSL (truststore) et la connexion à Kraken. Aucune clé requise.</p>
+
+  <div class="form-row" style="margin:14px 0 4px">
+    <div class="field"><label>Symbole à tester</label><input value="ETH/USD"></div>
+    <div style="align-self:flex-end"><button class="btn primary" id="check-run">Lancer le diagnostic</button></div>
+  </div>
+
+  <h2>Résultat</h2>
+
+  <!-- etat SUCCES (par defaut) -->
+  <div id="check-ok">
+    <div class="banner note" style="background:rgba(70,196,111,.08);border-color:rgba(70,196,111,.35);color:#bff0cf">
+      <b>&#10003; Connexion OK</b> &mdash; ETH/USD = <span class="mono">3 120,50 $</span>. Tout est prêt pour la recherche et le paper.
+    </div>
+    <div class="card" style="padding:6px 14px">
+      <table>
+        <thead><tr><th>Composant</th><th>État</th><th>Détail</th></tr></thead>
+        <tbody>
+          <tr><td>Python</td><td class="up">&#10003; OK</td><td>3.12.4</td></tr>
+          <tr><td>ccxt</td><td class="up">&#10003; OK</td><td>4.3.77</td></tr>
+          <tr><td>pandas</td><td class="up">&#10003; OK</td><td>2.2.2</td></tr>
+          <tr><td>numpy</td><td class="up">&#10003; OK</td><td>1.26.4</td></tr>
+          <tr><td>truststore</td><td class="up">&#10003; actif</td><td>magasin de certificats de l'OS (Windows)</td></tr>
+          <tr><td>Connexion Kraken</td><td class="up">&#10003; OK</td><td>ETH/USD = 3 120,50 $</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- etat ERREUR SSL (cache) -->
+  <div id="check-ssl" style="display:none">
+    <div class="banner note" role="alert">
+      <b>&#9888; Erreur SSL &mdash; certificat non vérifié.</b> Un antivirus (souvent <b>Avast</b>) intercepte le HTTPS et re-signe les certificats avec sa propre autorité, absente du bundle Python.
+      <div style="margin-top:8px">Solution : installer <span class="mono">truststore</span> (déjà dans <span class="mono">requirements.txt</span>) pour utiliser le magasin de certificats de l'OS. <b class="warn">Ne jamais désactiver VERIFY_SSL</b> &mdash; c'est un contournement dangereux, pas une solution.</div>
+    </div>
+    <div class="card" style="padding:6px 14px">
+      <table>
+        <thead><tr><th>Composant</th><th>État</th><th>Détail</th></tr></thead>
+        <tbody>
+          <tr><td>truststore</td><td class="down">&#10007; inactif</td><td>installer <span class="mono">pip install -r requirements.txt</span></td></tr>
+          <tr><td>Connexion Kraken</td><td class="down">&#10007; échec</td><td>CERTIFICATE_VERIFY_FAILED</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- etat ERREUR RESEAU (cache) -->
+  <div id="check-net" style="display:none">
+    <div class="banner danger" role="alert">
+      <span class="big">&#9888; Erreur réseau &mdash; Kraken injoignable.</span>
+      Vérifiez votre connexion Internet. Aucune donnée n'a pu être récupérée.
+    </div>
+    <div style="margin-top:12px"><button class="btn ghost" id="check-retry">Réessayer</button></div>
+  </div>
+
+  <p class="tip" style="margin-top:14px">Démo des états : <a class="linklike" href="#" data-checkstate="ok">succès</a> &middot; <a class="linklike" href="#" data-checkstate="ssl">erreur SSL</a> &middot; <a class="linklike" href="#" data-checkstate="net">erreur réseau</a>.</p>
+
+  <div class="disclaimer"><b>Sécurité.</b> Aucune clé n'est requise ni affichée ici. Les messages d'erreur ne contiennent jamais de secret.</div>
+</div>
+</section>
+
+<!-- ===================== 6. COMPARER (/research/compare) ===================== -->
+<section class="screen" id="compare">
+<div class="wrap">
+  <div class="eyebrow">Recherche &middot; comparaison</div>
+  <h1 class="page">Comparer les stratégies</h1>
+  <p class="page-sub">Exécuter toutes les stratégies sur le même jeu de données et les classer. La <b>ligne Buy &amp; Hold</b> sert de garde-fou : une stratégie qui ne la bat pas n'apporte rien.</p>
+
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Symbole (marché)</label><input value="ETH/USD"></div>
+      <div class="field"><label>Timeframe</label><select><option>1d</option><option>4h</option><option>1h</option></select></div>
+      <div class="field small"><label>Jours</label><input value="720"></div>
+      <div class="field"><label>Source</label>
+        <div class="radio-row">
+          <label><input type="radio" name="cmpsrc" checked> Kraken</label>
+          <label><input type="radio" name="cmpsrc"> Binance <span class="muted">(historique long)</span></label>
+        </div></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn primary">Lancer la comparaison</button></div>
+  </div>
+
+  <h2>Classement <span style="flex:none"><span class="badge insample"><span class="ic">&#9888;</span> IN-SAMPLE &mdash; non validé hors-échantillon</span></span></h2>
+  <div class="card" style="padding:6px 14px">
+    <table>
+      <thead><tr><th>Stratégie</th><th>Rendement</th><th>Sharpe</th><th>DD max</th><th>Profit factor</th><th>Trades</th><th>Réussite</th></tr></thead>
+      <tbody>
+        <tr><td>TSMOM</td><td class="up">+41,8 %</td><td>0,82</td><td class="down">-17,2 %</td><td class="up">1,55</td><td>26</td><td>50 %</td></tr>
+        <tr><td>SMA</td><td class="up">+34,2 %</td><td>0,71</td><td class="down">-19,4 %</td><td class="up">1,38</td><td>38</td><td>47 %</td></tr>
+        <tr><td>MACD</td><td class="up">+12,6 %</td><td>0,34</td><td class="down">-23,8 %</td><td class="up">1,11</td><td>54</td><td>43 %</td></tr>
+        <tr><td>Bollinger</td><td class="down">-4,3 %</td><td class="down">-0,12</td><td class="down">-26,1 %</td><td class="down">0,94</td><td>61</td><td>41 %</td></tr>
+        <tr><td>RSI</td><td class="down">-9,7 %</td><td class="down">-0,28</td><td class="down">-29,5 %</td><td class="down">0,86</td><td>72</td><td>39 %</td></tr>
+        <tr style="background:rgba(214,170,90,.06)"><td class="gold">Buy &amp; Hold</td><td class="up">+46,5 %</td><td>0,88</td><td class="down">-38,4 %</td><td>&mdash;</td><td>1</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="help"><b style="color:var(--gold-bright)">Lecture honnête :</b> ici <b>aucune stratégie ne bat Buy &amp; Hold</b> en rendement. De bons chiffres passés ne garantissent jamais le futur &mdash; <a class="linklike" data-go="wf" href="#">valider au walk-forward &rarr;</a>.</p>
+
+  <div class="disclaimer"><b>Avertissement.</b> Résultats in-sample, frais Kraken (0,26 %) inclus. Performances passées &ne; futures.</div>
+</div>
+</section>
+
+<!-- ===================== 7. OPTIMISER (/research/optimize) ===================== -->
+<section class="screen" id="optimize">
+<div class="wrap">
+  <div class="eyebrow">Recherche &middot; optimisation</div>
+  <h1 class="page">Optimiser</h1>
+  <p class="page-sub">Chercher les meilleurs paramètres <b>avec séparation train / test</b>. Ce qui compte n'est pas la performance sur le train (in-sample) mais sa tenue sur le <b>test (hors-échantillon)</b>.</p>
+
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Stratégie</label>
+        <select><option>SMA &mdash; croisement de moyennes mobiles</option><option>TSMOM</option><option>RSI</option><option>MACD</option><option>Bollinger</option></select></div>
+      <div class="field"><label>Symbole</label><input value="ETH/USD"></div>
+      <div class="field"><label>Timeframe</label><select><option>1d</option><option>4h</option><option>1h</option></select></div>
+      <div class="field"><label>Métrique</label><select><option>sharpe</option><option>sortino</option><option>calmar</option><option>total_return</option><option>profit_factor</option></select></div>
+      <div class="field small"><label>Train-frac</label><input value="0.6"></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn primary">Lancer l'optimisation</button></div>
+  </div>
+
+  <h2>Meilleurs paramètres : <span style="flex:none" class="mono">fast=50, slow=200</span></h2>
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-h"><span>&#9881;</span> Train (in-sample) &mdash; ce qu'on a trouvé</div>
+      <div class="line"><span class="k">Rendement</span><span class="up">+52,4 %</span></div>
+      <div class="line"><span class="k">Sharpe</span><span>1,18</span></div>
+      <div class="line"><span class="k">Drawdown max</span><span class="down">-14,1 %</span></div>
+      <div class="line"><span class="k">Profit factor</span><span class="up">1,74</span></div>
+      <div class="line"><span class="k">Trades</span><span>22</span></div>
+    </div>
+    <div class="pane test">
+      <div class="pane-h"><span>&#9878;</span> Test (hors-échantillon) &mdash; ce qui compte</div>
+      <div class="line"><span class="k">Rendement</span><span class="down">-6,8 %</span></div>
+      <div class="line"><span class="k">Sharpe</span><span class="down">-0,21</span></div>
+      <div class="line"><span class="k">Drawdown max</span><span class="down">-24,7 %</span></div>
+      <div class="line"><span class="k">Profit factor</span><span class="down">0,91</span></div>
+      <div class="line"><span class="k">Trades</span><span>9</span></div>
+    </div>
+  </div>
+
+  <div class="banner danger" role="alert" style="margin-top:16px">
+    <span class="big">&#9888; Surapprentissage probable.</span>
+    Le train est brillant (+52,4 %) mais le test s'effondre (-6,8 %). Ces paramètres collent au passé sans généraliser. À confirmer impérativement au walk-forward avant toute confiance.
+  </div>
+  <p class="tip">Le panneau Test est mis en avant (bordure or) : c'est le seul chiffre qui dit la vérité sur la généralisation.</p>
+
+  <div class="disclaimer"><b>Avertissement.</b> Optimiser sur le train invite au sur-apprentissage. <a class="linklike" data-go="wf" href="#">Le walk-forward reste le juge &rarr;</a></div>
+</div>
+</section>
+
+<!-- ===================== 8. PORTEFEUILLE (/research/portfolio) ===================== -->
+<section class="screen" id="portfolio">
+<div class="wrap">
+  <div class="eyebrow">Recherche &middot; multi-actifs</div>
+  <h1 class="page">Portefeuille</h1>
+  <p class="page-sub">Backtester un panier équipondéré de plusieurs actifs et observer la <b>corrélation</b> entre eux. La diversification lisse la volatilité &mdash; mais ne protège pas d'un krach systémique.</p>
+
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Symboles</label><input value="BTC/USD,ETH/USD,SOL/USD" style="min-width:260px"></div>
+      <div class="field"><label>Stratégie</label><select><option>SMA</option><option>TSMOM</option><option>RSI</option><option>MACD</option><option>Bollinger</option></select></div>
+      <div class="field small"><label>Stop %</label><input value="8"></div>
+      <div class="field small"><label>Objectif %</label><input value="20"></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn primary">Lancer le portefeuille</button></div>
+  </div>
+
+  <h2>Métriques agrégées <span style="flex:none"><span class="badge insample"><span class="ic">&#9888;</span> IN-SAMPLE</span></span></h2>
+  <div class="grid-kpi">
+    <div class="kpi"><div class="label">Rendement panier</div><div class="value up">+22,7 %</div></div>
+    <div class="kpi"><div class="label">Sharpe panier</div><div class="value neu">0,64</div></div>
+    <div class="kpi"><div class="label">Drawdown max</div><div class="value down">-21,3 %</div></div>
+    <div class="kpi"><div class="label">Corrélation moyenne</div><div class="value gold">0,81</div></div>
+  </div>
+
+  <h2>Matrice de corrélation</h2>
+  <div class="card" style="overflow-x:auto">
+    <table class="heat" role="img" aria-label="Matrice de corrélation entre BTC, ETH et SOL ; toutes proches de 0,8">
+      <thead><tr><th></th><th>BTC</th><th>ETH</th><th>SOL</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">BTC</td>
+          <td><div class="cell" style="background:#d6aa5a">1,00</div></td>
+          <td><div class="cell" style="background:#c79a52">0,84</div></td>
+          <td><div class="cell" style="background:#bf9550">0,79</div></td></tr>
+        <tr><td class="rowlabel">ETH</td>
+          <td><div class="cell" style="background:#c79a52">0,84</div></td>
+          <td><div class="cell" style="background:#d6aa5a">1,00</div></td>
+          <td><div class="cell" style="background:#cb9d54">0,82</div></td></tr>
+        <tr><td class="rowlabel">SOL</td>
+          <td><div class="cell" style="background:#bf9550">0,79</div></td>
+          <td><div class="cell" style="background:#cb9d54">0,82</div></td>
+          <td><div class="cell" style="background:#d6aa5a">1,00</div></td></tr>
+      </tbody>
+    </table>
+    <p class="tip" style="margin-top:10px">Plus la case est claire/dorée, plus la corrélation est forte (valeur affichée en clair, jamais la couleur seule).</p>
+  </div>
+
+  <div class="banner note" style="margin-top:16px">
+    <b>Lecture honnête :</b> corrélation ~0,8 entre les trois actifs. La diversification <b>lisse</b> la volatilité au quotidien mais <b>ne protège pas d'un krach systémique</b> : quand le marché crypto chute, tout chute ensemble.
+  </div>
+
+  <div class="disclaimer"><b>Avertissement.</b> Résultats in-sample. Performances passées &ne; futures.</div>
+</div>
+</section>
+
+<!-- ===================== 9. PAPER (/paper) ===================== -->
+<section class="screen" id="paper">
+<div class="wrap">
+  <div class="eyebrow">Exploitation &middot; sans argent réel</div>
+  <h1 class="page">Paper trading</h1>
+  <p class="page-sub">Faire tourner une stratégie en conditions réelles de marché <b>sans engager d'argent</b>. Données Kraken publiques, aucune clé requise.</p>
+
+  <div class="card">
+    <div class="statusline"><span class="sdot stop" aria-hidden="true"></span><span class="stxt">Statut : ARRÊTÉ</span></div>
+  </div>
+
+  <h2>Configuration</h2>
+  <div class="card">
+    <div class="form-row">
+      <div class="field"><label>Stratégie</label>
+        <select><option>SMA &mdash; croisement de moyennes mobiles</option><option>TSMOM</option><option>RSI</option><option>MACD</option><option>Bollinger</option></select></div>
+      <div class="field"><label>Marché</label><input value="ETH/USD"></div>
+      <div class="field"><label>Timeframe</label><select><option>5m</option><option>15m</option><option>1h</option><option>4h</option></select></div>
+    </div>
+    <div class="form-row" style="margin-top:8px">
+      <div class="field small"><label>Stop %</label><input value="5"></div>
+      <div class="field small"><label>Objectif %</label><input value="10"></div>
+      <div class="field small"><label>Trailing %</label><input value="8"></div>
+      <div class="field"><label>Sizing</label><select><option>none</option><option>vol</option></select></div>
+    </div>
+    <p class="tip">Le paper s'exécute toujours sur Kraken (pas de source Binance ici). Aucune clé n'est nécessaire.</p>
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
+      <button class="btn primary">Démarrer le paper trading</button>
+      <button class="btn ghost" disabled>Arrêter</button>
+      <a class="btn ghost" data-go="monitoring" href="#" style="margin-left:auto">Voir le monitoring &rarr;</a>
+    </div>
+  </div>
+
+  <div class="banner note" style="margin-top:16px">
+    Une fois démarré, suivez le paper en direct sur <a class="linklike" data-go="monitoring" href="#">Monitoring</a> (rafraîchissement automatique), puis analysez les statistiques sur <a class="linklike" data-go="stats" href="#">Labo de stats</a>.
+  </div>
+
+  <div class="disclaimer"><b>Sécurité.</b> Le paper ne touche jamais d'argent réel et ne peut structurellement pas lancer de live. Données publiques uniquement.</div>
+</div>
+</section>
+
+<!-- ===================== 10. MONITORING (/monitoring) ===================== -->
+<section class="screen" id="monitoring">
+<div class="wrap">
+  <div class="eyebrow">Exploitation &middot; suivi en direct</div>
+  <h1 class="page">Monitoring</h1>
+  <p class="page-sub">Suivi du paper trading <b>en direct</b> (rafraîchissement automatique toutes les 7 s). Lecture seule : cette page ne touche jamais le trading.</p>
+
+  <div class="card" style="margin:8px 0 6px">
+    <div class="statusline"><span class="sdot run" aria-hidden="true"></span><span class="stxt">EN COURS</span> <span class="muted" style="font-family:var(--mono);font-size:12.5px">&middot; SMA &middot; ETH/USD &middot; 5m &middot; depuis 2026-06-18 14:00</span></div>
+  </div>
+
+  <div class="grid-kpi">
+    <div class="kpi"><div class="label">Statut position</div><div class="value blue">CASH</div></div>
+    <div class="kpi"><div class="label">Prix ETH/USD</div><div class="value neu">3 120,50 $</div></div>
+    <div class="kpi"><div class="label">Équity</div><div class="value neu">10 042 $</div></div>
+    <div class="kpi"><div class="label">P&amp;L</div><div class="value up">+42 $ (+0,42 %)</div></div>
+    <div class="kpi"><div class="label">Drawdown</div><div class="value down">-1,8 %</div></div>
+    <div class="kpi"><div class="label">Exposition</div><div class="value neu">0 % (cash)</div></div>
+    <div class="kpi"><div class="label">Cycles</div><div class="value neu">312</div></div>
+    <div class="kpi"><div class="label">Dernier cycle</div><div class="value neu">il y a 12 s</div></div>
+  </div>
+
+  <h2>Derniers ordres</h2>
+  <div class="card" style="padding:6px 14px">
+    <table class="orderlist">
+      <thead><tr><th>Heure</th><th>Sens</th><th>Prix</th><th>Quantité</th><th>Valeur</th><th>Motif</th></tr></thead>
+      <tbody>
+        <tr><td>14:35</td><td><span class="side-sell">VENTE</span></td><td>3 118,20 $</td><td>0,0321</td><td>100,09 $</td><td>objectif atteint</td></tr>
+        <tr><td>13:50</td><td><span class="side-buy">ACHAT</span></td><td>3 071,40 $</td><td>0,0326</td><td>100,13 $</td><td>croisement SMA</td></tr>
+        <tr><td>11:05</td><td><span class="side-sell">VENTE</span></td><td>3 044,90 $</td><td>0,0329</td><td>100,18 $</td><td>stop-loss</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Journal</h2>
+  <div class="log"><span class="info">[14:40:02]</span> cycle 312 &mdash; signal : conserver (SMA rapide &lt; lente)
+<span class="ok">[14:35:11]</span> VENTE 0,0321 ETH @ 3 118,20 &mdash; objectif +10 % atteint
+<span class="info">[14:30:00]</span> cycle 311 &mdash; trailing stop ajusté à 3 090,00
+<span class="ok">[13:50:44]</span> ACHAT 0,0326 ETH @ 3 071,40 &mdash; croisement haussier
+<span class="info">[13:45:00]</span> cycle 305 &mdash; signal : acheter
+<span class="err">[11:05:23]</span> VENTE 0,0329 ETH @ 3 044,90 &mdash; stop-loss déclenché (-5 %)</div>
+
+  <div class="banner note" style="margin-top:16px;background:rgba(70,196,111,.06);border-color:rgba(70,196,111,.3);color:#bff0cf">
+    <b>&#10003; Activité normale.</b> Dernier cycle il y a 12 s. (Si plus aucun cycle depuis &gt; 6 min, une alerte d'inactivité s'affiche ici en orange.)
+  </div>
+
+  <div class="disclaimer"><b>Sécurité.</b> Lecture seule de fichiers d'état &middot; bind 127.0.0.1 &middot; host vérifié (anti-DNS-rebinding). Cette page ne passe jamais d'ordre.</div>
+</div>
+</section>
+
+<!-- ===================== 11. LABO DE STATS (/stats) ===================== -->
+<section class="screen" id="stats">
+<div class="wrap">
+  <div class="eyebrow">Exploitation &middot; analyse descriptive</div>
+  <h1 class="page">Labo de stats</h1>
+  <p class="page-sub">Synthèse descriptive du journal de paper trading. Ce sont des <b>statistiques descriptives</b>, pas une preuve d'edge.</p>
+
+  <div class="form-row" style="margin:14px 0 4px">
+    <div class="field"><label>Fichier de stats</label><select><option>paper_stats.csv</option></select></div>
+    <div style="align-self:flex-end"><button class="btn ghost">Recharger</button></div>
+  </div>
+
+  <h2>Synthèse</h2>
+  <div class="grid-kpi">
+    <div class="kpi"><div class="label">Période</div><div class="value neu" style="font-size:18px">14 jours</div></div>
+    <div class="kpi"><div class="label">Cycles</div><div class="value neu">4 032</div></div>
+    <div class="kpi"><div class="label">Rendement</div><div class="value up">+1,9 %</div></div>
+    <div class="kpi"><div class="label">Drawdown max</div><div class="value down">-3,4 %</div></div>
+    <div class="kpi"><div class="label">Trades</div><div class="value neu">47</div></div>
+    <div class="kpi"><div class="label">Taux de réussite</div><div class="value neu">45 %</div></div>
+    <div class="kpi"><div class="label">Exposition moyenne</div><div class="value neu">38 %</div></div>
+    <div class="kpi fees-hi"><div class="label">Part des frais</div><div class="value gold">-2,7 %</div></div>
+  </div>
+  <p class="help"><b style="color:var(--gold-bright)">Attention aux frais :</b> sur timeframe court, les frais Kraken (0,26 % par trade) pèsent lourd. Ici ils amputent le rendement de <b>2,7 points</b> &mdash; presque autant que le gain brut.</p>
+
+  <h2>Ventilation par heure (P&amp;L net)</h2>
+  <div class="card bars-wrap">
+    <div class="bars" role="img" aria-label="Répartition du P&amp;L par heure de la journée, pic à la mi-journée">
+      <div class="bar" style="height:30%"><span>0h</span></div>
+      <div class="bar" style="height:22%"><span>3h</span></div>
+      <div class="bar" style="height:18%"><span>6h</span></div>
+      <div class="bar" style="height:64%"><span>9h</span></div>
+      <div class="bar" style="height:88%"><span>12h</span></div>
+      <div class="bar" style="height:52%"><span>15h</span></div>
+      <div class="bar" style="height:40%"><span>18h</span></div>
+      <div class="bar" style="height:26%"><span>21h</span></div>
+    </div>
+  </div>
+
+  <h2>Ventilation par jour</h2>
+  <div class="card" style="padding:6px 14px">
+    <table>
+      <thead><tr><th>Jour</th><th>Trades</th><th>P&amp;L net</th><th>Réussite</th></tr></thead>
+      <tbody>
+        <tr><td>Lundi</td><td>9</td><td class="up">+0,6 %</td><td>56 %</td></tr>
+        <tr><td>Mardi</td><td>7</td><td class="down">-0,3 %</td><td>43 %</td></tr>
+        <tr><td>Mercredi</td><td>8</td><td class="up">+0,9 %</td><td>50 %</td></tr>
+        <tr><td>Jeudi</td><td>6</td><td class="down">-0,2 %</td><td>33 %</td></tr>
+        <tr><td>Vendredi</td><td>10</td><td class="up">+0,8 %</td><td>50 %</td></tr>
+        <tr><td>Samedi</td><td>4</td><td class="down">-0,1 %</td><td>25 %</td></tr>
+        <tr><td>Dimanche</td><td>3</td><td class="up">+0,2 %</td><td>33 %</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="banner note" style="margin-top:16px">
+    <b>Stats descriptives, pas une preuve d'edge.</b> Une ventilation favorable une semaine donnée peut être du pur bruit. Seul le walk-forward (hors-échantillon) tranche sur l'existence d'un avantage réel.
+  </div>
+
+  <div class="disclaimer"><b>Avertissement.</b> Lecture seule. Performances passées &ne; futures.</div>
+</div>
+</section>
+
+<!-- ===================== 12. OPTIONS (/options) ===================== -->
+<section class="screen" id="options">
+<div class="wrap">
+  <div class="eyebrow">Réglages &middot; liaison Kraken</div>
+  <h1 class="page">Options</h1>
+  <p class="page-sub">Niveau de journalisation du paper, liaison du compte Kraken (clés API) et accès au portefeuille. Les clés ne sont <b>jamais affichées</b>.</p>
+
+  <form onsubmit="return false">
+    <input type="hidden" name="csrf_token" value="(jeton CSRF symbolique &mdash; maquette)">
+
+    <h2>Niveau de logs</h2>
+    <div class="card">
+      <div class="radio-row" style="gap:26px">
+        <label><input type="radio" name="loglevel" value="leger"> Léger <span class="muted">&mdash; essentiel seulement</span></label>
+        <label><input type="radio" name="loglevel" value="moyen" checked> Moyen <span class="muted">&mdash; recommandé</span></label>
+        <label><input type="radio" name="loglevel" value="complet"> Complet <span class="muted">&mdash; verbeux (débogage)</span></label>
+      </div>
+      <p class="tip">Appliqué à chaud au paper en cours.</p>
+    </div>
+
+    <h2>Clés Kraken</h2>
+    <div class="card">
+      <div class="kv" style="margin-bottom:14px">Clés configurées : <span class="badge yes"><span class="ic">&#10003;</span> OUI</span></div>
+      <div class="form-row">
+        <div class="field"><label>Clé API (API Key)</label><input type="password" placeholder="laisser vide pour ne pas changer" autocomplete="off" style="min-width:260px"></div>
+        <div class="field"><label>Clé secrète (Private Key)</label><input type="password" placeholder="laisser vide pour ne pas changer" autocomplete="off" style="min-width:260px"></div>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="opt-persist">
+        <label for="opt-persist">Enregistrer dans <span class="mono">.env</span> <span class="muted">(sinon : session seulement, rien sur disque)</span></label>
+      </div>
+      <p class="help"><span class="warn">&#9888; Permissions de la clé :</span> activez <b>Query Funds</b> + <b>Create &amp; Modify Orders</b> <b style="color:var(--gold-bright)">UNIQUEMENT</b>. <b style="color:var(--down)">JAMAIS Withdraw Funds</b> &mdash; aucun retrait ne doit être possible avec cette clé.</p>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+        <button class="btn primary">Enregistrer</button>
+        <button class="btn ghost" id="opt-test" type="button">Tester la liaison Kraken</button>
+      </div>
+      <!-- resultat test liaison -->
+      <div id="opt-test-result" style="display:none; margin-top:14px">
+        <div class="banner note" style="background:rgba(70,196,111,.08);border-color:rgba(70,196,111,.35);color:#bff0cf">
+          <b>&#10003; Liaison OK</b> &mdash; Query Funds (lecture seule) a répondu.
+          <div style="margin-top:8px; font-family:var(--mono); font-size:13px">
+            Solde : <span id="opt-balance">&bull;&bull;&bull;&bull;&bull;&bull;</span>
+            <button class="btn sm ghost" id="opt-reveal" type="button" style="margin-left:10px">Afficher</button>
+          </div>
+          <p class="tip" style="margin-top:8px">Le solde est masqué par défaut. Aucune valeur n'est enregistrée ni journalisée.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>Portefeuille (Wallet)</h2>
+    <div class="card">
+      <p class="help" style="margin-top:0">Les retraits se font <b>exclusivement</b> sur le site officiel de Kraken, jamais depuis cet outil.</p>
+      <p style="margin:10px 0"><a class="linklike" href="https://www.kraken.com/u/funding/withdraw" target="_blank" rel="noopener noreferrer">Ouvrir la page de retrait Kraken (officielle) &rarr;</a></p>
+      <div class="banner note">
+        <b>Cette application ne fait jamais de retrait</b> et n'enregistre aucune adresse de portefeuille. Aucun champ d'adresse, aucun bouton de transfert n'existe ici &mdash; par conception.
+      </div>
+    </div>
+  </form>
+
+  <div class="disclaimer"><b>Sécurité.</b> Jeton CSRF au POST &middot; clés en <span class="mono">type=password</span>, jamais dans le HTML ni les logs &middot; état booléen seul (OUI/NON) &middot; session = mémoire seule si la case est décochée &middot; bind 127.0.0.1.</div>
+</div>
+</section>
+
+<!-- ===================== 13. AIDE (/help) ===================== -->
+<section class="screen" id="help">
+<div class="wrap">
+  <div class="eyebrow">Réglages &middot; documentation</div>
+  <h1 class="page">Aide</h1>
+  <p class="page-sub">L'ordre de travail honnête, les rappels de sécurité et le cadre de risque. À lire avant toute décision engageant de l'argent.</p>
+
+  <h2>Ordre de travail recommandé</h2>
+  <div class="card">
+    <div class="prereq">
+      <div class="item checked"><span class="box">1</span><div><div class="txt"><b>Backtest</b> &mdash; tester une idée sur l'historique</div><div class="sub">Résultat in-sample : encourageant ou non, ce n'est qu'un point de départ.</div></div></div>
+      <div class="item checked"><span class="box">2</span><div><div class="txt"><b>Walk-forward</b> &mdash; le juge hors-échantillon</div><div class="sub">Le seul test fiable d'un edge. S'il dit non, on ne va pas plus loin.</div></div></div>
+      <div class="item checked"><span class="box">3</span><div><div class="txt"><b>Paper</b> &mdash; en conditions réelles, sans argent</div><div class="sub">Observer plusieurs semaines : exécution, frais, comportement réel.</div></div></div>
+      <div class="item checked"><span class="box">4</span><div><div class="txt"><b>Live</b> &mdash; en dernier, petits montants, garde-fous serrés</div><div class="sub">Uniquement si les trois étapes précédentes sont concluantes.</div></div></div>
+    </div>
+  </div>
+
+  <h2>Sécurité SSL / antivirus</h2>
+  <div class="card">
+    <p class="help" style="margin-top:0">Sur une machine où un antivirus (souvent <b>Avast</b>) intercepte le HTTPS, Python peut échouer avec <span class="mono">CERTIFICATE_VERIFY_FAILED</span>. La solution propre est le paquet <span class="mono">truststore</span> (déjà dans <span class="mono">requirements.txt</span>) qui utilise le magasin de certificats de l'OS.</p>
+    <div class="banner danger" style="margin-bottom:0">
+      <b>Ne jamais désactiver <span class="mono">VERIFY_SSL</span>.</b> Le mettre à <span class="mono">False</span> n'est pas une correction : c'est un trou de sécurité qui expose les échanges à une interception. Il reste à <span class="mono">True</span> sur cette machine.
+    </div>
+  </div>
+
+  <h2>Risque &amp; non-conseil</h2>
+  <div class="card">
+    <div class="banner note" style="margin-top:0">
+      Cet outil est un instrument de <b>recherche</b>. <b>Aucun gain n'est promis ni garanti.</b> Le trading crypto peut faire perdre la totalité du capital engagé. Ceci <b>n'est pas un conseil en investissement</b> : les décisions et le risque appartiennent entièrement à l'utilisateur. Performances passées &ne; performances futures.
+    </div>
+    <p class="help">Pour l'installation complète, voir le fichier <span class="mono">SETUP.md</span> du dépôt.</p>
+  </div>
+
+  <div class="disclaimer"><b>Rappel.</b> Le walk-forward (hors-échantillon) est le seul juge fiable d'un edge. Quand il dit non, l'honnêteté est de l'entendre.</div>
+</div>
+</section>
+
+<!-- modale confirmation REEL -->
+<div class="overlay" id="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <h3 id="m-title">&#9888; Confirmer le passage en RÉEL</h3>
+    <p style="font-size:13.5px;margin:6px 0">Vous allez lancer le trading <b style="color:var(--down)">avec de l'argent réel</b>. Vérifiez le récapitulatif :</p>
+    <div class="recap">
+      <div><span class="k">Paire</span><span>ETH/USD</span></div>
+      <div><span class="k">Stratégie</span><span>SMA (fast=50, slow=200)</span></div>
+      <div><span class="k">Stop / Objectif</span><span>-8 % / +20 %</span></div>
+      <div><span class="k">Plafond ordre</span><span>100,00 $</span></div>
+      <div><span class="k">Plafond position</span><span>500,00 $</span></div>
+    </div>
+    <p style="font-size:13.5px;margin:6px 0">Pour confirmer, tapez exactement : <b class="mono" style="color:var(--gold-bright)">OUI JE CONFIRME</b></p>
+    <input class="confirm-input" id="confirm-phrase" placeholder="tapez la phrase exacte" autocomplete="off">
+    <div class="acts">
+      <button class="btn ghost" id="modal-cancel">Annuler (Échap)</button>
+      <button class="btn danger" id="modal-ok" disabled>Démarrer en RÉEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- modale walk-forward final -->
+<div class="overlay" id="wf-modal">
+  <div class="modal" style="border-color:var(--gold-bright)">
+    <h3 style="color:var(--gold-bright)">&#9888; Validation finale du walk-forward</h3>
+    <p style="font-size:13.5px;line-height:1.6">À ne faire qu'<b>une seule fois par stratégie</b> : le holdout sacré (segment récent jamais testé) sera <b>consommé</b>. Après ça, il n'y a plus de juge vierge pour cette stratégie. Continuer ?</p>
+    <div class="acts">
+      <button class="btn ghost" id="wf-cancel">Annuler</button>
+      <button class="btn primary" id="wf-confirm" style="background:var(--gold-bright);border-color:var(--gold-bright)">Consommer le holdout</button>
+    </div>
+  </div>
+</div>
+
+<div class="mock-note">Maquette statique de validation visuelle &mdash; données fictives, aucun appel réseau. Direction à valider avant implémentation.</div>
+
+<script>
+// Navigation par onglets (JS vanilla)
+var RESEARCH_IDS=['bt','compare','optimize','wf','portfolio'];
+function show(id){
+  var s=document.querySelectorAll('.screen');
+  for(var i=0;i<s.length;i++){s[i].classList.toggle('active', s[i].id===id);}
+  var t=document.querySelectorAll('.nav .tab');
+  for(var j=0;j<t.length;j++){t[j].classList.toggle('active', t[j].getAttribute('data-go')===id);}
+  // surligner le groupe Recherche quand un de ses ecrans est actif
+  var rbtn=document.getElementById('grp-research-btn');
+  if(rbtn){ rbtn.classList.toggle('active', RESEARCH_IDS.indexOf(id)!==-1); }
+  // fermer le menu deroulant
+  var grp=document.getElementById('grp-research');
+  if(grp){ grp.classList.remove('open'); }
+  window.scrollTo(0,0);
+}
+// toggle du menu deroulant Recherche
+document.getElementById('grp-research-btn').addEventListener('click', function(e){
+  e.stopPropagation();
+  document.getElementById('grp-research').classList.toggle('open');
+});
+document.addEventListener('click', function(e){
+  // fermer le menu si clic en dehors
+  var grp=document.getElementById('grp-research');
+  if(grp && !grp.contains(e.target)){ grp.classList.remove('open'); }
+  var el=e.target.closest('[data-go]');
+  if(el && el.getAttribute('data-go')){ e.preventDefault(); show(el.getAttribute('data-go')); }
+});
+
+// --- Diagnostic : demo des etats ---
+function checkState(state){
+  document.getElementById('check-ok').style.display = state==='ok'?'block':'none';
+  document.getElementById('check-ssl').style.display = state==='ssl'?'block':'none';
+  document.getElementById('check-net').style.display = state==='net'?'block':'none';
+}
+document.querySelectorAll('[data-checkstate]').forEach(function(a){
+  a.addEventListener('click', function(e){ e.preventDefault(); checkState(a.getAttribute('data-checkstate')); });
+});
+var checkRetry=document.getElementById('check-retry');
+if(checkRetry){ checkRetry.addEventListener('click', function(){ checkState('ok'); }); }
+
+// --- Options : tester la liaison + reveler le solde ---
+var optTest=document.getElementById('opt-test');
+if(optTest){ optTest.addEventListener('click', function(){ document.getElementById('opt-test-result').style.display='block'; }); }
+var optReveal=document.getElementById('opt-reveal');
+if(optReveal){ optReveal.addEventListener('click', function(){
+  var bal=document.getElementById('opt-balance');
+  if(bal.textContent.indexOf('•')!==-1){ bal.textContent='1 248,73 USD'; optReveal.textContent='Masquer'; }
+  else { bal.innerHTML='&bull;&bull;&bull;&bull;&bull;&bull;'; optReveal.textContent='Afficher'; }
+}); }
+
+// --- Live : checklist debloque le mode REEL ---
+var prereq=document.getElementById('prereq');
+function liveState(){
+  var items=prereq.querySelectorAll('.item');
+  var allChecked=true;
+  items.forEach(function(it){ if(!it.classList.contains('checked')) allChecked=false; });
+  var real=document.querySelector('input[name=livemode][value=real]');
+  var sim=document.querySelector('input[name=livemode][value=sim]');
+  var startBtn=document.getElementById('live-start');
+  var hint=document.getElementById('live-hint');
+  real.disabled=!allChecked;
+  if(!allChecked){ sim.checked=true; }
+  var mode=document.querySelector('input[name=livemode]:checked').value;
+  if(mode==='real' && allChecked){
+    startBtn.disabled=false; startBtn.textContent='Démarrer en RÉEL'; startBtn.className='btn danger';
+    hint.textContent='Le bouton ouvrira une confirmation par frappe exacte.';
+  } else if(mode==='sim'){
+    startBtn.disabled=false; startBtn.textContent='Démarrer la simulation'; startBtn.className='btn ghost';
+    hint.textContent=allChecked?'Mode simulation : aucun ordre réel.':'Mode simulation disponible. Cochez tout pour débloquer le RÉEL.';
+  } else {
+    startBtn.disabled=true; startBtn.textContent='Démarrer';
+    hint.textContent='Cochez tous les pré-requis pour débloquer le mode RÉEL.';
+  }
+}
+prereq.querySelectorAll('.item').forEach(function(it){
+  it.addEventListener('click', function(){ it.classList.toggle('checked'); liveState(); });
+});
+document.querySelectorAll('input[name=livemode]').forEach(function(r){ r.addEventListener('change', liveState); });
+liveState();
+
+// --- Live : bouton Demarrer -> modale si REEL ---
+document.getElementById('live-start').addEventListener('click', function(){
+  var mode=document.querySelector('input[name=livemode]:checked').value;
+  if(mode==='real'){ document.getElementById('modal').classList.add('show'); document.getElementById('confirm-phrase').focus(); }
+  else { alert('Simulation (dry-run) démarrée. Aucun ordre réel.'); }
+});
+// modale REEL : phrase exacte
+var phrase=document.getElementById('confirm-phrase');
+var modalOk=document.getElementById('modal-ok');
+phrase.addEventListener('input', function(){
+  var ok=phrase.value==='OUI JE CONFIRME';
+  modalOk.disabled=!ok;
+  phrase.classList.toggle('match', ok);
+});
+function closeModal(){ document.getElementById('modal').classList.remove('show'); phrase.value=''; phrase.classList.remove('match'); modalOk.disabled=true; }
+document.getElementById('modal-cancel').addEventListener('click', closeModal);
+document.getElementById('modal-ok').addEventListener('click', function(){ closeModal(); alert('(Maquette) Live RÉEL confirmé. En vrai : ordres passés sous plafonds config.py, bouton Arrêter toujours visible.'); });
+
+// --- Walk-forward : case validation finale -> modale friction ---
+var wfFinal=document.getElementById('wf-final');
+wfFinal.addEventListener('change', function(){ if(wfFinal.checked){ document.getElementById('wf-modal').classList.add('show'); } });
+document.getElementById('wf-cancel').addEventListener('click', function(){ wfFinal.checked=false; document.getElementById('wf-modal').classList.remove('show'); });
+document.getElementById('wf-confirm').addEventListener('click', function(){ document.getElementById('wf-modal').classList.remove('show'); });
+
+// Echap ferme les modales (jamais confirmer)
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    closeModal();
+    if(document.getElementById('wf-modal').classList.contains('show')){ wfFinal.checked=false; document.getElementById('wf-modal').classList.remove('show'); }
+  }
+});
+</script>
+</body>
+</html>

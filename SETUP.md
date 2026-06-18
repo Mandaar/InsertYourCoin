@@ -128,6 +128,19 @@ Relancer ne double rien : si paper/monitor tournent déjà, il les réutilise.
 - Les paramètres du paper (stratégie, timeframe, stop/objectif/trailing) se modifient
   en tête de `lancer.py`, en attendant une page Options.
 
+### Raccourci bureau (icône)
+
+Pour ne plus avoir à naviguer dans le dossier du projet :
+
+1. **Installer** : double-clique `installer_raccourci.bat` (une seule fois).
+   Une icône **InsertYourCoin** apparaît sur le bureau.
+2. **Utiliser** : double-clique sur l'icône — tout démarre (diagnostic, paper trading, monitoring, navigateur).
+3. **Désinstaller** : double-clique `desinstaller_raccourci.bat` pour retirer l'icône du bureau.
+
+L'icône est générée dans `assets/insertyourcoin.ico` (fond sombre, monogramme IYC doré).
+Le raccourci pointe vers `lancer.bat` avec le dossier du projet comme répertoire de travail ;
+il fonctionne même si le projet est déplacé (les chemins sont recalculés à l'installation).
+
 ---
 
 ## 10. Sécurité git (si tu publies le dépôt)

@@ -87,6 +87,14 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
   **lissent** (vol ÷3, drawdown ÷2) mais ne **créent pas** de profit. Diversification
   BTC/ETH/SOL utile mais corrélation ~0,8 (lisse, ne protège pas d'un krach systémique).
   Ne pas raconter d'histoires là-dessus à l'utilisateur.
+- **Chantier app web locale (conception terminée, 2026-06-18)** : décision de transformer la
+  CLI en **site auto-hébergé AV-proof** (serveur `http.server` stdlib, lancé par double-clic,
+  navigateur — **pas de .exe**, cf. `SETUP.md`). Couvre TOUTES les fonctions. Livré : spec
+  validée [`docs/UI_UX_WEBAPP_SPEC.md`](docs/UI_UX_WEBAPP_SPEC.md) (13 écrans, 3 décisions actées),
+  maquette HTML autonome des 13 écrans [`docs/mockups/prototype.html`](docs/mockups/prototype.html),
+  et **raccourci bureau** (icône `assets/insertyourcoin.ico` + `installer_raccourci.bat` /
+  `desinstaller_raccourci.bat` + `scripts/install_shortcut.ps1`). **Implémentation non commencée.**
+  Reprise détaillée : [`docs/RAPPORT_WEBAPP_SUITE.md`](docs/RAPPORT_WEBAPP_SUITE.md).
 
 ## Prochaines étapes (ordre suggéré)
 1. ~~Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.~~ ✅ fait.
@@ -94,6 +102,8 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
 3. Filtre de tendance long terme (ne trader que dans le sens du marché).
 4. Chercher une stratégie à edge réel — valider systématiquement au walk-forward.
 5. Plus tard seulement : live avec petits montants, garde-fous serrés.
+6. **App web locale** : implémenter la spec UI/UX par lots (Lot 0 socle → Lot 9 polish, cf.
+   `docs/UI_UX_WEBAPP_SPEC.md` §9 et `docs/RAPPORT_WEBAPP_SUITE.md`), sous gate SQA, via `ui-programmer`.
 
 ---
 
