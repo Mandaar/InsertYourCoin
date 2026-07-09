@@ -43,7 +43,10 @@ from .check_page import render_check_page
 from .stats import load_stats, summarize
 from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
-from .jobs import JobManager
+from .jobs import JobBusy, JobManager
+from . import research_page
+from . import report_page
+from .research_runners import run_backtest
 
 
 def project_root() -> Path:
@@ -582,6 +585,11 @@ def host_allowed(host_header, port) -> bool:
 _JOB_STATUS_RE = re.compile(r"^/job/([0-9a-f]{32})/status/?$")
 _JOB_CANCEL_RE = re.compile(r"^/job/([0-9a-f]{32})/cancel/?$")
 
+# Vue Rapport (Lot 4, spec §4.8) : meme format d'id (uuid4 hex 32) que les
+# routes /job/<id>/*. Un id malforme tombe sur le 404 generique (defense en
+# profondeur, avant meme d'atteindre JobManager.status).
+_REPORT_RE = re.compile(r"^/report/([0-9a-f]{32})/?$")
+
 
 # --------------------------------------------------------------------------- #
 #  Serveur (relit les fichiers a CHAQUE requete)                              #
@@ -682,6 +690,62 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             jobs.cancel(job_id)  # cooperatif : positionne le drapeau, sans effet si deja termine
             self._send_json(jobs.status(job_id))
 
+        def _read_post_form(self):
+            """Lit et parse le corps x-www-form-urlencoded en dict {nom: 1re valeur}.
+            Factorise pour toute route POST hors /options (qui garde son propre
+            `_one` historique -- inchange pour ne rien risquer de casser)."""
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                length = 0
+            raw = self.rfile.read(length) if length > 0 else b""
+            form = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+            return {k: v[0] for k, v in form.items() if v}
+
+        def _research_backtest_get(self):
+            return research_page.render_backtest_form(csrf_token)
+
+        def _research_backtest_post(self, form):
+            # CSRF verifie par l'appelant (do_POST) AVANT toute action -- ce job
+            # demarre du travail (Backtester), jamais sans jeton valide.
+            params, errors = research_page.parse_backtest_params(form)
+            if errors:
+                return research_page.render_backtest_form(csrf_token, errors=errors, values=form)
+
+            def _target(progress):
+                return run_backtest(params, progress)
+
+            label = f"Backtest {params['strategy']} {params['symbol']} ({params['timeframe']})"
+            try:
+                job_id = jobs.submit(_target, label=label)
+            except JobBusy:
+                active_id = jobs.active_id
+                active_status = jobs.status(active_id) if active_id else None
+                active_label = active_status.get("label") if active_status else None
+                return research_page.render_backtest_busy(active_label, active_id, csrf_token)
+            return research_page.render_backtest_launched(job_id, csrf_token)
+
+        def _report_get(self, job_id):
+            st = jobs.status(job_id)
+            if st is None:
+                return 404, report_page.render_report_unknown()
+            state = st["state"]
+            if state in ("pending", "running"):
+                return 200, report_page.render_report_pending(job_id, csrf_token)
+            if state == "error":
+                return 200, report_page.render_report_error(st.get("error_message"))
+            if state == "cancelled":
+                return 200, report_page.render_report_cancelled()
+            # state == "done" : `has_result` False -> le runner a retourne None
+            # (cas degenere, ne devrait pas arriver hors annulation -- deja geree
+            # au-dessus) ; on affiche un message honnete plutot qu'un rapport vide.
+            if not st.get("has_result"):
+                return 200, report_page.render_report_error(
+                    "Le job s'est termine sans produire de resultat exploitable."
+                )
+            result = jobs.result(job_id)
+            return 200, report_page.render_report_done(result)
+
         def _options_page(self, saved=False):
             opts = read_options()
             return render_options_page(
@@ -753,6 +817,21 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                         return
                     self._send_html("<h1>404</h1>", code=404)
                     return
+                if self.path.startswith("/research/backtest"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._research_backtest_get())
+                    return
+                if self.path.startswith("/report/"):
+                    m = _REPORT_RE.match(self.path.split("?", 1)[0])
+                    if not m:
+                        self._send_html("<h1>404</h1>", code=404)
+                        return
+                    if not self._host_ok():
+                        return
+                    code, page = self._report_get(m.group(1))
+                    self._send_html(page, code=code)
+                    return
                 if self.path.startswith("/options"):
                     if not self._host_ok():
                         return
@@ -796,13 +875,23 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 )
 
         def do_POST(self):
-            # /job/<id>/cancel (Lot 3) et /options acceptent un POST ; tout le reste -> 404.
+            # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4) et /options
+            # acceptent un POST ; tout le reste -> 404.
             if self.path.startswith("/job/"):
                 m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
                 if m:
                     self._handle_job_cancel(m.group(1))
                     return
                 self._send_html("<h1>404</h1>", code=404)
+                return
+            if self.path.startswith("/research/backtest"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._research_backtest_post(form))
                 return
             if not self.path.startswith("/options"):
                 self._send_html("<h1>404</h1>", code=404)

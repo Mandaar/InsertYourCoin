@@ -1,5 +1,9 @@
 """
-Genere un tableau de bord HTML autonome a partir d'un backtest.
+Genere le rendu HTML d'un backtest (cartes KPI, courbe de capital, drawdown,
+comparaison, derniers trades) -- soit en fichier autonome (`generate_dashboard`,
+CLI `dashboard`), soit en fragment reutilisable EMBARQUE dans une page de l'app
+web (`render_dashboard_html`, Lot 4 : /report/<job_id>, cf. spec §4.8). Les deux
+partagent EXACTEMENT le meme gabarit -- aucune divergence visuelle possible.
 
 Esthetique : "terminal de trading" sobre et raffine (fond sombre chaud, accent
 or, typographie serif systeme + monospace pour les chiffres).
@@ -41,7 +45,15 @@ def _pf(v):
     return f"{v:.2f}"
 
 
-def generate_dashboard(detail, comparison, context, path="dashboard.html"):
+def render_dashboard_html(detail, comparison, context) -> str:
+    """
+    Rendu PUR (aucune I/O) du contenu de rapport : `<script src>` Chart.js
+    vendorise + `<style>` du gabarit + tout le `<div class="wrap">...</div>`
+    et le `<script>` qui construit les graphiques. Conçu pour etre EMBARQUE
+    dans `<body>` d'une autre page (trading/report_page.py, Lot 4) -- pas de
+    `<!DOCTYPE>`/`<html>`/`<head>`/`<body>` ici (cf. `generate_dashboard` qui
+    les ajoute pour le fichier autonome).
+    """
     df = detail.df
     m = detail.metrics
     tf = context.get("timeframe", "1d")
@@ -122,39 +134,57 @@ def generate_dashboard(detail, comparison, context, path="dashboard.html"):
     payload = json.dumps({"labels": labels, "equity": equity, "bh": bh,
                           "dd": dd, "comp": comp_chart})
 
-    html = _TEMPLATE
-    html = html.replace("%%TITLE%%", f"{context.get('symbol','ETH/USD')} · {detail.strategy_name}")
-    html = html.replace("%%SUBTITLE%%",
+    body = _BODY_TEMPLATE
+    body = body.replace("%%TITLE%%", f"{context.get('symbol','ETH/USD')} · {detail.strategy_name}")
+    body = body.replace("%%SUBTITLE%%",
                         f"{context.get('symbol','ETH/USD')} — {tf} — "
                         f"{df.index[0].strftime(fmt)} → {df.index[-1].strftime(fmt)}")
-    html = html.replace("%%RISK%%", risk_badge)
-    html = html.replace("%%CARDS%%", cards_html)
-    html = html.replace("%%COMP_ROWS%%", comp_rows)
-    html = html.replace("%%TRADES%%", trades_html)
-    html = html.replace("/*PAYLOAD*/", payload)
+    body = body.replace("%%RISK%%", risk_badge)
+    body = body.replace("%%CARDS%%", cards_html)
+    body = body.replace("%%COMP_ROWS%%", comp_rows)
+    body = body.replace("%%TRADES%%", trades_html)
+    body = body.replace("/*PAYLOAD*/", payload)
+    return body
 
+
+def generate_dashboard(detail, comparison, context, path="dashboard.html"):
+    """
+    Fichier HTML autonome (CLI `dashboard`, cf. main.cmd_dashboard) : enveloppe
+    `render_dashboard_html(...)` dans un `<!DOCTYPE>`/`<html>`/`<head>`/`<body>`
+    minimal et l'ecrit sur disque. Le rendu lui-meme est 100% partage avec
+    l'usage inline (trading/report_page.py, Lot 4) via `render_dashboard_html`.
+    """
+    title = f"{context.get('symbol','ETH/USD')} · {detail.strategy_name}"
+    body = render_dashboard_html(detail, comparison, context)
+    html = (
+        "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>{title}</title><style>body{{margin:0}}</style>"
+        f"</head><body>{body}</body></html>"
+    )
     Path(path).write_text(html, encoding="utf-8")
     return path
 
 
-_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%%TITLE%%</title>
-<script src="/static/chart.umd.min.js"></script>
+_BODY_TEMPLATE = r"""<script src="/static/chart.umd.min.js"></script>
 <style>
-:root{
+/* Variables ET fond scopes sur .report-body (JAMAIS le selecteur racine
+   global ni le selecteur body) : ce gabarit est EMBARQUE dans <body> de
+   page_shell (Lot 4, /report/<job_id>), qui a deja ses PROPRES variables de
+   theme sur ce meme selecteur racine (trading/webui.py THEME_CSS) -- le
+   redefinir ici ecraserait les couleurs de la nav globale pour toute la
+   page. Scope sur .report-body : herite par tous ses descendants (le
+   sous-arbre .wrap), sans fuir hors de lui. */
+.report-body{
   --bg:#14110c; --panel:#1d1913; --panel2:#221d16;
   --line:rgba(214,170,90,.16); --gold:#d6aa5a; --gold-soft:rgba(214,170,90,.12);
   --up:#6fbf8a; --down:#df6a4f; --txt:#ece4d4; --muted:#928a78;
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
   --mono:ui-monospace,"SF Mono",Consolas,"Liberation Mono",Menlo,monospace;
 }
-*{box-sizing:border-box}
-body{
-  margin:0; background:
+.report-body *{box-sizing:border-box}
+.report-body{
+  background:
     radial-gradient(1200px 600px at 80% -10%, rgba(214,170,90,.07), transparent 60%),
     radial-gradient(900px 500px at -10% 110%, rgba(111,191,138,.05), transparent 60%),
     var(--bg);
@@ -200,8 +230,7 @@ footer{margin-top:46px; padding-top:20px; border-top:1px solid var(--line);
   color:var(--muted); font-size:11.5px; line-height:1.7}
 footer b{color:var(--gold); font-weight:500}
 </style>
-</head>
-<body>
+<div class="report-body">
 <div class="wrap">
   <header>
     <div class="eyebrow">Tableau de bord · backtest</div>
@@ -246,6 +275,7 @@ footer b{color:var(--gold); font-weight:500}
     en rien des résultats futurs. Ceci n'est pas un conseil en investissement. Le trading de crypto
     comporte un risque de perte pouvant aller jusqu'à la totalité du capital engagé.
   </footer>
+</div>
 </div>
 
 <script>
@@ -305,6 +335,4 @@ new Chart(document.getElementById('comp'),{
       y:{grid:{color:grid}, ticks:{callback:(v)=>v+'%'}}}}
 });
 } // fin du garde typeof Chart !== 'undefined'
-</script>
-</body>
-</html>"""
+</script>"""

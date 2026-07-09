@@ -88,13 +88,15 @@ def _paper_card(paper_view):
 
 
 def _research_card():
-    # Aucun resultat de walk-forward n'est encore persiste par l'app (module
-    # Recherche pas encore construit, Lot 4+) : etat vide honnete, jamais de
-    # faux verdict fabrique.
+    # Lot 4 : le Backtest est construit, mais aucun resultat n'est encore
+    # PERSISTE par l'app (pas de "dernier walk-forward" a afficher tant que
+    # /research/walkforward n'existe pas, Lot 6) -- etat vide honnete, jamais
+    # de faux verdict fabrique.
     return (
         "<div class='card'><h2>Recherche</h2>"
         "<p class='muted'>Aucune analyse lancee.</p>"
-        "<div class='btnrow'><span class='disabled-link'>Recherche (bientot)</span></div>"
+        "<div class='btnrow'><a class='hublink' href='/research/backtest'>"
+        "Nouvelle analyse -&gt;</a></div>"
         "</div>"
     )
 

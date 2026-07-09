@@ -99,7 +99,10 @@ body{
 NAV_ITEMS = (
     ("home", "Accueil", "/"),
     ("check", "Diagnostic", "/check"),
-    ("research", "Recherche", "/research"),
+    # Lot 4 : seul le Backtest est construit sous "Recherche" -- compare/
+    # optimize/walkforward/portfolio restent "bientot" (Lots 5-6), la nav
+    # pointe donc directement vers l'ecran fonctionnel plutot qu'un hub vide.
+    ("research", "Recherche", "/research/backtest"),
     ("paper", "Paper", "/paper"),
     ("monitoring", "Monitoring", "/monitoring"),
     ("stats", "Stats", "/stats"),
@@ -109,7 +112,9 @@ NAV_ITEMS = (
 
 # Ecrans REELLEMENT construits et branches. Tenu a jour lot par lot -- c'est la
 # seule ligne a etendre quand un nouvel ecran passe en prod.
-ENABLED_SCREENS = frozenset({"home", "check", "monitoring", "options", "stats"})
+ENABLED_SCREENS = frozenset(
+    {"home", "check", "research", "monitoring", "options", "stats"}
+)
 
 
 def _esc(s):

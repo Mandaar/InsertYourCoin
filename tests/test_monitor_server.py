@@ -20,6 +20,7 @@ import pytest
 from trading import monitor as mon
 from trading.options import read_options
 from trading.stats import StatsRecorder
+from trading.strategies import STRATEGIES
 
 
 @pytest.fixture()
@@ -319,3 +320,151 @@ def test_nav_presente_sur_monitoring_et_options(server):
     for page in (monitoring, opts):
         assert "<nav class='nav'>" in page
         assert "Local 127.0.0.1" in page
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 4 -- Recherche / Backtest + Rapport inline (routage HTTP reel,         #
+#  AUCUN reseau : trading.research_runners._load_ohlcv est monkeypatche)      #
+# --------------------------------------------------------------------------- #
+def _post(url, fields):
+    data = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(url, data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return r.status, r.read().decode("utf-8")
+
+
+def _extract_job_id(page):
+    m = re.search(r"data-job-id='([0-9a-f]{32})'", page)
+    assert m, "aucun panneau de job (data-job-id) trouve dans la page"
+    return m.group(1)
+
+
+def _wait_job_done(base_url, job_id, timeout=5):
+    deadline = time.time() + timeout
+    state = None
+    while time.time() < deadline:
+        _, body = _get(base_url + f"/job/{job_id}/status")
+        state = json.loads(body)["state"]
+        if state in ("done", "error", "cancelled"):
+            return state
+        time.sleep(0.02)
+    return state
+
+
+def test_route_research_backtest_form_lists_strategies(server):
+    code, page = _get(server + "/research/backtest")
+    assert code == 200
+    assert "Recherche" in page
+    assert "action='/research/backtest'" in page
+    for key in STRATEGIES:
+        assert f"value='{key}'" in page
+    assert "name='csrf_token'" in page
+
+
+def test_route_research_backtest_post_sans_csrf_rejete(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(server + "/research/backtest", {"strategy": "sma"})
+    assert exc.value.code == 403
+
+
+def test_route_research_backtest_post_invalide_reaffiche_formulaire(server):
+    token = _csrf_token(server)
+    code, page = _post(server + "/research/backtest",
+                       {"csrf_token": token, "strategy": "n-existe-pas"})
+    assert code == 200
+    assert "Strategie inconnue" in page
+    assert "class='job-panel'" not in page  # pas de job lance sur un formulaire invalide
+
+
+def test_route_research_backtest_post_creates_job_and_report_shows_result(
+    server, monkeypatch, make_df,
+):
+    closes = [100 + i * 0.5 for i in range(150)]
+    df = make_df(closes)
+    monkeypatch.setattr("trading.research_runners._load_ohlcv",
+                        lambda params, progress: df)
+
+    token = _csrf_token(server)
+    code, launched = _post(server + "/research/backtest", {
+        "csrf_token": token, "strategy": "sma", "symbol": "ETH/USD",
+        "timeframe": "1d", "days": "150", "source": "kraken",
+    })
+    assert code == 200
+    assert "class='job-panel'" in launched
+    job_id = _extract_job_id(launched)
+    assert f"/report/{job_id}" in launched  # result_url du panneau
+
+    state = _wait_job_done(server, job_id)
+    assert state == "done"
+
+    code, report = _get(server + f"/report/{job_id}")
+    assert code == 200
+    assert "IN-SAMPLE" in report
+    assert "walk-forward" in report.lower()
+    assert 'id="equity"' in report
+    assert "ETH/USD" in report
+
+
+def test_route_research_backtest_post_second_job_refuses_with_busy_message(
+    server_with_jobs,
+):
+    url, mgr = server_with_jobs
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=2)
+        return None
+
+    mgr.submit(blocking, label="Backtest sma ETH/USD (1d)")
+    assert started.wait(timeout=2)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/research/backtest", {
+        "csrf_token": token, "strategy": "sma",
+    })
+    assert code == 200
+    assert "deja en cours" in page
+    assert "Backtest sma ETH/USD (1d)" in page
+    assert "class='job-panel'" in page  # panneau du job EN COURS, pas un nouveau job
+
+    release.set()
+
+
+def test_route_report_job_inconnu_404(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/report/" + "0" * 32)
+    assert exc.value.code == 404
+
+
+def test_route_report_id_malforme_404(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/report/not-a-valid-id")
+    assert exc.value.code == 404
+
+
+def test_route_report_pending_affiche_panneau_job(server_with_jobs):
+    url, mgr = server_with_jobs
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=2)
+        return {"ok": True}
+
+    job_id = mgr.submit(blocking, label="job test")
+    assert started.wait(timeout=2)
+
+    code, page = _get(url + f"/report/{job_id}")
+    assert code == 200
+    assert "class='job-panel'" in page
+
+    release.set()
+
+
+def test_route_nav_recherche_active_et_habilitee(server):
+    code, page = _get(server + "/research/backtest")
+    assert code == 200
+    assert "<a class='tab active' href='/research/backtest'>Recherche</a>" in page
