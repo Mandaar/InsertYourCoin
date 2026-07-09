@@ -324,21 +324,42 @@ def _version(pkg):
         return "absent"
 
 
-def run_check(exchange, symbol):
+def truststore_active() -> bool:
+    """Vrai si truststore est installe/importable (aucune valeur sensible ici).
+    Reutilise par diagnostic_static_lines() ET par l'ecran web Accueil/Diagnostic
+    (trading/diagnostics_web.py) pour afficher l'etat sans appel reseau."""
+    try:
+        import truststore  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def diagnostic_static_lines() -> list:
     """
-    Effectue le diagnostic. `exchange` est injecte (testable sans reseau).
-    Retourne (ok: bool, lines: list[str]).
+    Lignes de diagnostic SANS RESEAU : version Python, versions des paquets,
+    etat truststore. Extrait de run_check() pour etre reutilisable tel quel par
+    l'ecran web /check (etat affiche AVANT tout clic, donc AVANT tout appel
+    Kraken -- cf. trading/diagnostics_web.py et trading/check_page.py).
     """
     lines = ["Diagnostic InsertYourCoin", "-------------------------"]
     lines.append("Python      : " + sys.version.split()[0])
     for pkg in ("ccxt", "pandas", "numpy", "truststore"):
         lines.append(f"{pkg:11s} : {_version(pkg)}")
-    try:
-        import truststore  # noqa: F401
+    if truststore_active():
         lines.append("Protection antivirus/SSL (truststore) : active (magasin de certificats de l'OS).")
-    except ImportError:
+    else:
         lines.append("Protection antivirus/SSL (truststore) : INDISPONIBLE "
                      "(installe-la via pip install -r requirements.txt si un antivirus scanne le HTTPS).")
+    return lines
+
+
+def run_check(exchange, symbol):
+    """
+    Effectue le diagnostic. `exchange` est injecte (testable sans reseau).
+    Retourne (ok: bool, lines: list[str]).
+    """
+    lines = diagnostic_static_lines()
     lines.append("")
     try:
         price = exchange.fetch_price(symbol)

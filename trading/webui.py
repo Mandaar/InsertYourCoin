@@ -15,6 +15,10 @@ Perimetre Lot 0 (cf. docs/UI_UX_WEBAPP_SPEC.md §9) : seuls Monitoring et Option
 sont des ecrans construits/branches. Les autres items de la nav (Accueil,
 Diagnostic, Recherche, Paper, Stats, Aide) apparaissent DESACTIVES ("bientot") --
 jamais de lien mort. Ils seront actives lot par lot.
+
+Perimetre Lot 1 (bascule de route decidee §11.1) : Accueil (/) et Diagnostic
+(/check) sont actives. Le monitoring quitte "/" pour "/monitoring" (nav +
+routing dans trading/monitor.py) ; /fragment est inchange.
 """
 import html
 from pathlib import Path
@@ -96,15 +100,15 @@ NAV_ITEMS = (
     ("check", "Diagnostic", "/check"),
     ("research", "Recherche", "/research"),
     ("paper", "Paper", "/paper"),
-    ("monitoring", "Monitoring", "/"),
+    ("monitoring", "Monitoring", "/monitoring"),
     ("stats", "Stats", "/stats"),
     ("options", "Options", "/options"),
     ("help", "Aide", "/help"),
 )
 
-# Ecrans REELLEMENT construits et branches (Lot 0). Tenu a jour lot par lot --
-# c'est la seule ligne a etendre quand un nouvel ecran passe en prod.
-ENABLED_SCREENS = frozenset({"monitoring", "options"})
+# Ecrans REELLEMENT construits et branches. Tenu a jour lot par lot -- c'est la
+# seule ligne a etendre quand un nouvel ecran passe en prod.
+ENABLED_SCREENS = frozenset({"home", "check", "monitoring", "options"})
 
 
 def _esc(s):

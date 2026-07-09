@@ -9,9 +9,13 @@ Conception :
 - des fonctions PURES (lecture fichiers, assemblage de la vue, rendu HTML)
   testables sans serveur ni reseau ;
 - un petit serveur ThreadingHTTPServer qui relit les fichiers a CHAQUE requete
-  (donnees fraiches) et sert deux routes :
-    GET /          -> page complete (coquille + fragment initial + script JS)
-    GET /fragment  -> fragment HTML seul (refresh partiel JS, sans rechargement)
+  (donnees fraiches) et sert (Lot 1, bascule de route decidee §11.1) :
+    GET /            -> Accueil (hub d'etat, trading/home_page.py)
+    GET /check       -> Diagnostic (trading/check_page.py), ?run=1 = execute
+                         le VRAI test de connexion Kraken (sinon aucun reseau)
+    GET /monitoring  -> page complete monitoring (coquille + fragment initial
+                         + script JS) -- ANCIEN "/"
+    GET /fragment    -> fragment HTML seul (refresh partiel JS, sans rechargement)
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
 """
@@ -29,6 +33,9 @@ from .options import (
     read_options, write_options, update_env_file, keys_configured, LOG_LEVELS,
 )
 from .webui import page_shell, serve_static
+from .home_page import render_home_page
+from .check_page import render_check_page
+from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
 
 
 def project_root() -> Path:
@@ -454,7 +461,7 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
 
     body = (
         "<div class='head'><h1>Options</h1>"
-        "<a class='navlink' href='/'>&larr; Retour au monitoring</a></div>"
+        "<a class='navlink' href='/monitoring'>&larr; Retour au monitoring</a></div>"
         + saved_html
         + "<form class='opt' method='post' action='/options'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
@@ -546,6 +553,10 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     # Cles "session seulement" (case decochee) : gardees EN MEMOIRE du process
     # monitor, JAMAIS ecrites sur disque. Utilisables pour un futur test de liaison.
     _session_keys = {}
+    # Dernier resultat de /check?run=1, EN MEMOIRE seulement (jamais persiste) --
+    # permet a l'Accueil d'afficher "verifie a HH:MM:SS" sans jamais appeler
+    # Kraken lui-meme au chargement (cf. diagnostics_web.run_web_check).
+    _last_check = {"value": None}
 
     def _compute_view_now():
         """Relit les 3 fichiers et calcule la vue (factorise pour les deux routes)."""
@@ -577,6 +588,24 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 saved=saved,
             )
 
+        def _home_page(self):
+            return render_home_page(
+                _compute_view_now(), _last_check["value"],
+                keys_configured(), truststore_active(),
+            )
+
+        def _check_page(self):
+            qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            symbol = (qs.get("symbol", [""])[0] or config.DEFAULT_SYMBOL).strip()
+            if qs.get("run", ["0"])[0] == "1":
+                # UN SEUL appel reseau, lecture seule (fetch_price) -- jamais
+                # declenche par un simple chargement de page (cf. spec §4.2).
+                result = run_web_check(symbol)
+                _last_check["value"] = result
+            else:
+                result = _last_check["value"]
+            return render_check_page(symbol, static_diagnostic_lines(), result=result)
+
         def _send_static(self, rel_path):
             result = serve_static(rel_path)
             if result is None:
@@ -602,14 +631,27 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                                           if "?" in self.path else "")
                     self._send_html(self._options_page(saved=saved))
                     return
-                view = _compute_view_now()
+                if self.path.startswith("/check"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._check_page())
+                    return
+                if self.path.startswith("/monitoring"):
+                    # Ex-"/" (Lot 0). Page complete (coquille + fragment + script JS).
+                    self._send_html(build_html(_compute_view_now()))
+                    return
                 if self.path.startswith("/fragment"):
                     # Route fragment : retourne uniquement le contenu (pas la coquille).
-                    content = render_fragment(view)
-                else:
-                    # Route principale : page complete (coquille + fragment + script JS).
-                    content = build_html(view)
-                self._send_html(content)
+                    # Chemin inchange par la bascule de route -- consomme par le JS
+                    # de la page /monitoring, peu importe la page qui l'a chargee.
+                    self._send_html(render_fragment(_compute_view_now()))
+                    return
+                if self.path == "/" or self.path.startswith("/?"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._home_page())
+                    return
+                self._send_html("<h1>404</h1>", code=404)
             except Exception as exc:  # ne JAMAIS crasher le serveur
                 # NE JAMAIS inclure de donnee sensible : str(exc) ne porte pas de cle.
                 self._send_html(

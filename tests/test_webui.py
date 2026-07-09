@@ -20,8 +20,9 @@ def test_page_shell_contains_nav_and_theme():
 
 
 def test_page_shell_highlights_active_item():
+    # Lot 1 : le monitoring a quitte "/" pour "/monitoring" (bascule §11.1).
     out = webui.page_shell("T", "monitoring", "<p>x</p>")
-    assert "class='tab active' href='/'>Monitoring</a>" in out
+    assert "class='tab active' href='/monitoring'>Monitoring</a>" in out
     # L'item Options (actif mais pas courant) reste un lien cliquable, non surligne.
     assert "class='tab' href='/options'>Options</a>" in out
 

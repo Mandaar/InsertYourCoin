@@ -41,10 +41,51 @@ def _get(url):
         return r.status, r.read().decode("utf-8")
 
 
-def test_route_dashboard(server):
-    code, page = _get(server + "/")
+def test_route_monitoring(server):
+    # Lot 1 : le monitoring a quitte "/" pour "/monitoring" (decision §11.1).
+    code, page = _get(server + "/monitoring")
     assert code == 200
     assert "Paper trading - monitoring" in page
+
+
+def test_route_fragment_toujours_actif(server):
+    # /fragment est INCHANGE par la bascule de route (consomme par le JS de
+    # la page /monitoring quelle que soit la page qui l'a chargee).
+    code, fragment = _get(server + "/fragment")
+    assert code == 200
+    assert "Paper trading - monitoring" not in fragment  # fragment seul, pas la coquille
+
+
+def test_route_accueil_hub(server):
+    # Lot 1 : "/" est desormais l'Accueil (hub), pas le monitoring.
+    code, page = _get(server + "/")
+    assert code == 200
+    assert "<h1>Accueil</h1>" in page
+    assert "Diagnostic" in page
+    assert "Paper trading" in page
+    assert "Recherche" in page
+    assert "Reglages" in page
+    # item de nav actif = 'home', pas 'monitoring'
+    assert "<a class='tab active' href='/'>Accueil</a>" in page
+
+
+def test_route_accueil_ne_declenche_aucun_reseau(server):
+    # Garde-fou anti-spam Kraken : le simple chargement de l'Accueil ne doit
+    # jamais avoir declenche de test de connexion (etat neutre par defaut).
+    _, page = _get(server + "/")
+    assert "Non verifie cette session." in page
+
+
+def test_route_check_etat_initial_sans_reseau(server):
+    # GET /check SANS ?run=1 -- aucun appel Kraken, juste les versions locales.
+    code, page = _get(server + "/check")
+    assert code == 200
+    assert "<h1>Diagnostic</h1>" in page
+    assert "Installation" in page
+    assert "Python" in page
+    assert "ccxt" in page
+    assert "Diagnostic non lance cette session." in page
+    assert "Lancer le diagnostic" in page
 
 
 def test_route_options_formulaire_et_liens(server):
@@ -106,8 +147,8 @@ def test_route_static_refuse_path_traversal(server):
 
 def test_nav_presente_sur_monitoring_et_options(server):
     # Lot 0 : les deux pages existantes rendent desormais la nav commune (page_shell).
-    _, home = _get(server + "/")
+    _, monitoring = _get(server + "/monitoring")
     _, opts = _get(server + "/options")
-    for page in (home, opts):
+    for page in (monitoring, opts):
         assert "<nav class='nav'>" in page
         assert "Local 127.0.0.1" in page
