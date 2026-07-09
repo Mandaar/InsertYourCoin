@@ -1,9 +1,8 @@
 """
-Vue Rapport (/report/<job_id>) -- fonctions PURES de rendu (testables sans
-serveur), cf. docs/UI_UX_WEBAPP_SPEC.md §4.8. Affiche le resultat d'un job de
-backtest (trading/research_runners.run_backtest) EN LIGNE, en reutilisant
-integralement trading/dashboard.py render_dashboard_html -- aucune logique de
-rendu de graphiques dupliquee ici.
+Vue Rapport / Resultat (/report/<job_id>) -- fonctions PURES de rendu
+(testables sans serveur), cf. docs/UI_UX_WEBAPP_SPEC.md §4.8. Affiche le
+resultat d'UN JOB DE RECHERCHE EN LIGNE, quel que soit son type (Lot 5 :
+`render_result_done` GENERALISE ce qui n'affichait au Lot 4 que le backtest).
 
 `trading/monitor.py` route GET /report/<job_id> choisit LEQUEL de ces rendus
 appeler selon `JobManager.status(job_id)` :
@@ -11,7 +10,19 @@ appeler selon `JobManager.status(job_id)` :
 - pending/running                     -> render_report_pending() (panneau job)
 - error                               -> render_report_error(message)
 - cancelled                           -> render_report_cancelled()
-- done + resultat                     -> render_report_done(result)
+- done + resultat                     -> render_result_done(result)
+
+`render_result_done` (Lot 5) lit `result["kind"]` (cf.
+trading/research_runners.py) et delegue au rendu du bon ecran :
+- "compare"/"optimize"/"portfolio" -> trading/compare_page.py,
+  optimize_page.py, portfolio_page.py (Lot 5, ecrans dedies : tableau,
+  panneaux train/test, heatmap de correlation -- pas de dashboard.py, qui
+  reste specifique a un SEUL backtest).
+- "backtest" (ou absent, compat Lot 4)  -> render_report_done ci-dessous,
+  qui reutilise integralement trading/dashboard.py render_dashboard_html --
+  AUCUNE logique de rendu de graphiques dupliquee ici. Le champ "kind" a ete
+  ajoute au payload de run_backtest au Lot 5 ; l'absence (payload plus
+  ancien/externe) retombe sur ce meme rendu backtest, jamais une erreur.
 """
 import html
 
@@ -122,3 +133,32 @@ def render_report_done(result) -> str:
     symbol = context.get("symbol") or "?"
     title = f"Rapport - {symbol} - InsertYourCoin"
     return _wrap(title, badge + content)
+
+
+def render_result_done(result) -> str:
+    """
+    Dispatcher GENERALISE (Lot 5) du rendu "job termine avec resultat" :
+    LE SEUL point que trading/monitor.py `_report_get` appelle pour l'etat
+    'done' -- quel que soit le type d'analyse. Lit `result.get("kind")`
+    (cf. trading/research_runners.py, contrat pose au Lot 5) :
+        "compare"   -> trading/compare_page.py   render_compare_done
+        "optimize"  -> trading/optimize_page.py  render_optimize_done
+        "portfolio" -> trading/portfolio_page.py render_portfolio_done
+        "backtest" / absent (compat Lot 4)  -> render_report_done (ci-dessus)
+
+    Import PARESSEUX des 3 modules Lot 5 : evite tout risque de cycle
+    d'import avec ce module (compare_page/optimize_page/portfolio_page
+    n'importent pas report_page, mais rester coherent avec la convention
+    d'imports paresseux deja en place dans trading/research_runners.py).
+    """
+    kind = (result or {}).get("kind") or "backtest"
+    if kind == "compare":
+        from .compare_page import render_compare_done
+        return render_compare_done(result)
+    if kind == "optimize":
+        from .optimize_page import render_optimize_done
+        return render_optimize_done(result)
+    if kind == "portfolio":
+        from .portfolio_page import render_portfolio_done
+        return render_portfolio_done(result)
+    return render_report_done(result)

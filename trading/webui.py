@@ -89,6 +89,17 @@ body{
 .pill.ssl-ok{color:var(--up); border-color:rgba(70,196,111,.35)}
 .pill.ssl-bad{color:var(--down); border-color:rgba(229,83,75,.45)}
 .iyc-page{max-width:1160px; margin:0 auto}
+.research-subnav{display:flex; gap:4px; flex-wrap:wrap; margin-bottom:16px;
+  padding-bottom:10px; border-bottom:1px solid var(--line)}
+.research-subnav a.sub-tab{color:var(--muted); font-size:12.5px; text-decoration:none;
+  padding:6px 11px; border-radius:6px}
+.research-subnav a.sub-tab:hover{color:var(--txt); background:rgba(255,255,255,.04)}
+.research-subnav a.sub-tab.active{color:var(--gold); background:var(--gold-soft); font-weight:600}
+.research-subnav span.sub-tab.disabled{color:var(--muted2); font-size:12.5px;
+  padding:6px 11px; border-radius:6px; opacity:.55}
+.research-subnav .soon{font-family:var(--mono); font-size:9px; letter-spacing:.06em;
+  text-transform:uppercase; margin-left:5px; padding:1px 5px; border:1px solid var(--line);
+  border-radius:999px; color:var(--muted2); vertical-align:1px}
 """
 
 
@@ -115,6 +126,35 @@ NAV_ITEMS = (
 ENABLED_SCREENS = frozenset(
     {"home", "check", "research", "monitoring", "options", "stats"}
 )
+
+# Sous-navigation DANS la section Recherche (Lot 5 : compare/optimize/portfolio
+# rejoignent backtest ; walkforward reste "bientot", Lot 6). Affichee en haut
+# de chaque ecran /research/<type> (research_page.py, compare_page.py,
+# optimize_page.py, portfolio_page.py) -- meme convention "bientot" que
+# NAV_ITEMS/ENABLED_SCREENS (jamais un <a> mort).
+RESEARCH_SUBNAV = (
+    ("backtest", "Backtest", "/research/backtest", True),
+    ("compare", "Comparer", "/research/compare", True),
+    ("optimize", "Optimiser", "/research/optimize", True),
+    ("portfolio", "Portefeuille", "/research/portfolio", True),
+    ("walkforward", "Walk-forward", "/research/walkforward", False),
+)
+
+
+def research_subnav_html(active_key):
+    """Fragment HTML de sous-nav Recherche (fonction PURE). `active_key` =
+    cle RESEARCH_SUBNAV active (surlignee)."""
+    items = []
+    for key, label, href, enabled in RESEARCH_SUBNAV:
+        if enabled:
+            cls = "sub-tab active" if key == active_key else "sub-tab"
+            items.append(f"<a class='{cls}' href='{_esc(href)}'>{_esc(label)}</a>")
+        else:
+            items.append(
+                f"<span class='sub-tab disabled'>{_esc(label)}"
+                "<span class='soon'>bientot</span></span>"
+            )
+    return "<div class='research-subnav'>" + "".join(items) + "</div>"
 
 
 def _esc(s):

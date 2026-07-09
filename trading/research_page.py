@@ -12,7 +12,7 @@ import html
 
 import config
 from .strategies import STRATEGIES, build_strategy
-from .webui import job_panel_html, page_shell
+from .webui import job_panel_html, page_shell, research_subnav_html
 
 # Choix timeframe proposes (memes valeurs que l'aide CLI de main.py --timeframe).
 TIMEFRAME_CHOICES = ("1m", "5m", "15m", "1h", "4h", "1d")
@@ -88,22 +88,13 @@ def _to_int(s, default):
         return default
 
 
-def parse_backtest_params(fields: dict):
+def parse_timeframe_days_source(fields: dict):
     """
-    Valide les champs du formulaire POST /research/backtest (`fields` = dict de
-    chaines DEJA extraites, une valeur par nom). Retourne (params, errors) :
-    - succes -> (dict pret pour research_runners.run_backtest, [])
-    - echec  -> (None, [messages FR actionnables])
-    Fonction PURE (aucune I/O, aucun reseau) -- testable directement.
+    Sous-ensemble COMMUN a tous les ecrans de recherche (Lot 5 : Comparer/
+    Optimiser/Portefeuille reutilisent ce parsing, pas seulement Backtest) :
+    timeframe/jours/source. Retourne (dict, errors) -- fonction PURE.
     """
     errors = []
-
-    strategy = (fields.get("strategy") or "").strip().lower()
-    if strategy not in STRATEGIES:
-        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
-
-    symbol = (fields.get("symbol") or "").strip() or config.DEFAULT_SYMBOL
-
     timeframe = (fields.get("timeframe") or "").strip() or config.DEFAULT_TIMEFRAME
     if timeframe not in TIMEFRAME_CHOICES:
         errors.append(
@@ -119,29 +110,69 @@ def parse_backtest_params(fields: dict):
     if source not in ("kraken", "binance"):
         source = "kraken"
 
+    return {"timeframe": timeframe, "days": days, "source": source}, errors
+
+
+def parse_risk_fields(fields: dict):
+    """
+    Sous-ensemble COMMUN "risque" (stop/take-profit/trailing/sizing) --
+    reutilise par les 4 ecrans de recherche (Lots 4-5). Parsing TOLERANT
+    (jamais d'erreur bloquante ici, cf. _to_float_or_none) -- fonction PURE.
+    """
     position_sizing = (fields.get("position_sizing") or "none").strip().lower()
     if position_sizing not in ("none", "vol"):
         position_sizing = "none"
 
-    if errors:
-        return None, errors
-
-    params = {
-        "strategy": strategy,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "days": days,
-        "source": source,
+    return {
         "stop_loss": _to_float_or_none(fields.get("stop_loss")),
         "take_profit": _to_float_or_none(fields.get("take_profit")),
         "trailing_stop": _to_float_or_none(fields.get("trailing_stop")),
         "position_sizing": position_sizing,
         "target_vol": _to_float_or_none(fields.get("target_vol")),
     }
+
+
+def parse_market_and_risk_fields(fields: dict):
+    """
+    `symbol` + parse_timeframe_days_source + parse_risk_fields, SANS
+    `strategy` (reutilise tel quel par trading/compare_page.py -- Comparer
+    n'a pas de choix de strategie unique, cf. spec §4.4). Retourne
+    (dict, errors) -- fonction PURE.
+    """
+    symbol = (fields.get("symbol") or "").strip() or config.DEFAULT_SYMBOL
+    tds, errors = parse_timeframe_days_source(fields)
+    if errors:
+        return None, errors
+    params = {"symbol": symbol}
+    params.update(tds)
+    params.update(parse_risk_fields(fields))
     return params, []
 
 
-def _strategy_options(selected):
+def parse_backtest_params(fields: dict):
+    """
+    Valide les champs du formulaire POST /research/backtest (`fields` = dict de
+    chaines DEJA extraites, une valeur par nom). Retourne (params, errors) :
+    - succes -> (dict pret pour research_runners.run_backtest, [])
+    - echec  -> (None, [messages FR actionnables])
+    Fonction PURE (aucune I/O, aucun reseau) -- testable directement.
+    """
+    strategy = (fields.get("strategy") or "").strip().lower()
+    errors = []
+    if strategy not in STRATEGIES:
+        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
+
+    common, common_errors = parse_market_and_risk_fields(fields)
+    errors += common_errors
+    if errors:
+        return None, errors
+
+    params = dict(common)
+    params["strategy"] = strategy
+    return params, []
+
+
+def strategy_options(selected):
     opts = []
     for key in STRATEGIES:
         label = f"{key} — {build_strategy(key).name}"
@@ -150,7 +181,7 @@ def _strategy_options(selected):
     return "".join(opts)
 
 
-def _timeframe_options(selected):
+def timeframe_options(selected):
     opts = []
     for tf in TIMEFRAME_CHOICES:
         checked = " selected" if tf == selected else ""
@@ -174,11 +205,11 @@ def _form_html(csrf_token, values) -> str:
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='strategy'>Strategie</label>"
-        f"<select id='strategy' name='strategy'>{_strategy_options(v.get('strategy'))}</select></div>"
+        f"<select id='strategy' name='strategy'>{strategy_options(v.get('strategy'))}</select></div>"
         "<div class='field'><label class='flabel' for='symbol'>Symbole</label>"
         f"<input id='symbol' name='symbol' value='{_esc(symbol)}'></div>"
         "<div class='field'><label class='flabel' for='timeframe'>Timeframe</label>"
-        f"<select id='timeframe' name='timeframe'>{_timeframe_options(timeframe)}</select></div>"
+        f"<select id='timeframe' name='timeframe'>{timeframe_options(timeframe)}</select></div>"
         "<div class='field'><label class='flabel' for='days'>Jours</label>"
         f"<input id='days' name='days' type='number' min='1' value='{_esc(v.get('days'))}'></div>"
         "</div>"
@@ -229,7 +260,8 @@ def render_backtest_form(csrf_token, errors=None, values=None) -> str:
 
     body = (
         f"<style>{_CSS}</style>"
-        "<div class='head'><h1>Recherche &mdash; Backtest</h1>"
+        + research_subnav_html("backtest")
+        + "<div class='head'><h1>Recherche &mdash; Backtest</h1>"
         "<a class='navlink' href='/'>&larr; Accueil</a></div>"
         + errors_html
         + "<div class='card'>"
@@ -252,7 +284,8 @@ def render_backtest_busy(active_label, active_id, csrf_token) -> str:
     label = active_label or "analyse en cours"
     body = (
         f"<style>{_CSS}</style>"
-        "<div class='head'><h1>Recherche &mdash; Backtest</h1>"
+        + research_subnav_html("backtest")
+        + "<div class='head'><h1>Recherche &mdash; Backtest</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Formulaire</a></div>"
         f"<div class='busy'>Une analyse est deja en cours : <strong>{_esc(label)}</strong>. "
         "Attends sa fin (panneau ci-dessous) ou annule-la avant d'en lancer une "
@@ -270,7 +303,8 @@ def render_backtest_launched(job_id, csrf_token) -> str:
     (cf. trading/webui.py job_panel_html)."""
     body = (
         f"<style>{_CSS}</style>"
-        "<div class='head'><h1>Recherche &mdash; Backtest en cours</h1>"
+        + research_subnav_html("backtest")
+        + "<div class='head'><h1>Recherche &mdash; Backtest en cours</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Formulaire</a></div>"
         "<div class='card'>"
         + job_panel_html(job_id, csrf_token, result_url=f"/report/{job_id}")

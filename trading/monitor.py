@@ -20,6 +20,12 @@ Conception :
                          ?file=<nom> restreint a une liste blanche *_stats.csv
                          (trading/monitor.py resolve_stats_path, jamais un
                          chemin arbitraire fourni par le client)
+    GET/POST /research/backtest, /research/compare, /research/optimize,
+                     /research/portfolio -> ecrans de recherche (Lots 4-5,
+                         formulaire pur -> job async -> /report/<job_id>)
+    GET /report/<job_id> -> resultat d'un job de recherche, generalise par
+                         `kind` (Lot 5, cf. trading/report_page.py
+                         render_result_done)
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
 """
@@ -44,9 +50,12 @@ from .stats import load_stats, summarize
 from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
 from .jobs import JobBusy, JobManager
+from . import compare_page
+from . import optimize_page
+from . import portfolio_page
 from . import research_page
 from . import report_page
-from .research_runners import run_backtest
+from .research_runners import run_backtest, run_compare, run_optimize, run_portfolio
 
 
 def project_root() -> Path:
@@ -725,6 +734,69 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 return research_page.render_backtest_busy(active_label, active_id, csrf_token)
             return research_page.render_backtest_launched(job_id, csrf_token)
 
+        def _research_compare_get(self):
+            return compare_page.render_compare_form(csrf_token)
+
+        def _research_compare_post(self, form):
+            params, errors = compare_page.parse_compare_params(form)
+            if errors:
+                return compare_page.render_compare_form(csrf_token, errors=errors, values=form)
+
+            def _target(progress):
+                return run_compare(params, progress)
+
+            label = f"Comparer {params['symbol']} ({params['timeframe']})"
+            try:
+                job_id = jobs.submit(_target, label=label)
+            except JobBusy:
+                active_id = jobs.active_id
+                active_status = jobs.status(active_id) if active_id else None
+                active_label = active_status.get("label") if active_status else None
+                return compare_page.render_compare_busy(active_label, active_id, csrf_token)
+            return compare_page.render_compare_launched(job_id, csrf_token)
+
+        def _research_optimize_get(self):
+            return optimize_page.render_optimize_form(csrf_token)
+
+        def _research_optimize_post(self, form):
+            params, errors = optimize_page.parse_optimize_params(form)
+            if errors:
+                return optimize_page.render_optimize_form(csrf_token, errors=errors, values=form)
+
+            def _target(progress):
+                return run_optimize(params, progress)
+
+            label = f"Optimiser {params['strategy']} {params['symbol']} ({params['timeframe']})"
+            try:
+                job_id = jobs.submit(_target, label=label)
+            except JobBusy:
+                active_id = jobs.active_id
+                active_status = jobs.status(active_id) if active_id else None
+                active_label = active_status.get("label") if active_status else None
+                return optimize_page.render_optimize_busy(active_label, active_id, csrf_token)
+            return optimize_page.render_optimize_launched(job_id, csrf_token)
+
+        def _research_portfolio_get(self):
+            return portfolio_page.render_portfolio_form(csrf_token)
+
+        def _research_portfolio_post(self, form):
+            params, errors = portfolio_page.parse_portfolio_params(form)
+            if errors:
+                return portfolio_page.render_portfolio_form(csrf_token, errors=errors, values=form)
+
+            def _target(progress):
+                return run_portfolio(params, progress)
+
+            label = f"Portefeuille {','.join(params['symbols'])} ({params['strategy']})"
+            try:
+                job_id = jobs.submit(_target, label=label)
+            except JobBusy:
+                active_id = jobs.active_id
+                active_status = jobs.status(active_id) if active_id else None
+                active_label = active_status.get("label") if active_status else None
+                return portfolio_page.render_portfolio_busy(active_label, active_id, csrf_token)
+            return portfolio_page.render_portfolio_launched(job_id, csrf_token)
+
         def _report_get(self, job_id):
             st = jobs.status(job_id)
             if st is None:
@@ -744,7 +816,10 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     "Le job s'est termine sans produire de resultat exploitable."
                 )
             result = jobs.result(job_id)
-            return 200, report_page.render_report_done(result)
+            # Lot 5 : dispatcher GENERALISE par result["kind"] (compare/optimize/
+            # portfolio/backtest) -- remplace l'appel direct a render_report_done
+            # (conserve pour compat, cf. trading/report_page.py render_result_done).
+            return 200, report_page.render_result_done(result)
 
         def _options_page(self, saved=False):
             opts = read_options()
@@ -822,6 +897,21 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                         return
                     self._send_html(self._research_backtest_get())
                     return
+                if self.path.startswith("/research/compare"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._research_compare_get())
+                    return
+                if self.path.startswith("/research/optimize"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._research_optimize_get())
+                    return
+                if self.path.startswith("/research/portfolio"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._research_portfolio_get())
+                    return
                 if self.path.startswith("/report/"):
                     m = _REPORT_RE.match(self.path.split("?", 1)[0])
                     if not m:
@@ -875,7 +965,8 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 )
 
         def do_POST(self):
-            # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4) et /options
+            # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4),
+            # /research/{compare,optimize,portfolio} (Lot 5) et /options
             # acceptent un POST ; tout le reste -> 404.
             if self.path.startswith("/job/"):
                 m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
@@ -892,6 +983,33 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
                     return
                 self._send_html(self._research_backtest_post(form))
+                return
+            if self.path.startswith("/research/compare"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._research_compare_post(form))
+                return
+            if self.path.startswith("/research/optimize"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._research_optimize_post(form))
+                return
+            if self.path.startswith("/research/portfolio"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._research_portfolio_post(form))
                 return
             if not self.path.startswith("/options"):
                 self._send_html("<h1>404</h1>", code=404)

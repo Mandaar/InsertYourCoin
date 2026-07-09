@@ -8,6 +8,7 @@ Ici on demarre le VRAI serveur (build_monitor_server, port 0) et on exerce les
 routes de bout en bout -- ce qui aurait attrape la typo.
 """
 import json
+import math
 import re
 import threading
 import time
@@ -468,3 +469,171 @@ def test_route_nav_recherche_active_et_habilitee(server):
     code, page = _get(server + "/research/backtest")
     assert code == 200
     assert "<a class='tab active' href='/research/backtest'>Recherche</a>" in page
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 5 -- Recherche / Comparer + Optimiser + Portefeuille (routage HTTP     #
+#  reel, AUCUN reseau : research_runners._load_ohlcv / _load_basket_ohlcv     #
+#  sont monkeypatches). Le rendu resultat passe par le /report/<job_id>       #
+#  GENERALISE (trading/report_page.py render_result_done, cf. Lot 5).         #
+# --------------------------------------------------------------------------- #
+def test_route_research_compare_form_has_csrf_and_no_strategy_field(server):
+    code, page = _get(server + "/research/compare")
+    assert code == 200
+    assert "action='/research/compare'" in page
+    assert "name='csrf_token'" in page
+    assert "name='strategy'" not in page
+
+
+def test_route_research_compare_post_sans_csrf_rejete(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(server + "/research/compare", {"symbol": "ETH/USD"})
+    assert exc.value.code == 403
+
+
+def test_route_research_compare_post_creates_job_and_report_shows_result(
+    server, monkeypatch, make_df,
+):
+    closes = [100 + i * 0.5 for i in range(150)]
+    df = make_df(closes)
+    monkeypatch.setattr("trading.research_runners._load_ohlcv",
+                        lambda params, progress: df)
+
+    token = _csrf_token(server)
+    code, launched = _post(server + "/research/compare", {
+        "csrf_token": token, "symbol": "ETH/USD", "timeframe": "1d",
+        "days": "150", "source": "kraken",
+    })
+    assert code == 200
+    assert "class='job-panel'" in launched
+    job_id = _extract_job_id(launched)
+
+    state = _wait_job_done(server, job_id)
+    assert state == "done"
+
+    code, report = _get(server + f"/report/{job_id}")
+    assert code == 200
+    assert "Recherche &mdash; Comparer" in report
+    assert "Buy &amp; Hold" in report
+    assert "IN-SAMPLE" in report
+
+
+def test_route_research_optimize_form_lists_strategies_and_metrics(server):
+    code, page = _get(server + "/research/optimize")
+    assert code == 200
+    assert "action='/research/optimize'" in page
+    for key in STRATEGIES:
+        assert f"value='{key}'" in page
+    assert "value='sharpe'" in page
+
+
+def test_route_research_optimize_post_invalide_reaffiche_formulaire(server):
+    token = _csrf_token(server)
+    code, page = _post(server + "/research/optimize",
+                       {"csrf_token": token, "strategy": "n-existe-pas"})
+    assert code == 200
+    assert "Strategie inconnue" in page
+    assert "class='job-panel'" not in page
+
+
+def test_route_research_optimize_post_creates_job_and_report_shows_result(
+    server, monkeypatch, make_df,
+):
+    closes = [100 + 20 * math.sin(i / 12.0) for i in range(600)]
+    df = make_df(closes)
+    monkeypatch.setattr("trading.research_runners._load_ohlcv",
+                        lambda params, progress: df)
+
+    token = _csrf_token(server)
+    code, launched = _post(server + "/research/optimize", {
+        "csrf_token": token, "strategy": "sma", "symbol": "ETH/USD",
+        "timeframe": "1d", "days": "600", "source": "kraken",
+        "metric": "sharpe", "train_frac": "0.6",
+    })
+    assert code == 200
+    assert "class='job-panel'" in launched
+    job_id = _extract_job_id(launched)
+
+    state = _wait_job_done(server, job_id)
+    assert state == "done"
+
+    code, report = _get(server + f"/report/{job_id}")
+    assert code == 200
+    assert "Train (in-sample)" in report
+    assert "Test (hors-echantillon)" in report
+
+
+def test_route_research_portfolio_form_shows_default_symbols(server):
+    code, page = _get(server + "/research/portfolio")
+    assert code == 200
+    assert "action='/research/portfolio'" in page
+    assert "BTC/USD,ETH/USD,SOL/USD" in page
+
+
+def test_route_research_portfolio_post_creates_job_and_report_shows_result(
+    server, monkeypatch, make_df,
+):
+    btc = make_df([100 + 20 * math.sin(i / 12.0) for i in range(150)])
+    eth = make_df([50 + 10 * math.sin(i / 9.0) for i in range(150)])
+
+    def _fake_basket(params, progress):
+        return {"BTC/USD": btc, "ETH/USD": eth}, []
+
+    monkeypatch.setattr("trading.research_runners._load_basket_ohlcv", _fake_basket)
+
+    token = _csrf_token(server)
+    code, launched = _post(server + "/research/portfolio", {
+        "csrf_token": token, "symbols": "BTC/USD,ETH/USD", "strategy": "sma",
+        "timeframe": "1d", "days": "150", "source": "kraken",
+    })
+    assert code == 200
+    assert "class='job-panel'" in launched
+    job_id = _extract_job_id(launched)
+
+    state = _wait_job_done(server, job_id)
+    assert state == "done"
+
+    code, report = _get(server + f"/report/{job_id}")
+    assert code == 200
+    assert "corr-table" in report
+    assert "Correlation moyenne" in report
+
+
+def test_route_research_subnav_links_all_four_screens(server):
+    code, page = _get(server + "/research/backtest")
+    assert code == 200
+    for href in ("/research/backtest", "/research/compare",
+                "/research/optimize", "/research/portfolio"):
+        assert f"href='{href}'" in page
+
+
+@pytest.mark.parametrize("path,fields", [
+    ("/research/compare", {}),
+    ("/research/optimize", {"strategy": "sma"}),
+    ("/research/portfolio", {"strategy": "sma"}),
+])
+def test_route_research_lot5_screens_refuse_second_job_while_busy(
+    server_with_jobs, path, fields,
+):
+    # Un seul job a la fois (spec §7.2), verifie sur les 3 nouveaux ecrans --
+    # meme garde-fou que /research/backtest (Lot 4).
+    url, mgr = server_with_jobs
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=2)
+        return None
+
+    mgr.submit(blocking, label="job bloquant")
+    assert started.wait(timeout=2)
+
+    token = _csrf_token(url)
+    data = dict(fields, csrf_token=token)
+    code, page = _post(url + path, data)
+    assert code == 200
+    assert "deja en cours" in page
+    assert "class='job-panel'" in page
+
+    release.set()

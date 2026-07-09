@@ -1,8 +1,11 @@
 """
-Tests de trading/report_page.py (Lot 4, /report/<job_id>) : fonctions PURES de
+Tests de trading/report_page.py (/report/<job_id>) : fonctions PURES de
 rendu, aucun serveur ni reseau. Le rapport "done" reutilise un VRAI
 BacktestResult (produit par le moteur reel sur donnees synthetiques) pour
 verifier l'integration avec trading/dashboard.py render_dashboard_html.
+
+Lot 5 : `render_result_done` GENERALISE le dispatch par `result["kind"]`
+(compare/optimize/portfolio/backtest) -- teste separement en bas de fichier.
 """
 from trading import report_page as rep
 from trading.backtester import Backtester
@@ -76,3 +79,51 @@ def test_render_report_done_does_not_leak_dashboard_root_vars_globally(make_df):
     assert out.count(":root{") == 1          # uniquement celle de page_shell/THEME_CSS
     assert out.count("\nbody{\n") == 1       # uniquement celle de page_shell/THEME_CSS
     assert ".report-body{" in out            # le scope attendu (dashboard) est bien present
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 5 -- render_result_done (dispatch generalise par result["kind"])       #
+# --------------------------------------------------------------------------- #
+def test_render_result_done_dispatches_backtest_to_dashboard(make_df):
+    result = _real_result(make_df)  # kind absent -- compat Lot 4
+    out = rep.render_result_done(result)
+    assert out == rep.render_report_done(result)
+
+
+def test_render_result_done_dispatches_explicit_backtest_kind(make_df):
+    result = dict(_real_result(make_df), kind="backtest")
+    out = rep.render_result_done(result)
+    assert 'id="equity"' in out  # rendu dashboard, pas un des 3 autres ecrans
+
+
+def test_render_result_done_dispatches_compare():
+    result = {"kind": "compare", "rows": [], "buy_hold": 0.0,
+             "context": {"symbol": "ETH/USD", "timeframe": "1d"}}
+    out = rep.render_result_done(result)
+    assert "Recherche &mdash; Comparer" in out
+
+
+def test_render_result_done_dispatches_optimize(make_df):
+    from trading.optimizer import optimize
+    import numpy as np
+    t = np.arange(600)
+    df = make_df(100.0 + 20.0 * np.sin(t / 12.0))
+    res = optimize(df, "sma", train_frac=0.6, metric="sharpe")
+    result = {"kind": "optimize", "result": res,
+             "context": {"symbol": "ETH/USD", "timeframe": "1d"}}
+    out = rep.render_result_done(result)
+    assert "Train (in-sample)" in out
+
+
+def test_render_result_done_dispatches_portfolio(make_df):
+    from trading.portfolio import backtest_portfolio
+    import numpy as np
+    t = np.arange(150)
+    data = {"BTC/USD": make_df(100.0 + 20.0 * np.sin(t / 12.0)),
+            "ETH/USD": make_df(50.0 + 10.0 * np.sin(t / 9.0))}
+    res = backtest_portfolio(data, "sma")
+    result = {"kind": "portfolio", "result": res, "ignored": [],
+             "context": {"symbols": ["BTC/USD", "ETH/USD"], "timeframe": "1d",
+                        "source": "kraken"}}
+    out = rep.render_result_done(result)
+    assert "corr-table" in out
