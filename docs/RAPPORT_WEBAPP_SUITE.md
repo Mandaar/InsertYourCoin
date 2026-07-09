@@ -38,24 +38,31 @@ icône** la lancera sans rien changer.
 3. **Bouton « Tester la liaison Kraken »** dans Options : appel `Query Funds` en lecture
    seule, OK/échec, **solde masqué par défaut**.
 
-## 4. Roadmap d'implémentation (cf. spec §9) — NON COMMENCÉE
+## 4. Roadmap d'implémentation (cf. spec §9) — EN COURS (Lots 0-5 faits)
 
-À faire par lots, chacun sous **gate SQA** (pytest vert, pas de P0/P1, garde-fous live
-intacts, `VERIFY_SSL=True`, test de non-régression par bug), délégué au `ui-programmer` :
+Par lots, chacun sous **gate SQA** (pytest vert, pas de P0/P1, garde-fous live intacts,
+`VERIFY_SSL=True`, non-régression), délégué au `ui-programmer`, vérifié en runtime réel :
 
-- **Lot 0 — Socle** : thème CSS partagé + coquille de nav commune + vendoring offline +
-  bascule Accueil sur `/` (redirection monitoring). Zéro régression métier.
-- **Lot 1** — Accueil + Diagnostic (`/check`).
-- **Lot 2** — Labo de stats web (`/stats`).
-- **Lot 3** — Infrastructure de jobs async (worker mono-job + polling).
-- **Lot 4** — Backtest + Rapport inline (réemploi `dashboard.py` vendorisé).
-- **Lot 5** — Comparer + Optimiser + Portefeuille.
-- **Lot 6** — Walk-forward (LE JUGE, écran le plus soigné).
-- **Lot 7** — Paper pilotable depuis l'UI (remplace les constantes en tête de `lancer.py`).
-- **Lot 8** — Live verrouillé (`/live`, P0 par nature, revue renforcée).
-- **Lot 9** — Polish & accessibilité.
+- ✅ **Lot 0 — Socle** : thème CSS partagé + nav commune + vendoring Chart.js offline. `c5875b4`
+- ✅ **Lot 1 — Accueil + Diagnostic** (`/check`), bascule `/` → Accueil, monitoring → `/monitoring`. `d4439de`
+- ✅ **Lot 2 — Labo de stats** (`/stats`, lecture seule, source CSV en liste blanche). `e9d1d15`
+- ✅ **Lot 3 — Infra jobs async** (`trading/jobs.py` `JobManager` mono-job thread-safe). `af75d34`
+- ✅ **Lot 4 — Backtest + Rapport inline** (`/research/backtest` → job → `/report/<id>`, badge IN-SAMPLE). `611d424`
+- ✅ **Lot 5 — Comparer + Optimiser + Portefeuille** (routage résultat généralisé par `kind`). `904adc5`
+- ⬜ **Lot 6 — Walk-forward** (LE JUGE, écran signature : bandeau verdict, holdout, `--final` friction).
+- ⬜ **Lot 7 — Paper pilotable** depuis l'UI (remplace les constantes en tête de `lancer.py`).
+- ⬜ **Lot 8 — Live verrouillé** (`/live`, **P0** — argent réel, exige un feu vert user explicite avant de le lancer).
+- ⬜ **Lot 9 — Polish & accessibilité**.
 
-**Point d'entrée conseillé pour reprendre : Lot 0.**
+**Point d'entrée pour reprendre : Lot 6 (walk-forward).**
+
+Architecture web en place (repères pour la reprise) :
+- `trading/webui.py` — `page_shell`, `job_panel_html`, `NAV_ITEMS`/`ENABLED_SCREENS`, `serve_static`, sous-nav recherche.
+- `trading/jobs.py` — `JobManager` (attaché au serveur via `server.job_manager`), contrat `submit/status/cancel/result`, `JobBusy`.
+- `trading/research_runners.py` — `run_backtest/compare/optimize/portfolio(params, progress)`, payload `{kind, ...}`, loader `_load_ohlcv` monkeypatchable (tests sans réseau).
+- `trading/*_page.py` — pages pures (form + rendu) ; `report_page.render_result_done(result)` dispatch par `kind`.
+- `trading/monitor.py` — serveur `http.server`, routes, CSRF, `host_allowed`, `/static/`, `/research/*`, `/report/<id>`, `/job/<id>/status|cancel`.
+- Le **Lot 6** ajoutera `run_walkforward` + `walkforward_page` + le rendu verdict, en réutilisant `optimizer.walk_forward*`, `holdout_*`. `--final` (holdout) doit rester derrière une friction et une décision user explicite.
 
 ## 5. Garde-fous à NE JAMAIS relâcher dans l'UI
 
@@ -83,8 +90,20 @@ intacts, `VERIFY_SSL=True`, test de non-régression par bug), délégué au `ui-
 
 ## 7. État au moment de l'arrêt
 
-- 253 tests pytest **verts**. Aucun secret commité (`.env`, `*_stats.csv`, `options.json`,
-  `paper_state.json` gitignorés). `VERIFY_SSL=True`.
-- Tout le travail de cette session est **committé** sur `main`.
-- `.claude/launch.json` (gitignoré) contient une config `maquette` (serveur statique port 8770)
-  pour rouvrir la maquette : `http://127.0.0.1:8770/docs/mockups/prototype.html`.
+- **416 tests pytest verts**. Aucun secret commité (`.env` absent ; `*_stats.csv`,
+  `options.json`, `paper_state.json`, `data/`, `run/`, `logs/`, `.venv/`, `.claude/launch.json`
+  gitignorés). `VERIFY_SSL=True`.
+- **Lots 0-5 committés et poussés** sur `main` (commits ci-dessus, §4).
+- L'app web double-cliquable (icône bureau → `lancer.bat` → serveur monitor) sert déjà
+  **tous les écrans livrés** : Accueil, Diagnostic, Monitoring, Stats, Options, et les 4
+  analyses de recherche (Backtest, Comparer, Optimiser, Portefeuille).
+- **Backup** : snapshot du projet sur `E:\Backups\InsertYourCoin\` (voir dossier daté le plus récent).
+- `.claude/launch.json` (gitignoré) contient les configs `monitor` (port 8765) et `maquette`
+  (port 8770 → `docs/mockups/prototype.html`).
+
+## 8. Reprise — checklist rapide
+
+1. `git pull` puis `git status` propre.
+2. `.venv\Scripts\python.exe -m pytest -q` → doit être vert (416+).
+3. Double-clic icône bureau (ou `python main.py monitor`) → vérifier les écrans livrés.
+4. Attaquer le **Lot 6 (walk-forward)** — voir §4 (repères archi) et la spec §4.6.
