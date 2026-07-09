@@ -28,6 +28,7 @@ import datetime as dt
 import html
 import http.server
 import json
+import re
 import secrets
 import urllib.parse
 from pathlib import Path
@@ -42,6 +43,7 @@ from .check_page import render_check_page
 from .stats import load_stats, summarize
 from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
+from .jobs import JobManager
 
 
 def project_root() -> Path:
@@ -569,17 +571,37 @@ def host_allowed(host_header, port) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+#  Jobs asynchrones (Lot 3) -- routes GET /job/<id>/status, POST /job/<id>/cancel
+#                                                                             #
+#  Le job_id est un uuid4().hex (32 caracteres hex minuscules, cf. jobs.py) --#
+#  le motif ci-dessous valide STRICTEMENT ce format avant tout traitement :  #
+#  un id malforme ne matche jamais et tombe sur le 404 generique (pas        #
+#  d'injection possible dans un chemin/HTML, en plus de l'echappement HTML   #
+#  applique par job_panel_html cote webui.py).                               #
+# --------------------------------------------------------------------------- #
+_JOB_STATUS_RE = re.compile(r"^/job/([0-9a-f]{32})/status/?$")
+_JOB_CANCEL_RE = re.compile(r"^/job/([0-9a-f]{32})/cancel/?$")
+
+
+# --------------------------------------------------------------------------- #
 #  Serveur (relit les fichiers a CHAQUE requete)                              #
 # --------------------------------------------------------------------------- #
 def build_monitor_server(port=8765, host="127.0.0.1",
-                         stats_path=None, log_path=None, state_path=None):
+                         stats_path=None, log_path=None, state_path=None,
+                         job_manager=None):
     """
     Construit le serveur de monitoring et le RETOURNE (sans le demarrer).
     Separe de run_monitor pour etre testable en integration (port=0 = port
     ephemere choisi par l'OS). Les chemins None sont resolus par defaut depuis
     project_root() (robuste au repertoire de lancement).
+
+    `job_manager` (Lot 3) : instance `jobs.JobManager` partagee, attachee au
+    serveur retourne (`server.job_manager`) pour que les tests -- et les
+    futures routes /research/<type> des Lots 4-6 -- puissent y soumettre des
+    jobs. None -> une instance neuve est creee (mono-job, en memoire).
     """
     root = project_root()
+    jobs = job_manager if job_manager is not None else JobManager()
     # Port reellement lie (mis a jour apres bind ; port=0 -> ephemere). Le
     # Handler lit bound_port[0] pour la verification Host (anti DNS-rebinding).
     bound_port = [port]
@@ -615,11 +637,50 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_json(self, data, code=200):
+            body = json.dumps(data).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def _host_ok(self):
             if not host_allowed(self.headers.get("Host"), bound_port[0]):
                 self._send_html("<h1>403 - Host non autorise</h1>", code=403)
                 return False
             return True
+
+        def _handle_job_status(self, job_id):
+            # Lecture seule (polling JS) : pas de CSRF, juste la garde Host.
+            if not self._host_ok():
+                return
+            st = jobs.status(job_id)
+            if st is None:
+                self._send_json({"error": "job introuvable"}, code=404)
+                return
+            self._send_json(st)
+
+        def _handle_job_cancel(self, job_id):
+            # Action d'etat (annulation) : CSRF requis, comme /options.
+            if not self._host_ok():
+                return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except (TypeError, ValueError):
+                length = 0
+            raw = self.rfile.read(length) if length > 0 else b""
+            form = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+            submitted = (form.get("csrf_token") or [""])[0]
+            if not csrf_valid(submitted, csrf_token):
+                self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                return
+            st = jobs.status(job_id)
+            if st is None:
+                self._send_json({"error": "job introuvable"}, code=404)
+                return
+            jobs.cancel(job_id)  # cooperatif : positionne le drapeau, sans effet si deja termine
+            self._send_json(jobs.status(job_id))
 
         def _options_page(self, saved=False):
             opts = read_options()
@@ -685,6 +746,13 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     rel = urllib.parse.unquote(self.path[len("/static/"):].split("?", 1)[0])
                     self._send_static(rel)
                     return
+                if self.path.startswith("/job/"):
+                    m = _JOB_STATUS_RE.match(self.path.split("?", 1)[0])
+                    if m:
+                        self._handle_job_status(m.group(1))
+                        return
+                    self._send_html("<h1>404</h1>", code=404)
+                    return
                 if self.path.startswith("/options"):
                     if not self._host_ok():
                         return
@@ -728,7 +796,14 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 )
 
         def do_POST(self):
-            # Seule /options accepte un POST ; tout le reste -> 404.
+            # /job/<id>/cancel (Lot 3) et /options acceptent un POST ; tout le reste -> 404.
+            if self.path.startswith("/job/"):
+                m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
+                if m:
+                    self._handle_job_cancel(m.group(1))
+                    return
+                self._send_html("<h1>404</h1>", code=404)
+                return
             if not self.path.startswith("/options"):
                 self._send_html("<h1>404</h1>", code=404)
                 return
@@ -794,6 +869,7 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
     server = http.server.ThreadingHTTPServer((host, port), Handler)
     bound_port[0] = server.server_address[1]   # port reel (utile si port=0)
+    server.job_manager = jobs   # expose pour les tests + les futures routes /research/<type>
     return server
 
 

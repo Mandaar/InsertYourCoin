@@ -94,3 +94,40 @@ def test_serve_static_refuses_path_traversal(tmp_path, monkeypatch):
 def test_serve_static_refuses_empty_or_none():
     assert webui.serve_static("") is None
     assert webui.serve_static(None) is None
+
+
+# --------------------------------------------------------------------------- #
+#  job_panel_html (Lot 3) -- panneau reutilisable, fonction PURE              #
+# --------------------------------------------------------------------------- #
+def test_job_panel_html_contains_job_id_and_cancel_form():
+    out = webui.job_panel_html("abc123", "tok-secret")
+    assert "data-job-id='abc123'" in out
+    assert "action='/job/abc123/cancel'" in out
+    assert "name='csrf_token' value='tok-secret'" in out
+    assert "/job/abc123/status" in out  # reference dans le JS de polling
+    assert "class='job-panel'" in out
+    assert "class='job-log'" in out
+
+
+def test_job_panel_html_escapes_job_id_and_csrf():
+    out = webui.job_panel_html("<script>", "\"'<tok>")
+    # Ni le job_id ni le token ne doivent introduire de balise executable non echappee.
+    assert "data-job-id='<script>'" not in out
+    assert "&lt;script&gt;" in out
+
+
+def test_job_panel_html_without_result_url_has_empty_attribute():
+    out = webui.job_panel_html("jid", "tok")
+    assert "data-result-url=''" in out
+
+
+def test_job_panel_html_with_result_url_embeds_it():
+    out = webui.job_panel_html("jid", "tok", result_url="/report/jid")
+    assert "data-result-url='/report/jid'" in out
+
+
+def test_job_panel_html_js_references_state_labels_as_json():
+    out = webui.job_panel_html("jid", "tok")
+    assert '"done": "Termine."' in out
+    assert '"error": "Erreur."' in out
+    assert '"cancelled": "Annule."' in out

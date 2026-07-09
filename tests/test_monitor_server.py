@@ -7,8 +7,10 @@ POST). Les tests purs (fonctions isolees) ne couvraient pas le handler HTTP.
 Ici on demarre le VRAI serveur (build_monitor_server, port 0) et on exerce les
 routes de bout en bout -- ce qui aurait attrape la typo.
 """
+import json
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,9 +39,32 @@ def server(tmp_path, monkeypatch):
         srv.shutdown()
 
 
+@pytest.fixture()
+def server_with_jobs(tmp_path, monkeypatch):
+    # Meme fixture que `server`, mais expose aussi le JobManager du serveur
+    # (Lot 3) pour y injecter des jobs synthetiques depuis les tests.
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json")
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield f"http://127.0.0.1:{srv.server_address[1]}", srv.job_manager
+    finally:
+        srv.shutdown()
+
+
 def _get(url):
     with urllib.request.urlopen(url, timeout=5) as r:
         return r.status, r.read().decode("utf-8")
+
+
+def _csrf_token(base_url):
+    _, page = _get(base_url + "/options")
+    return re.search(r"name='csrf_token'[^>]*value='([0-9a-f]+)'", page).group(1)
 
 
 def test_route_monitoring(server):
@@ -190,6 +215,101 @@ def test_route_stats_ignore_path_traversal(server, tmp_path):
     code, page = _get(server + "/stats?file=..%2f..%2fsecret.env")
     assert code == 200
     assert "do-not-leak" not in page
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 3 -- routes jobs asynchrones (GET /job/<id>/status, POST /job/<id>/cancel)
+# --------------------------------------------------------------------------- #
+def test_route_job_status_unknown_id_404(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/job/" + "0" * 32 + "/status")
+    assert exc.value.code == 404
+
+
+def test_route_job_status_malformed_id_404(server):
+    # Ne matche pas le format uuid4 hex attendu -> 404 generique, jamais
+    # transmis a JobManager.status (defense en profondeur, cf. _JOB_STATUS_RE).
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/job/not-a-valid-id/status")
+    assert exc.value.code == 404
+
+
+def test_route_job_status_returns_expected_json(server_with_jobs):
+    url, mgr = server_with_jobs
+    started = threading.Event()
+    release = threading.Event()
+
+    def target(progress):
+        started.set()
+        progress.log("etape 1")
+        release.wait(timeout=2)
+        return {"ok": True}
+
+    job_id = mgr.submit(target, label="job test")
+    assert started.wait(timeout=2)
+
+    code, body = _get(url + f"/job/{job_id}/status")
+    assert code == 200
+    data = json.loads(body)
+    assert data["id"] == job_id
+    assert data["label"] == "job test"
+    assert data["state"] in ("running", "pending")
+    assert "etape 1" in data["log"]
+    assert "result" not in data  # jamais le resultat lui-meme dans /status
+
+    release.set()
+
+
+def test_route_job_cancel_sans_csrf_rejete(server_with_jobs):
+    url, mgr = server_with_jobs
+    job_id = mgr.submit(lambda p: None)
+    data = urllib.parse.urlencode({}).encode()
+    req = urllib.request.Request(url + f"/job/{job_id}/cancel", data=data, method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 403
+
+
+def test_route_job_cancel_avec_csrf_annule(server_with_jobs):
+    url, mgr = server_with_jobs
+    started = threading.Event()
+
+    def target(progress):
+        started.set()
+        while not progress.cancelled:
+            time.sleep(0.01)
+        return None
+
+    job_id = mgr.submit(target)
+    assert started.wait(timeout=2)
+
+    token = _csrf_token(url)
+    data = urllib.parse.urlencode({"csrf_token": token}).encode()
+    req = urllib.request.Request(url + f"/job/{job_id}/cancel", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        assert r.status == 200
+        body = json.loads(r.read().decode("utf-8"))
+    assert body["state"] in ("running", "cancelled")  # cooperatif : bascule pas forcement immediate
+
+    deadline = time.time() + 2
+    state = None
+    while time.time() < deadline:
+        _, st_body = _get(url + f"/job/{job_id}/status")
+        state = json.loads(st_body)["state"]
+        if state == "cancelled":
+            break
+        time.sleep(0.02)
+    assert state == "cancelled"
+
+
+def test_route_job_cancel_job_inconnu_404(server_with_jobs):
+    url, _mgr = server_with_jobs
+    token = _csrf_token(url)
+    data = urllib.parse.urlencode({"csrf_token": token}).encode()
+    req = urllib.request.Request(url + "/job/" + "a" * 32 + "/cancel", data=data, method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 404
 
 
 def test_nav_presente_sur_monitoring_et_options(server):

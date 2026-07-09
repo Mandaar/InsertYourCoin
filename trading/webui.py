@@ -21,6 +21,7 @@ Perimetre Lot 1 (bascule de route decidee §11.1) : Accueil (/) et Diagnostic
 routing dans trading/monitor.py) ; /fragment est inchange.
 """
 import html
+import json
 from pathlib import Path
 
 import config
@@ -172,6 +173,151 @@ def page_shell(title, active_nav, body_html, csrf=None):
         + body_html
         + "</div></body></html>"
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Panneau de job asynchrone (Lot 3) -- reutilisable par les futures pages   #
+#  de recherche (Lots 4-6 : backtest/compare/optimize/walkforward/portfolio) #
+#                                                                             #
+#  `job_panel_html(job_id, csrf_token, ...)` est une fonction PURE (aucun    #
+#  reseau, aucun etat) qui rend un fragment HTML autonome : barre de         #
+#  progression indeterminee, log live (meme esprit visuel que `.log` du     #
+#  monitor, cf. trading/monitor.py), bouton Annuler (POST CSRF). Le JS       #
+#  embarque fait un polling GET /job/<id>/status (~1.2s, sans dependance     #
+#  externe) et, a l'etat 'done', redirige vers `result_url` si fourni --     #
+#  les Lots 4-6 la cablent vers /report/<id> ou la vue dediee ; le Lot 3 ne  #
+#  connait encore aucune de ces vues, `result_url` reste optionnel.          #
+# --------------------------------------------------------------------------- #
+JOB_PANEL_CSS = """
+.job-panel { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
+  padding: 14px 16px; margin: 14px 0; }
+.job-panel .job-bar { position: relative; height: 6px; border-radius: 999px;
+  background: #0e1116; overflow: hidden; margin-bottom: 10px; }
+.job-panel .job-bar-fill { position: absolute; top: 0; left: 0; height: 100%;
+  width: 35%; border-radius: 999px; background: #d6aa5a; }
+.job-panel .job-bar.indeterminate .job-bar-fill {
+  animation: job-bar-slide 1.1s ease-in-out infinite; }
+@keyframes job-bar-slide {
+  0% { left: -35%; width: 35%; }
+  50% { left: 40%; width: 45%; }
+  100% { left: 100%; width: 35%; }
+}
+.job-panel .job-state { font-size: 13px; margin-bottom: 8px; }
+.job-panel .job-state.state-error { color: #e5534b; }
+.job-panel .job-state.state-done { color: #46c46f; }
+.job-panel .job-state.state-cancelled { color: #f0b429; }
+.job-panel .job-log { font-family: ui-monospace, Consolas, Menlo, monospace;
+  font-size: 12px; line-height: 1.5; max-height: 260px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word; background: #0e1116;
+  border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; }
+.job-panel .job-cancel { margin: 0; }
+.job-panel .btn-cancel { background: #3a1d12; color: #ffb4ad;
+  border: 1px solid #e5534b; border-radius: 7px; padding: 7px 16px;
+  font-size: 13px; cursor: pointer; }
+.job-panel .btn-cancel:hover { background: #4a2417; }
+.job-panel .btn-cancel:disabled { opacity: .5; cursor: default; }
+"""
+
+_JOB_STATE_LABELS = {
+    "pending": "En attente...",
+    "running": "En cours...",
+    "done": "Termine.",
+    "error": "Erreur.",
+    "cancelled": "Annule.",
+}
+
+_JOB_JS_TEMPLATE = """
+<script>
+(function(){
+  var panel = document.getElementById(__PANEL_ID__);
+  if(!panel){ return; }
+  var statusUrl = __STATUS_URL__;
+  var cancelUrl = __CANCEL_URL__;
+  var resultUrl = panel.getAttribute('data-result-url');
+  var stateEl = panel.querySelector('.job-state');
+  var logEl = panel.querySelector('.job-log');
+  var barEl = panel.querySelector('.job-bar');
+  var cancelForm = panel.querySelector('.job-cancel');
+  var cancelBtn = panel.querySelector('.btn-cancel');
+  var labels = __STATE_LABELS__;
+  var timer = null;
+
+  function render(st){
+    var label = labels[st.state] || st.state;
+    stateEl.textContent = label + (st.error_message ? (' ' + st.error_message) : '');
+    stateEl.className = 'job-state state-' + st.state;
+    logEl.textContent = (st.log || []).join('\\n');
+    logEl.scrollTop = logEl.scrollHeight;
+    var terminal = (st.state === 'done' || st.state === 'error' || st.state === 'cancelled');
+    if(terminal){
+      barEl.classList.remove('indeterminate');
+      if(cancelBtn){ cancelBtn.disabled = true; }
+      if(timer){ clearInterval(timer); timer = null; }
+      if(st.state === 'done' && st.has_result && resultUrl){
+        window.location.href = resultUrl;
+      }
+    } else {
+      barEl.classList.add('indeterminate');
+    }
+  }
+
+  function poll(){
+    fetch(statusUrl, {cache: 'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(st){ if(st){ render(st); } })
+      .catch(function(){});
+  }
+
+  if(cancelForm){
+    cancelForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var data = new URLSearchParams(new FormData(cancelForm));
+      fetch(cancelUrl, {method: 'POST', body: data})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(st){ if(st){ render(st); } })
+        .catch(function(){});
+    });
+  }
+
+  poll();
+  timer = setInterval(poll, 1200);
+})();
+</script>
+"""
+
+
+def job_panel_html(job_id, csrf_token, result_url=None):
+    """
+    Panneau de progression reutilisable pour un job asynchrone (Lot 3+).
+    Fonction PURE (le rendu ne fait aucun reseau : c'est le JS embarque, cote
+    navigateur, qui poll). `job_id` et `csrf_token` sont echappes HTML par
+    prudence (defense en profondeur -- la route serveur valide deja le
+    format du job_id, cf. trading/monitor.py _JOB_STATUS_RE/_JOB_CANCEL_RE).
+    """
+    jid = _esc(job_id)            # pour les attributs HTML (id, data-*, action=)
+    token = _esc(csrf_token)
+    target = _esc(result_url) if result_url else ""
+    raw_id = str(job_id)          # pour les URLs JS (echappees JS via json.dumps, pas HTML)
+    panel = (
+        f"<div class='job-panel' id='job-panel-{jid}' data-job-id='{jid}' "
+        f"data-result-url='{target}'>"
+        "<div class='job-bar indeterminate'><div class='job-bar-fill'></div></div>"
+        "<div class='job-state'>En attente...</div>"
+        "<div class='job-log'></div>"
+        f"<form class='job-cancel' method='post' action='/job/{jid}/cancel'>"
+        f"<input type='hidden' name='csrf_token' value='{token}'>"
+        "<button class='btn-cancel' type='submit'>Annuler</button>"
+        "</form>"
+        "</div>"
+    )
+    js = (
+        _JOB_JS_TEMPLATE
+        .replace("__PANEL_ID__", json.dumps("job-panel-" + jid))
+        .replace("__STATUS_URL__", json.dumps(f"/job/{raw_id}/status"))
+        .replace("__CANCEL_URL__", json.dumps(f"/job/{raw_id}/cancel"))
+        .replace("__STATE_LABELS__", json.dumps(_JOB_STATE_LABELS))
+    )
+    return panel + js
 
 
 # --------------------------------------------------------------------------- #
