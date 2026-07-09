@@ -16,6 +16,10 @@ Conception :
     GET /monitoring  -> page complete monitoring (coquille + fragment initial
                          + script JS) -- ANCIEN "/"
     GET /fragment    -> fragment HTML seul (refresh partiel JS, sans rechargement)
+    GET /stats       -> Labo de stats (trading/stats_page.py), lecture seule ;
+                         ?file=<nom> restreint a une liste blanche *_stats.csv
+                         (trading/monitor.py resolve_stats_path, jamais un
+                         chemin arbitraire fourni par le client)
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
 """
@@ -35,6 +39,8 @@ from .options import (
 from .webui import page_shell, serve_static
 from .home_page import render_home_page
 from .check_page import render_check_page
+from .stats import load_stats, summarize
+from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
 
 
@@ -105,6 +111,40 @@ def tail_log(path, n=40) -> list:
         return lines[-n:] if n else lines
     except Exception:
         return []
+
+
+def list_stats_csvs(directory) -> list:
+    """
+    Liste blanche des CSV de stats SELECTIONNABLES depuis l'ecran /stats :
+    fichiers `*_stats.csv` presents DIRECTEMENT dans `directory` (pas de
+    sous-dossier). Ne leve jamais (dossier absent/illisible -> liste vide).
+    """
+    try:
+        d = Path(directory)
+        if not d.is_dir():
+            return []
+        return sorted(p.name for p in d.glob("*_stats.csv") if p.is_file())
+    except OSError:
+        return []
+
+
+def resolve_stats_path(directory, requested, default_path) -> Path:
+    """
+    Resout le CSV de stats demande par le client de facon SURE : `requested`
+    (parametre `?file=` fourni par le NAVIGATEUR, donc non fiable) n'est accepte
+    que s'il est un NOM DE FICHIER NU (aucun separateur de chemin, aucun '..')
+    ET present dans la liste blanche `list_stats_csvs(directory)`. Dans tout
+    autre cas (absent, chemin, traversal, fichier hors liste) -> `default_path`.
+    Cette fonction ne lit JAMAIS le fichier : elle ne fait que choisir un chemin.
+    """
+    if not requested:
+        return default_path
+    name = requested.strip()
+    if not name or "/" in name or "\\" in name or ".." in name:
+        return default_path
+    if name not in list_stats_csvs(directory):
+        return default_path
+    return Path(directory) / name
 
 
 def _to_float(value):
@@ -594,6 +634,27 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 keys_configured(), truststore_active(),
             )
 
+        def _stats_page(self):
+            qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            requested = (qs.get("file", [""])[0] or "").strip()
+            directory = stats_path.parent
+            chosen = resolve_stats_path(directory, requested, stats_path)
+            available = list_stats_csvs(directory)
+            # Le fichier par defaut peut ne pas matcher "*_stats.csv" (ex. le
+            # nom par defaut "paper_stats.csv" le fait, mais un chemin custom
+            # passe en test ne le fait pas forcement) : on le propose quand
+            # meme dans la liste affichee s'il existe, SANS jamais lire un nom
+            # different de celui deja resolu ci-dessus.
+            if chosen.name not in available and chosen.exists():
+                available = sorted(set(available) | {chosen.name})
+            try:
+                summary = summarize(load_stats(chosen))
+                empty_message = None
+            except FileNotFoundError as exc:
+                summary = None
+                empty_message = str(exc)
+            return render_stats_page(chosen.name, available, summary, empty_message)
+
         def _check_page(self):
             qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             symbol = (qs.get("symbol", [""])[0] or config.DEFAULT_SYMBOL).strip()
@@ -635,6 +696,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     if not self._host_ok():
                         return
                     self._send_html(self._check_page())
+                    return
+                if self.path.startswith("/stats"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._stats_page())
                     return
                 if self.path.startswith("/monitoring"):
                     # Ex-"/" (Lot 0). Page complete (coquille + fragment + script JS).

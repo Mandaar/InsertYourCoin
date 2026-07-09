@@ -162,7 +162,18 @@ def summarize(df: pd.DataFrame) -> dict:
     }
 
 
-_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+WEEKDAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+
+# Encart d'honnetete : SOURCE UNIQUE, partagee par le rendu CLI (format_summary
+# ci-dessous) et le rendu web (trading/stats_page.py). Garantit que l'ecran web
+# reprend ce texte MOT POUR MOT (spec §4.11) -- une seule chaine, jamais deux
+# copies qui pourraient diverger.
+HONESTY_NOTE = (
+    "Honnetete : stats DESCRIPTIVES, pas une preuve d'edge. Accumuler de la\n"
+    "donnee ne cree aucun profit ; seul le walk-forward (hors-echantillon)\n"
+    "juge une strategie. Sur timeframe court, les frais Kraken (0,26%/ordre)\n"
+    "pesent lourd. La valeur de ce CSV vient de la DUREE d'accumulation."
+)
 
 
 def format_summary(d: dict) -> str:
@@ -190,13 +201,10 @@ def format_summary(d: dict) -> str:
         L.append("\nPar jour (cycles / trades) :")
         for wd in sorted(d["by_weekday"], key=lambda x: int(x)):
             c = d["by_weekday"][wd]
-            nom = _DAYS[int(wd)] if 0 <= int(wd) < 7 else str(wd)
+            nom = WEEKDAY_NAMES[int(wd)] if 0 <= int(wd) < 7 else str(wd)
             L.append(f"  {nom:9s} : {c['cycles']:4d} / {c['trades']}")
 
     L.append("\n" + "-" * 60)
-    L.append("Honnetete : stats DESCRIPTIVES, pas une preuve d'edge. Accumuler de la")
-    L.append("donnee ne cree aucun profit ; seul le walk-forward (hors-echantillon)")
-    L.append("juge une strategie. Sur timeframe court, les frais Kraken (0,26%/ordre)")
-    L.append("pesent lourd. La valeur de ce CSV vient de la DUREE d'accumulation.")
+    L.extend(HONESTY_NOTE.splitlines())
     L.append("-" * 60)
     return "\n".join(L)

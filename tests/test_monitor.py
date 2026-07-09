@@ -8,7 +8,7 @@ import json
 
 from trading.monitor import (
     read_state, read_last_stats, tail_log, compute_view, build_html,
-    render_fragment,
+    render_fragment, list_stats_csvs, resolve_stats_path,
 )
 
 
@@ -98,6 +98,61 @@ def test_tail_log_ok(tmp_path):
 
 def test_tail_log_missing_returns_empty(tmp_path):
     assert tail_log(tmp_path / "nope.log") == []
+
+
+# --------------------------------------------------------------------------- #
+#  list_stats_csvs / resolve_stats_path (liste blanche du selecteur /stats)   #
+# --------------------------------------------------------------------------- #
+def test_list_stats_csvs_finds_only_matching_pattern(tmp_path):
+    (tmp_path / "paper_stats.csv").write_text("x", encoding="utf-8")
+    (tmp_path / "old_stats.csv").write_text("x", encoding="utf-8")
+    (tmp_path / "not_a_match.csv").write_text("x", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("x", encoding="utf-8")
+    out = list_stats_csvs(tmp_path)
+    assert out == ["old_stats.csv", "paper_stats.csv"]
+
+
+def test_list_stats_csvs_missing_dir_returns_empty(tmp_path):
+    assert list_stats_csvs(tmp_path / "nope") == []
+
+
+def test_resolve_stats_path_no_request_returns_default(tmp_path):
+    default = tmp_path / "paper_stats.csv"
+    assert resolve_stats_path(tmp_path, "", default) == default
+    assert resolve_stats_path(tmp_path, None, default) == default
+
+
+def test_resolve_stats_path_accepts_whitelisted_name(tmp_path):
+    (tmp_path / "paper_stats.csv").write_text("x", encoding="utf-8")
+    (tmp_path / "old_stats.csv").write_text("x", encoding="utf-8")
+    default = tmp_path / "paper_stats.csv"
+    out = resolve_stats_path(tmp_path, "old_stats.csv", default)
+    assert out == tmp_path / "old_stats.csv"
+
+
+def test_resolve_stats_path_rejects_path_traversal(tmp_path):
+    (tmp_path / "paper_stats.csv").write_text("x", encoding="utf-8")
+    default = tmp_path / "paper_stats.csv"
+    secret_dir = tmp_path.parent
+    for malicious in (
+        "../secret_stats.csv",
+        "..\\secret_stats.csv",
+        "/etc/passwd",
+        "C:\\Windows\\secret_stats.csv",
+        str(secret_dir / "secret_stats.csv"),
+    ):
+        assert resolve_stats_path(tmp_path, malicious, default) == default
+
+
+def test_resolve_stats_path_rejects_name_not_in_whitelist(tmp_path):
+    (tmp_path / "paper_stats.csv").write_text("x", encoding="utf-8")
+    default = tmp_path / "paper_stats.csv"
+    # Fichier qui existe mais ne matche pas '*_stats.csv' -> pas dans la liste
+    # blanche -> retombe sur le defaut (jamais lu tel quel).
+    (tmp_path / "secrets.env").write_text("KRAKEN_API_KEY=xxx", encoding="utf-8")
+    assert resolve_stats_path(tmp_path, "secrets.env", default) == default
+    # Fichier qui n'existe pas du tout non plus.
+    assert resolve_stats_path(tmp_path, "ghost_stats.csv", default) == default
 
 
 # --------------------------------------------------------------------------- #

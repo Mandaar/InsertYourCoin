@@ -108,7 +108,7 @@ NAV_ITEMS = (
 
 # Ecrans REELLEMENT construits et branches. Tenu a jour lot par lot -- c'est la
 # seule ligne a etendre quand un nouvel ecran passe en prod.
-ENABLED_SCREENS = frozenset({"home", "check", "monitoring", "options"})
+ENABLED_SCREENS = frozenset({"home", "check", "monitoring", "options", "stats"})
 
 
 def _esc(s):

@@ -17,6 +17,7 @@ import pytest
 
 from trading import monitor as mon
 from trading.options import read_options
+from trading.stats import StatsRecorder
 
 
 @pytest.fixture()
@@ -143,6 +144,52 @@ def test_route_static_refuse_path_traversal(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         _get(server + "/static/../monitor.py")
     assert exc.value.code == 404
+
+
+def test_route_stats_etat_vide(server):
+    # Lot 2 : pas de CSV -> message pedagogique EXACT de load_stats, 200 (pas
+    # une erreur), encart d'honnetete quand meme present.
+    code, page = _get(server + "/stats")
+    assert code == 200
+    assert "Labo de stats" in page
+    assert "Aucune donnee" in page
+    assert "Lance d&#x27;abord du paper trading" in page or "Lance d'abord du paper" in page
+    assert "DESCRIPTIVES" in page
+
+
+def test_route_stats_avec_donnees(server, tmp_path):
+    stats_csv = tmp_path / "s.csv"
+    rec = StatsRecorder(str(stats_csv))
+    rec.record({"time": "2022-01-01 00:00:00", "hour": 0, "weekday": 0,
+               "equity": 100.0, "exposure": 0.0, "action": "buy",
+               "pnl": 0.0, "fee_paid": 0.26})
+    rec.record({"time": "2022-01-01 01:00:00", "hour": 1, "weekday": 0,
+               "equity": 120.0, "exposure": 1.0, "action": "sell",
+               "pnl": 20.0, "fee_paid": 0.31})
+    code, page = _get(server + "/stats")
+    assert code == 200
+    assert "Cycles" in page
+    assert "PnL total" in page
+    assert "Frais" in page
+    assert "DESCRIPTIVES" in page
+
+
+def test_route_stats_ignore_chemin_arbitraire(server, tmp_path):
+    # Fichier HORS liste blanche (ne matche pas '*_stats.csv') : meme s'il
+    # existe, /stats ne doit JAMAIS le lire -- retombe sur l'etat vide par
+    # defaut (aucune donnee de secret.env qui ne fuite dans la page).
+    secret = tmp_path / "secret.env"
+    secret.write_text("KRAKEN_API_SECRET=do-not-leak", encoding="utf-8")
+    code, page = _get(server + "/stats?file=secret.env")
+    assert code == 200
+    assert "do-not-leak" not in page
+    assert "Aucune donnee" in page  # aucun stats.csv par defaut -> etat vide
+
+
+def test_route_stats_ignore_path_traversal(server, tmp_path):
+    code, page = _get(server + "/stats?file=..%2f..%2fsecret.env")
+    assert code == 200
+    assert "do-not-leak" not in page
 
 
 def test_nav_presente_sur_monitoring_et_options(server):
