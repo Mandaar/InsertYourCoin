@@ -2,8 +2,14 @@
 Genere un tableau de bord HTML autonome a partir d'un backtest.
 
 Esthetique : "terminal de trading" sobre et raffine (fond sombre chaud, accent
-or, typographie serif Fraunces pour les titres + monospace pour les chiffres).
-Graphiques via Chart.js (CDN -> necessite une connexion internet pour s'afficher).
+or, typographie serif systeme + monospace pour les chiffres).
+
+Offline / AV-proof (Lot 0, cf. docs/UI_UX_WEBAPP_SPEC.md §7.3) : Chart.js est
+VENDORISE localement (trading/static/chart.umd.min.js, servi par la route
+GET /static/<fichier> de monitor.py) -- plus aucune dependance CDN. Les polices
+sont des piles de polices SYSTEME (aucun chargement Google Fonts). Si le fichier
+vendorise est absent (ex. depot clone sans l'avoir regenere), les graphiques se
+degradent proprement en message texte au lieu de casser silencieusement.
 """
 import json
 import math
@@ -137,15 +143,14 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%%TITLE%%</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/static/chart.umd.min.js"></script>
 <style>
 :root{
   --bg:#14110c; --panel:#1d1913; --panel2:#221d16;
   --line:rgba(214,170,90,.16); --gold:#d6aa5a; --gold-soft:rgba(214,170,90,.12);
   --up:#6fbf8a; --down:#df6a4f; --txt:#ece4d4; --muted:#928a78;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+  --mono:ui-monospace,"SF Mono",Consolas,"Liberation Mono",Menlo,monospace;
 }
 *{box-sizing:border-box}
 body{
@@ -153,25 +158,25 @@ body{
     radial-gradient(1200px 600px at 80% -10%, rgba(214,170,90,.07), transparent 60%),
     radial-gradient(900px 500px at -10% 110%, rgba(111,191,138,.05), transparent 60%),
     var(--bg);
-  color:var(--txt); font-family:"IBM Plex Mono",monospace;
+  color:var(--txt); font-family:var(--mono);
   -webkit-font-smoothing:antialiased; padding:38px 26px 60px; line-height:1.5;
 }
 .wrap{max-width:1180px; margin:0 auto}
 header{border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:30px}
 .eyebrow{font-size:11px; letter-spacing:.32em; text-transform:uppercase; color:var(--gold); margin-bottom:10px}
-h1{font-family:"Fraunces",serif; font-weight:900; font-size:clamp(30px,5vw,52px);
+h1{font-family:var(--serif); font-weight:900; font-size:clamp(30px,5vw,52px);
    margin:0; letter-spacing:-.01em; line-height:1.02}
 .sub{color:var(--muted); font-size:13px; margin-top:12px; letter-spacing:.02em}
 .risk{display:inline-block; margin-left:12px; padding:3px 10px; border:1px solid var(--line);
   border-radius:999px; color:var(--gold); font-size:11px; letter-spacing:.05em}
-h2{font-family:"Fraunces",serif; font-weight:600; font-size:21px; letter-spacing:-.01em;
+h2{font-family:var(--serif); font-weight:600; font-size:21px; letter-spacing:-.01em;
    margin:42px 0 16px; display:flex; align-items:baseline; gap:12px}
 h2::after{content:""; flex:1; height:1px; background:var(--line)}
 .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:12px}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line);
   border-radius:13px; padding:16px 17px}
 .card-label{font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}
-.card-value{font-family:"Fraunces",serif; font-weight:600; font-size:27px; margin-top:8px; letter-spacing:-.01em}
+.card-value{font-family:var(--serif); font-weight:600; font-size:27px; margin-top:8px; letter-spacing:-.01em}
 .up{color:var(--up)} .down{color:var(--down)} .neu{color:var(--txt)}
 .panel{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line);
   border-radius:15px; padding:20px 22px}
@@ -247,7 +252,16 @@ footer b{color:var(--gold); font-weight:500}
 const D = /*PAYLOAD*/;
 const gold="#d6aa5a", muted="#928a78", up="#6fbf8a", down="#df6a4f";
 const grid="rgba(214,170,90,.10)";
-Chart.defaults.font.family="'IBM Plex Mono', monospace";
+
+if (typeof Chart === 'undefined') {
+  // Chart.js vendorise (trading/static/chart.umd.min.js) absent ou non servi :
+  // degradation propre, jamais un ecran casse. Cf. docs/UI_UX_WEBAPP_SPEC.md §7.3.
+  document.querySelectorAll('.chart-box').forEach(function(el){
+    el.innerHTML = '<p class="muted" style="padding:24px 0">'
+      + 'Graphiques indisponibles hors-ligne (chart.js non charge).</p>';
+  });
+} else {
+Chart.defaults.font.family="ui-monospace, Consolas, monospace";
 Chart.defaults.color=muted; Chart.defaults.font.size=11;
 
 const thin=(n)=>({maxTicksLimit:n, autoSkip:true});
@@ -290,6 +304,7 @@ new Chart(document.getElementById('comp'),{
     scales:{x:{grid:{display:false}, ticks:{maxRotation:0, font:{size:9.5}}},
       y:{grid:{color:grid}, ticks:{callback:(v)=>v+'%'}}}}
 });
+} // fin du garde typeof Chart !== 'undefined'
 </script>
 </body>
 </html>"""

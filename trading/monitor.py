@@ -28,6 +28,7 @@ import config
 from .options import (
     read_options, write_options, update_env_file, keys_configured, LOG_LEVELS,
 )
+from .webui import page_shell, serve_static
 
 
 def project_root() -> Path:
@@ -315,9 +316,7 @@ def build_html(view) -> str:
 
 
 _CSS = """
-* { box-sizing: border-box; }
-body { margin: 0; padding: 16px; background: #0e1116; color: #d7dee8;
-  font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+.iyc-page { padding: 16px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
@@ -369,22 +368,21 @@ setInterval(refresh,7000);
 
 def _page(fragment):
     """
-    Coquille HTML chargee UNE SEULE FOIS. `fragment` est le contenu initial
-    produit par render_fragment(view), injecte dans <div id='content'>.
-    Le script JS met a jour ce div toutes les 7s via fetch('/fragment').
-    AUCUN meta http-equiv='refresh' -- la page ne se recharge jamais.
+    Contenu de la page de monitoring, injecte dans la coquille commune
+    `page_shell` (nav + theme partages, cf. trading/webui.py). `fragment` est
+    le contenu initial produit par render_fragment(view), place dans
+    <div id='content'>. Le script JS met a jour ce div toutes les 7s via
+    fetch('/fragment'). AUCUN meta http-equiv='refresh' -- la page ne se
+    recharge jamais.
     """
-    return (
-        "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Paper trading - monitoring</title>"
-        f"<style>{_CSS}</style></head><body>"
+    body = (
+        f"<style>{_CSS}</style>"
         "<div class='head'><h1>Paper trading - monitoring</h1>"
         "<a class='navlink' href='/options'>Options</a></div>"
         f"<div id='content'>{fragment}</div>"
         + _JS_REFRESH
-        + "</body></html>"
     )
+    return page_shell("Paper trading - monitoring", "monitoring", body)
 
 
 # --------------------------------------------------------------------------- #
@@ -501,14 +499,8 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         "</div>"
     )
 
-    return (
-        "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Options - monitoring</title>"
-        f"<style>{_OPTIONS_CSS}</style></head><body>"
-        + body
-        + "</body></html>"
-    )
+    return page_shell("Options - monitoring", "options",
+                      f"<style>{_OPTIONS_CSS}</style>" + body, csrf=csrf_token)
 
 
 def csrf_valid(submitted_token, expected_token) -> bool:
@@ -585,8 +577,24 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 saved=saved,
             )
 
+        def _send_static(self, rel_path):
+            result = serve_static(rel_path)
+            if result is None:
+                self._send_html("<h1>404</h1>", code=404)
+                return
+            data, content_type = result
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
         def do_GET(self):
             try:
+                if self.path.startswith("/static/"):
+                    rel = urllib.parse.unquote(self.path[len("/static/"):].split("?", 1)[0])
+                    self._send_static(rel)
+                    return
                 if self.path.startswith("/options"):
                     if not self._host_ok():
                         return

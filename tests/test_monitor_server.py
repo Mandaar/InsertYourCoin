@@ -80,3 +80,34 @@ def test_post_route_inconnue_404(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req, timeout=5)
     assert exc.value.code == 404
+
+
+def test_route_static_sert_chart_js_vendorise(server):
+    # Lot 0 : Chart.js vendorise localement, servi par le VRAI serveur HTTP --
+    # verifie le branchement de la route (pas seulement la fonction pure serve_static).
+    code, page = _get(server + "/static/chart.umd.min.js")
+    assert code == 200
+    assert "Chart.js" in page
+
+
+def test_route_static_404_fichier_absent(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/static/n-existe-pas.js")
+    assert exc.value.code == 404
+
+
+def test_route_static_refuse_path_traversal(server):
+    # Path-traversal encode ('..' litteral dans le chemin) -> jamais un fichier
+    # hors de trading/static/ (cf. trading/webui.py serve_static, garde double).
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/static/../monitor.py")
+    assert exc.value.code == 404
+
+
+def test_nav_presente_sur_monitoring_et_options(server):
+    # Lot 0 : les deux pages existantes rendent desormais la nav commune (page_shell).
+    _, home = _get(server + "/")
+    _, opts = _get(server + "/options")
+    for page in (home, opts):
+        assert "<nav class='nav'>" in page
+        assert "Local 127.0.0.1" in page
