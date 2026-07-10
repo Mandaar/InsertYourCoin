@@ -290,7 +290,8 @@ def test_do_start_warns_and_no_browser_when_port_squatted(tmp_path, monkeypatch,
 def test_start_service_does_not_double_a_running_service(tmp_path, monkeypatch, capsys):
     run_dir, logs_dir = lancer.ensure_dirs(tmp_path)
     (run_dir / "paper.pid").write_text(str(os.getpid()), encoding="ascii")
-    monkeypatch.setattr(lancer, "pid_alive", lambda pid: True)
+    # Identite confirmee -> on ne double pas un service reellement a nous.
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: True)
 
     def boom(*a, **k):
         raise AssertionError("un service deja vivant ne doit PAS etre relance")
@@ -299,6 +300,50 @@ def test_start_service_does_not_double_a_running_service(tmp_path, monkeypatch, 
     pid = lancer._start_service("paper", ["x", "y", "paper"], run_dir, logs_dir, tmp_path)
     assert pid == os.getpid()
     assert "deja en cours" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- #
+#  FIX (anti-recyclage PID) : un PID vivant mais recycle par un tiers ne doit  #
+#  PAS etre vu comme "EN COURS", et ne doit PAS bloquer un demarrage.          #
+# --------------------------------------------------------------------------- #
+def test_do_status_reports_running_when_identity_confirmed(tmp_path, monkeypatch, capsys):
+    run_dir, _ = lancer.ensure_dirs(tmp_path)
+    (run_dir / "paper.pid").write_text("424242:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: True)
+
+    assert lancer.do_status(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "paper" in out and "EN COURS" in out
+    assert (run_dir / "paper.pid").exists()          # service reel : pid file conserve
+
+
+def test_do_status_reports_stopped_when_pid_recycled(tmp_path, monkeypatch, capsys):
+    """PID vivant mais identite NON confirmee (recycle par un tiers) : do_status
+    doit dire ARRETE, pas EN COURS, et nettoyer le pid file rance."""
+    run_dir, _ = lancer.ensure_dirs(tmp_path)
+    (run_dir / "paper.pid").write_text("15844:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "pid_alive", lambda pid: True)       # PID vivant...
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: False)  # ...mais pas nous
+
+    assert lancer.do_status(tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "ARRETE" in out and "EN COURS" not in out
+    assert not (run_dir / "paper.pid").exists()      # pid file rance nettoye
+
+
+def test_start_service_starts_when_pid_recycled(tmp_path, monkeypatch, capsys):
+    """PID present mais recycle par un tiers : _start_service ne doit PAS croire
+    "deja en cours" -- il nettoie et DEMARRE un nouveau service."""
+    run_dir, logs_dir = lancer.ensure_dirs(tmp_path)
+    (run_dir / "paper.pid").write_text("15844:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "pid_alive", lambda pid: True)       # PID vivant...
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: False)  # ...mais pas nous
+    monkeypatch.setattr(lancer, "spawn_detached", lambda cmd, log, cwd: 777)
+
+    pid = lancer._start_service("paper", ["x", "y", "paper"], run_dir, logs_dir, tmp_path)
+    assert pid == 777                                # nouveau service demarre
+    assert lancer.read_pid_file(run_dir / "paper.pid") == 777
+    assert "deja en cours" not in capsys.readouterr().out
 
 
 def test_start_service_replaces_orphan_pid(tmp_path, monkeypatch):

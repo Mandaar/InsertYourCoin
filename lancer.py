@@ -354,13 +354,18 @@ def do_dry_run(root: Path) -> int:
 def do_status(root: Path) -> int:
     run_dir, _ = ensure_dirs(root)
     for name in _SERVICES:
-        pid = read_pid_file(run_dir / f"{name}.pid")
+        pid_path = run_dir / f"{name}.pid"
+        pid = read_pid_file(pid_path)
         if pid is None:
             print(f"{name:8s}: pas de fichier pid (non demarre via ce lanceur)")
-        elif pid_alive(pid):
+        elif is_our_process(pid, name, read_pid_start(pid_path)):
             print(f"{name:8s}: EN COURS (PID {pid})")
         else:
-            print(f"{name:8s}: ARRETE (pid {pid} orphelin dans run/{name}.pid)")
+            # FIX (anti-recyclage) : PID absent OU vivant mais recycle par un
+            # process tiers (identite non confirmee) -> traite comme ARRETE et
+            # nettoie le pid file rance (cf. meme logique dans do_stop).
+            remove_pid_file(pid_path)
+            print(f"{name:8s}: ARRETE (pid {pid} orphelin/recycle, run/{name}.pid nettoye)")
     etat = "repond" if port_in_use() else "ne repond pas"
     print(f"monitor : le port {MONITOR_PORT} {etat} ({MONITOR_URL})")
     return 0
@@ -402,11 +407,11 @@ def _start_service(name, cmd, run_dir: Path, logs_dir: Path, root: Path):
     """Demarre un service detache si pas deja vivant. Retourne le PID ou None."""
     pid_path = run_dir / f"{name}.pid"
     pid = read_pid_file(pid_path)
-    if pid is not None and pid_alive(pid):
+    if pid is not None and is_our_process(pid, name, read_pid_start(pid_path)):
         print(f"{name:8s}: deja en cours (PID {pid}) -- on ne double pas.")
         return pid
     if pid is not None:
-        remove_pid_file(pid_path)  # pid orphelin (process mort) : on nettoie
+        remove_pid_file(pid_path)  # pid mort OU recycle par un tiers : on nettoie
     log_path = logs_dir / f"{name}_console.log"
     new_pid = spawn_detached(cmd, log_path, cwd=root)
     # FIX 1) on stocke "pid:ts". Si psutil est dispo, on prend le create_time()
@@ -468,8 +473,9 @@ def do_start(root: Path) -> int:
 
     print("\n--- Resume ---")
     for name in _SERVICES:
-        pid = read_pid_file(run_dir / f"{name}.pid")
-        etat = f"PID {pid}" if (pid is not None and pid_alive(pid)) else "non gere par ce lanceur"
+        pid_path = run_dir / f"{name}.pid"
+        pid = read_pid_file(pid_path)
+        etat = f"PID {pid}" if (pid is not None and is_our_process(pid, name, read_pid_start(pid_path))) else "non gere par ce lanceur"
         print(f"  {name:8s}: {etat}")
     print(f"  Tableau de bord : {MONITOR_URL}")
     print(f"  Logs            : {logs_dir / 'paper_console.log'} / "
