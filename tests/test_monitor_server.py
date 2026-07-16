@@ -607,10 +607,108 @@ def test_route_research_subnav_links_all_four_screens(server):
         assert f"href='{href}'" in page
 
 
+# --------------------------------------------------------------------------- #
+#  Lot 6 -- Recherche / Walk-forward (LE JUGE), routage HTTP reel, AUCUN      #
+#  reseau (research_runners._load_basket_ohlcv monkeypatche). Meme patron que #
+#  les routes Lot 5 ci-dessus.                                                #
+# --------------------------------------------------------------------------- #
+def test_route_research_walkforward_form_has_csrf_and_default_holdout(server):
+    code, page = _get(server + "/research/walkforward")
+    assert code == 200
+    assert "action='/research/walkforward'" in page
+    assert "name='csrf_token'" in page
+    assert "id='holdout'" in page
+    assert "value='20.0'" in page          # holdout sacre pre-rempli a 20%
+    assert "window.confirm(" in page       # friction --final (confirmation modale)
+    assert "<a class='sub-tab active' href='/research/walkforward'>" in page
+
+
+def test_route_research_walkforward_post_sans_csrf_rejete(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(server + "/research/walkforward", {"strategy": "sma"})
+    assert exc.value.code == 403
+
+
+def test_route_research_walkforward_post_invalide_reaffiche_formulaire(server):
+    token = _csrf_token(server)
+    code, page = _post(server + "/research/walkforward",
+                       {"csrf_token": token, "strategy": "n-existe-pas"})
+    assert code == 200
+    assert "Strategie inconnue" in page
+    assert "class='job-panel'" not in page
+
+
+def test_route_research_walkforward_post_holdout_out_of_range_exact_cli_message(server):
+    # Garde reprise EXACTEMENT de main.py cmd_walkforward (lignes 181-182),
+    # appliquee COTE SERVEUR (jamais seulement cote client).
+    token = _csrf_token(server)
+    code, page = _post(server + "/research/walkforward",
+                       {"csrf_token": token, "strategy": "sma", "holdout": "95"})
+    assert code == 200
+    assert "Holdout : pourcentage attendu dans [0, 90[." in page
+    assert "class='job-panel'" not in page
+
+
+def test_route_research_walkforward_post_final_sans_holdout_exact_cli_message(server):
+    # --final exige --holdout > 0 (main.py:183-184) -- verifie cote serveur :
+    # meme un POST forge sans passer par la modale JS est refuse.
+    token = _csrf_token(server)
+    code, page = _post(server + "/research/walkforward",
+                       {"csrf_token": token, "strategy": "sma", "holdout": "0",
+                        "final": "1"})
+    assert code == 200
+    # '>' est HTML-echappe par le rendu de la liste d'erreurs (_esc), cf.
+    # trading/walkforward_page.py render_walkforward_form.
+    assert (
+        "Validation finale : exige un holdout &gt; 0 (sans holdout, pas de segment sacre)."
+        in page
+    )
+    assert "class='job-panel'" not in page
+
+
+def test_route_research_walkforward_post_creates_job_and_report_shows_verdict(
+    server, monkeypatch, make_df,
+):
+    closes = [100 + 20 * math.sin(i / 12.0) for i in range(600)]
+    df = make_df(closes)
+
+    def _fake_basket(params, progress):
+        return {"ETH/USD": df}, []
+
+    monkeypatch.setattr("trading.research_runners._load_basket_ohlcv", _fake_basket)
+
+    token = _csrf_token(server)
+    code, launched = _post(server + "/research/walkforward", {
+        "csrf_token": token, "strategy": "sma", "symbols": "ETH/USD",
+        "timeframe": "1d", "days": "600", "source": "kraken",
+        "fixed": "fast=10,slow=50", "windows": "4", "train_frac": "0.5",
+        "metric": "sharpe", "holdout": "0",
+    })
+    assert code == 200
+    assert "class='job-panel'" in launched
+    job_id = _extract_job_id(launched)
+
+    state = _wait_job_done(server, job_id)
+    assert state == "done"
+
+    code, report = _get(server + f"/report/{job_id}")
+    assert code == 200
+    assert "VERDICT :" in report
+    assert "Recherche &mdash; Walk-forward" in report
+    assert "NON consomme" in report   # holdout=0 -> jamais consomme
+
+
+def test_route_research_subnav_links_walkforward_screen(server):
+    code, page = _get(server + "/research/backtest")
+    assert code == 200
+    assert "href='/research/walkforward'" in page
+
+
 @pytest.mark.parametrize("path,fields", [
     ("/research/compare", {}),
     ("/research/optimize", {"strategy": "sma"}),
     ("/research/portfolio", {"strategy": "sma"}),
+    ("/research/walkforward", {"strategy": "sma"}),
 ])
 def test_route_research_lot5_screens_refuse_second_job_while_busy(
     server_with_jobs, path, fields,

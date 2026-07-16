@@ -21,10 +21,11 @@ Conception :
                          (trading/monitor.py resolve_stats_path, jamais un
                          chemin arbitraire fourni par le client)
     GET/POST /research/backtest, /research/compare, /research/optimize,
-                     /research/portfolio -> ecrans de recherche (Lots 4-5,
-                         formulaire pur -> job async -> /report/<job_id>)
+                     /research/portfolio, /research/walkforward -> ecrans de
+                         recherche (Lots 4-6, formulaire pur -> job async ->
+                         /report/<job_id> ; walkforward = LE JUGE, Lot 6)
     GET /report/<job_id> -> resultat d'un job de recherche, generalise par
-                         `kind` (Lot 5, cf. trading/report_page.py
+                         `kind` (Lot 5, etendu Lot 6, cf. trading/report_page.py
                          render_result_done)
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
@@ -55,7 +56,10 @@ from . import optimize_page
 from . import portfolio_page
 from . import research_page
 from . import report_page
-from .research_runners import run_backtest, run_compare, run_optimize, run_portfolio
+from . import walkforward_page
+from .research_runners import (
+    run_backtest, run_compare, run_optimize, run_portfolio, run_walkforward,
+)
 
 
 def project_root() -> Path:
@@ -797,6 +801,31 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 return portfolio_page.render_portfolio_busy(active_label, active_id, csrf_token)
             return portfolio_page.render_portfolio_launched(job_id, csrf_token)
 
+        def _research_walkforward_get(self):
+            return walkforward_page.render_walkforward_form(csrf_token)
+
+        def _research_walkforward_post(self, form):
+            # CSRF verifie par l'appelant (do_POST) AVANT toute action -- ce job
+            # demarre du travail reel (walk_forward_multi, parfois holdout_check),
+            # jamais sans jeton valide (spec §4.6 : "aucune" securite specifique
+            # ne dispense PAS du CSRF standard de toute action qui lance un job).
+            params, errors = walkforward_page.parse_walkforward_params(form)
+            if errors:
+                return walkforward_page.render_walkforward_form(csrf_token, errors=errors, values=form)
+
+            def _target(progress):
+                return run_walkforward(params, progress)
+
+            label = f"Walk-forward {params['strategy']} {','.join(params['symbols'])} ({params['timeframe']})"
+            try:
+                job_id = jobs.submit(_target, label=label)
+            except JobBusy:
+                active_id = jobs.active_id
+                active_status = jobs.status(active_id) if active_id else None
+                active_label = active_status.get("label") if active_status else None
+                return walkforward_page.render_walkforward_busy(active_label, active_id, csrf_token)
+            return walkforward_page.render_walkforward_launched(job_id, csrf_token)
+
         def _report_get(self, job_id):
             st = jobs.status(job_id)
             if st is None:
@@ -912,6 +941,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                         return
                     self._send_html(self._research_portfolio_get())
                     return
+                if self.path.startswith("/research/walkforward"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._research_walkforward_get())
+                    return
                 if self.path.startswith("/report/"):
                     m = _REPORT_RE.match(self.path.split("?", 1)[0])
                     if not m:
@@ -966,7 +1000,8 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
         def do_POST(self):
             # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4),
-            # /research/{compare,optimize,portfolio} (Lot 5) et /options
+            # /research/{compare,optimize,portfolio} (Lot 5),
+            # /research/walkforward (Lot 6) et /options
             # acceptent un POST ; tout le reste -> 404.
             if self.path.startswith("/job/"):
                 m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
@@ -1010,6 +1045,15 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
                     return
                 self._send_html(self._research_portfolio_post(form))
+                return
+            if self.path.startswith("/research/walkforward"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._research_walkforward_post(form))
                 return
             if not self.path.startswith("/options"):
                 self._send_html("<h1>404</h1>", code=404)

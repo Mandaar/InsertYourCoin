@@ -127,3 +127,37 @@ def test_render_result_done_dispatches_portfolio(make_df):
                         "source": "kraken"}}
     out = rep.render_result_done(result)
     assert "corr-table" in out
+
+
+def test_render_result_done_dispatches_walkforward(make_df, monkeypatch):
+    # Lot 6 -- LE JUGE : verifie le dispatch vers walkforward_page.render_walkforward_done
+    # via un VRAI payload de research_runners.run_walkforward (aucun reseau).
+    import numpy as np
+    from trading import research_runners as rr
+
+    class _FakeProgress:
+        def __init__(self):
+            self.logs = []
+            self.cancelled = False
+
+        def log(self, message):
+            self.logs.append(str(message))
+
+        def set_percent(self, value):
+            pass
+
+    t = np.arange(600)
+    df = make_df(50.0 + 10.0 * np.sin(t / 9.0))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv",
+                        lambda params, progress: ({"ETH/USD": df}, []))
+    params = {
+        "symbols": ["ETH/USD"], "strategy": "sma", "timeframe": "1d", "days": 600,
+        "source": "kraken", "metric": "sharpe", "windows": 4, "train_frac": 0.5,
+        "fixed": {"fast": 10, "slow": 50}, "holdout_pct": 0.0, "final": False,
+        "stop_loss": None, "take_profit": None, "trailing_stop": None,
+        "position_sizing": "none", "target_vol": None,
+    }
+    result = rr.run_walkforward(params, _FakeProgress())
+    out = rep.render_result_done(result)
+    assert "VERDICT :" in out
+    assert "Recherche &mdash; Walk-forward" in out

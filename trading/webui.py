@@ -110,9 +110,10 @@ body{
 NAV_ITEMS = (
     ("home", "Accueil", "/"),
     ("check", "Diagnostic", "/check"),
-    # Lot 4 : seul le Backtest est construit sous "Recherche" -- compare/
-    # optimize/walkforward/portfolio restent "bientot" (Lots 5-6), la nav
-    # pointe donc directement vers l'ecran fonctionnel plutot qu'un hub vide.
+    # Depuis le Lot 6, les 5 ecrans de "Recherche" (backtest/compare/optimize/
+    # portfolio/walkforward) sont tous construits/branches -- la nav pointe
+    # directement vers Backtest (premier onglet de la sous-nav Recherche)
+    # plutot qu'un hub separe.
     ("research", "Recherche", "/research/backtest"),
     ("paper", "Paper", "/paper"),
     ("monitoring", "Monitoring", "/monitoring"),
@@ -128,16 +129,17 @@ ENABLED_SCREENS = frozenset(
 )
 
 # Sous-navigation DANS la section Recherche (Lot 5 : compare/optimize/portfolio
-# rejoignent backtest ; walkforward reste "bientot", Lot 6). Affichee en haut
-# de chaque ecran /research/<type> (research_page.py, compare_page.py,
-# optimize_page.py, portfolio_page.py) -- meme convention "bientot" que
-# NAV_ITEMS/ENABLED_SCREENS (jamais un <a> mort).
+# rejoignent backtest ; Lot 6 : walkforward rejoint aussi le groupe -- tous les
+# ecrans de /research/<type> sont desormais construits/branches). Affichee en
+# haut de chaque ecran (research_page.py, compare_page.py, optimize_page.py,
+# portfolio_page.py, walkforward_page.py) -- meme convention "bientot" que
+# NAV_ITEMS/ENABLED_SCREENS pour tout futur ecran desactive (jamais un <a> mort).
 RESEARCH_SUBNAV = (
     ("backtest", "Backtest", "/research/backtest", True),
     ("compare", "Comparer", "/research/compare", True),
     ("optimize", "Optimiser", "/research/optimize", True),
     ("portfolio", "Portefeuille", "/research/portfolio", True),
-    ("walkforward", "Walk-forward", "/research/walkforward", False),
+    ("walkforward", "Walk-forward", "/research/walkforward", True),
 )
 
 

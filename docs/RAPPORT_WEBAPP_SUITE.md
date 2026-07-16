@@ -49,7 +49,14 @@ Par lots, chacun sous **gate SQA** (pytest vert, pas de P0/P1, garde-fous live i
 - ✅ **Lot 3 — Infra jobs async** (`trading/jobs.py` `JobManager` mono-job thread-safe). `af75d34`
 - ✅ **Lot 4 — Backtest + Rapport inline** (`/research/backtest` → job → `/report/<id>`, badge IN-SAMPLE). `611d424`
 - ✅ **Lot 5 — Comparer + Optimiser + Portefeuille** (routage résultat généralisé par `kind`). `904adc5`
-- ⬜ **Lot 6 — Walk-forward** (LE JUGE, écran signature : bandeau verdict, holdout, `--final` friction).
+- 🟠 **Lot 6 — Walk-forward** (LE JUGE) : **code complet + 472 tests verts, mais GATE SQA NON PASSÉE**.
+  Committé pour ne pas perdre le travail, **PAS considéré comme livré** : 2 findings d'honnêteté confirmés
+  restent **ouverts** (**BUG-010 P1** mono-actif vert-au-lieu-de-sévère, **BUG-011 P2** holdout en échec
+  qui ne qualifie pas le bandeau) — cf. `docs/SQA.md`. La phase de correction du workflow est morte sur
+  un **budget mensuel épuisé**, et la réfutation n'a tourné que sur 1 lentille /4 (sémantique, sécurité
+  et non-régression **non réfutées** → 12 findings non tranchés). **À FAIRE AVANT de déclarer le Lot 6 livré** :
+  corriger BUG-010/011 (+ tests), rejouer la revue sur les 3 lentilles manquantes, et une vérification
+  runtime réelle (3 verdicts + friction `--final`) que je n'ai pas pu faire.
 - ⬜ **Lot 7 — Paper pilotable** depuis l'UI (remplace les constantes en tête de `lancer.py`).
 - ⬜ **Lot 8 — Live verrouillé** (`/live`, **P0** — argent réel, exige un feu vert user explicite avant de le lancer).
 - ⬜ **Lot 9 — Polish & accessibilité**.

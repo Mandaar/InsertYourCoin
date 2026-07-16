@@ -301,3 +301,182 @@ def test_run_portfolio_respects_cancellation_after_load(make_df, monkeypatch):
     monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: (data, []))
     result = rr.run_portfolio(_portfolio_params(), FakeProgress(cancelled=True))
     assert result is None
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 6 -- run_walkforward (POST /research/walkforward) -- LE JUGE           #
+# --------------------------------------------------------------------------- #
+def _walkforward_params(**overrides):
+    base = {
+        "symbols": ["ETH/USD"], "strategy": "sma", "timeframe": "1d", "days": 600,
+        "source": "kraken", "metric": "sharpe", "windows": 4, "train_frac": 0.5,
+        "fixed": {"fast": 10, "slow": 50}, "holdout_pct": 0.0, "final": False,
+        "stop_loss": None, "take_profit": None, "trailing_stop": None,
+        "position_sizing": "none", "target_vol": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_run_walkforward_returns_payload_without_network(make_df, monkeypatch):
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+
+    progress = FakeProgress()
+    result = rr.run_walkforward(_walkforward_params(), progress)
+
+    assert result is not None
+    assert set(result) == {
+        "kind", "results", "wf_errors", "summary", "holdout", "holdout_errors",
+        "ignored", "context",
+    }
+    assert result["kind"] == "walkforward"
+    assert set(result["results"]) == {"ETH/USD"}
+    res = result["results"]["ETH/USD"]
+    assert res["strategy"] == "sma"
+    assert len(res["windows"]) == 4
+    assert res["fixed_params"] == {"fast": 10, "slow": 50}
+    assert result["wf_errors"] == {}
+    assert result["summary"]["n_assets"] == 1
+    assert result["holdout"] is None            # final=False -> holdout jamais consomme
+    assert result["holdout_errors"] == {}
+    assert result["ignored"] == []
+    assert result["context"]["symbols"] == ["ETH/USD"]
+    assert result["context"]["final"] is False
+    assert any("Walk-forward" in l for l in progress.logs)
+
+
+def test_run_walkforward_multi_symbol_aggregates(make_df, monkeypatch):
+    data = {"BTC/USD": make_df(_oscillating(600, base=100.0)),
+            "ETH/USD": make_df(_oscillating(600, base=50.0, period=9.0))}
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: (data, []))
+
+    result = rr.run_walkforward(
+        _walkforward_params(symbols=["BTC/USD", "ETH/USD"]), FakeProgress(),
+    )
+    assert set(result["results"]) == {"BTC/USD", "ETH/USD"}
+    assert result["summary"]["n_assets"] == 2
+    assert "robust" in result["summary"]
+
+
+def test_run_walkforward_unknown_strategy_raises_without_loading_data(monkeypatch):
+    def _boom(params, progress):
+        raise AssertionError("le loader ne doit jamais etre appele")
+
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", _boom)
+    with pytest.raises(rr.ResearchError, match="Strategie inconnue"):
+        rr.run_walkforward(_walkforward_params(strategy="ne-existe-pas"), FakeProgress())
+
+
+def test_run_walkforward_no_symbols_raises_research_error(monkeypatch):
+    def _boom(params, progress):
+        raise AssertionError("le loader ne doit jamais etre appele")
+
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", _boom)
+    with pytest.raises(rr.ResearchError, match="Aucun symbole"):
+        rr.run_walkforward(_walkforward_params(symbols=[]), FakeProgress())
+
+
+def test_run_walkforward_all_symbols_ignored_raises_research_error(monkeypatch):
+    ignored = [{"symbol": "ETH/USD", "error": "boom"}]
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({}, ignored))
+    with pytest.raises(rr.ResearchError, match="Aucun actif chargeable"):
+        rr.run_walkforward(_walkforward_params(), FakeProgress())
+
+
+def test_run_walkforward_reports_ignored_symbols(make_df, monkeypatch):
+    data = {"ETH/USD": make_df(_oscillating(600))}
+    ignored = [{"symbol": "SOL/USD", "error": "indisponible"}]
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: (data, ignored))
+
+    result = rr.run_walkforward(
+        _walkforward_params(symbols=["ETH/USD", "SOL/USD"]), FakeProgress(),
+    )
+    assert result["ignored"] == ignored
+    assert set(result["results"]) == {"ETH/USD"}
+
+
+def test_run_walkforward_respects_cancellation_after_load(make_df, monkeypatch):
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+    result = rr.run_walkforward(_walkforward_params(), FakeProgress(cancelled=True))
+    assert result is None
+
+
+def test_run_walkforward_removes_holdout_before_research(make_df, monkeypatch):
+    """B7 : le holdout sacre ne doit JAMAIS apparaitre dans les fenetres OOS --
+    la derniere fenetre s'arrete avant le debut du holdout (meme frontiere que
+    optimizer.holdout_split)."""
+    from trading.optimizer import holdout_split
+
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+
+    result = rr.run_walkforward(_walkforward_params(holdout_pct=20.0), FakeProgress())
+    cut = holdout_split(len(df), 0.20)
+    last_window_end = result["results"]["ETH/USD"]["windows"][-1]["period"][1]
+    assert last_window_end <= df.index[cut - 1]
+
+
+def test_run_walkforward_logs_holdout_reservation(make_df, monkeypatch):
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+    progress = FakeProgress()
+    rr.run_walkforward(_walkforward_params(holdout_pct=20.0), progress)
+    assert any("Holdout reserve" in l for l in progress.logs)
+
+
+def test_run_walkforward_final_true_populates_holdout(make_df, monkeypatch):
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+
+    result = rr.run_walkforward(
+        _walkforward_params(holdout_pct=20.0, final=True), FakeProgress(),
+    )
+    assert result["holdout"] is not None
+    assert set(result["holdout"]) == {"ETH/USD"}
+    h = result["holdout"]["ETH/USD"]
+    assert h["params"] == {"fast": 10, "slow": 50}
+    assert h["optimised_on_research"] is False
+    assert h["holdout_frac"] == pytest.approx(0.20)
+    assert result["holdout_errors"] == {}
+    assert result["context"]["final"] is True
+
+
+def test_run_walkforward_final_false_holdout_stays_none(make_df, monkeypatch):
+    df = make_df(_oscillating(600))
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
+    result = rr.run_walkforward(
+        _walkforward_params(holdout_pct=20.0, final=False), FakeProgress(),
+    )
+    assert result["holdout"] is None
+
+
+def test_run_walkforward_per_symbol_holdout_error_does_not_abort_others(make_df, monkeypatch):
+    """Un actif en echec de VALIDATION FINALE n'empeche pas les autres actifs
+    de produire leur resultat (signale, jamais masque -- cf. rules/vigilance.md).
+    `optimizer.holdout_check` est importe LOCALEMENT dans run_walkforward (a
+    l'appel) -- monkeypatcher l'attribut module AVANT l'appel suffit donc a
+    l'intercepter (cf. docstring recherche_runners : imports paresseux)."""
+    from trading import optimizer as opt
+
+    data = {"BTC/USD": make_df(_oscillating(600, base=100.0)),
+            "ETH/USD": make_df(_oscillating(600, base=50.0, period=9.0))}
+    monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: (data, []))
+
+    original = opt.holdout_check
+
+    def _flaky(df, holdout_frac, strategy_name, **kwargs):
+        if df is data["BTC/USD"]:
+            raise RuntimeError("Holdout trop court (< 5 bougies). Augmente --days ou --holdout.")
+        return original(df, holdout_frac, strategy_name, **kwargs)
+
+    monkeypatch.setattr(opt, "holdout_check", _flaky)
+
+    result = rr.run_walkforward(
+        _walkforward_params(symbols=["BTC/USD", "ETH/USD"], holdout_pct=20.0, final=True),
+        FakeProgress(),
+    )
+    assert set(result["holdout"]) == {"ETH/USD"}
+    assert set(result["holdout_errors"]) == {"BTC/USD"}
+    assert "Holdout trop court" in result["holdout_errors"]["BTC/USD"]

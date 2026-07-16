@@ -7,9 +7,9 @@ Contrat JobManager (trading/jobs.py) : `run_xxx(params, progress)` logge via
 `progress.log(...)`, observe `progress.cancelled` entre les etapes couteuses,
 et retourne un payload recupere ensuite via `manager.result(job_id)`. Depuis
 le Lot 5, CHAQUE payload porte un champ `"kind"` (`"backtest"|"compare"|
-"optimize"|"portfolio"`) -- c'est ce que `trading/report_page.py
-render_result_done` lit pour choisir le rendu (generalisation Lot 5, cf.
-trading/monitor.py `_report_get`).
+"optimize"|"portfolio"|"walkforward"`) -- c'est ce que `trading/report_page.py
+render_result_done` lit pour choisir le rendu (generalisation Lot 5, etendue
+Lot 6, cf. trading/monitor.py `_report_get`).
 
 Import PARESSEUX de `main` (meme raison que trading/diagnostics_web.py :
 main.py importe trading.* au chargement -- un import top-level depuis
@@ -340,5 +340,139 @@ def run_portfolio(params, progress):
             "symbols": symbols,
             "timeframe": params.get("timeframe") or "1d",
             "source": params.get("source") or "kraken",
+        },
+    }
+
+
+def run_walkforward(params, progress):
+    """
+    Runner du job POST /research/walkforward (Lot 6, spec §4.6 -- LE JUGE).
+    `params` = dict DEJA VALIDE cote route (trading/walkforward_page.py
+    parse_walkforward_params) : strategy/symbols(list)/timeframe/days/source +
+    risque + windows/train_frac/metric/fixed(dict|None)/holdout_pct(float,
+    POURCENTAGE)/final(bool). Equivalent web de `main.cmd_walkforward`
+    (main.py:175-227) : reutilise trading.optimizer.walk_forward_multi /
+    holdout_split / holdout_check -- AUCUNE reimplementation de la logique.
+
+    TOUJOURS multi-actifs (walk_forward_multi), MEME pour un seul symbole --
+    contrairement au CLI qui dispatche mono/multi sur `len(data) > 1` (asymetrie
+    documentee : le format de sortie dependrait alors du reseau, pas des
+    arguments). La webapp garde UNE SEULE forme de payload quel que soit le
+    nombre d'actifs charges : trading/walkforward_page.py n'a jamais a deviner
+    quel format lire.
+
+    Retourne :
+        {"kind": "walkforward",
+         "results": {symbole: dict EXACT de optimizer.walk_forward},  # actifs REUSSIS
+         "wf_errors": {symbole: str},   # actifs qui ont echoue EN walk-forward
+         "summary": {...},              # dict EXACT de walk_forward_multi.summary
+                                         # (n_assets/n_positive/avg_oos_return/robust --
+                                         # SOURCE DE VERITE UNIQUE de la robustesse,
+                                         # jamais recalculee cote rendu)
+         "holdout": {symbole: dict EXACT de holdout_check} | None,   # si --final
+         "holdout_errors": {symbole: str},                          # si --final
+         "ignored": [{"symbol", "error"}],   # actifs non CHARGEABLES (reseau)
+         "context": {...}}
+
+    B7 (holdout sacre) : le holdout est RETIRE de la RECHERCHE avant tout appel
+    a walk_forward_multi (jamais vu par l'optimisation ni les fenetres OOS,
+    meme frontiere `holdout_split` que holdout_check) ; --final evalue ENSUITE
+    holdout_check sur le df COMPLET de chaque actif charge -- exactement le
+    flux de main.cmd_walkforward (retrait puis, en option, validation finale).
+    """
+    strategy_key = (params.get("strategy") or "").lower()
+    if strategy_key not in STRATEGIES:
+        raise ResearchError(f"Strategie inconnue : {strategy_key or '(vide)'!r}.")
+
+    symbols = params.get("symbols") or []
+    if not symbols:
+        raise ResearchError("Aucun symbole fourni.")
+
+    data, ignored = _load_basket_ohlcv(params, progress)
+    if progress.cancelled:
+        return None
+    if not data:
+        raise ResearchError(
+            "Aucun actif chargeable (tous les symboles ont echoue) : "
+            + "; ".join(f"{i['symbol']} ({i['error']})" for i in ignored)
+        )
+
+    from .optimizer import holdout_check, holdout_split, walk_forward_multi
+
+    holdout_pct = params.get("holdout_pct") or 0.0
+    holdout_frac = holdout_pct / 100.0
+
+    # B7) le holdout sacre est RETIRE avant toute recherche -- ni l'optimisation
+    # ni les fenetres OOS ne le voient JAMAIS (meme frontiere que holdout_check).
+    research = {}
+    for sym, df in data.items():
+        if holdout_frac > 0:
+            cut = holdout_split(len(df), holdout_frac)
+            progress.log(
+                f"Holdout reserve [{sym}] : {len(df) - cut} bougies "
+                f"({holdout_pct:g}% recents) -- JAMAIS utilises pour la recherche"
+            )
+            research[sym] = df.iloc[:cut]
+        else:
+            research[sym] = df
+
+    if progress.cancelled:
+        return None
+
+    wf_kwargs = dict(
+        n_windows=params.get("windows") or 4,
+        train_frac=params.get("train_frac") or 0.5,
+        metric=params.get("metric") or "sharpe",
+        fixed_params=params.get("fixed"),
+        **_bt_kwargs(params),
+    )
+    progress.log(
+        f"Walk-forward {build_strategy(strategy_key).name} sur "
+        f"{len(research)} actif(s) ({wf_kwargs['n_windows']} fenetres)..."
+    )
+    try:
+        wf_res = walk_forward_multi(research, strategy_key, **wf_kwargs)
+    except RuntimeError as exc:
+        # "Aucun actif evaluable en walk-forward : ..." (optimizer.py) -- deja
+        # actionnable, jamais un traceback brut cote page.
+        raise ResearchError(str(exc)) from exc
+
+    if progress.cancelled:
+        return None
+
+    holdout_results, holdout_errors = {}, {}
+    if params.get("final") and holdout_frac > 0:
+        progress.log("VALIDATION FINALE sur le holdout sacre (une seule fois par strategie)...")
+        for sym, df in data.items():
+            if progress.cancelled:
+                return None
+            try:
+                holdout_results[sym] = holdout_check(
+                    df, holdout_frac, strategy_key,
+                    fixed_params=params.get("fixed"), metric=wf_kwargs["metric"],
+                    **_bt_kwargs(params),
+                )
+            except Exception as exc:  # noqa: BLE001 -- signale, jamais masque (un actif en echec n'arrete pas les autres)
+                progress.log(f"  Validation finale impossible pour {sym} : {exc}")
+                holdout_errors[sym] = str(exc)
+
+    progress.log("Termine.")
+    return {
+        "kind": "walkforward",
+        "results": wf_res["per_symbol"],
+        "wf_errors": wf_res["errors"],
+        "summary": wf_res["summary"],
+        "holdout": holdout_results if params.get("final") else None,
+        "holdout_errors": holdout_errors,
+        "ignored": ignored,
+        "context": {
+            "symbols": symbols,
+            "strategy": strategy_key,
+            "metric": wf_kwargs["metric"],
+            "timeframe": params.get("timeframe") or "1d",
+            "source": params.get("source") or "kraken",
+            "holdout_pct": holdout_pct,
+            "final": bool(params.get("final")),
+            "fixed_params": params.get("fixed"),
         },
     }

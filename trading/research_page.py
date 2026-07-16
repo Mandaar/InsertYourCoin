@@ -269,7 +269,8 @@ def render_backtest_form(csrf_token, errors=None, values=None) -> str:
         + "</div>"
         + "<p class='muted honesty'>Le backtest teste une strategie IN-SAMPLE "
           "(sur les donnees vues) -- ce n'est pas une preuve d'edge futur. "
-          "Le walk-forward (bientot dans l'app) est le juge.</p>"
+          "<a class='navlink' href='/research/walkforward'>Le walk-forward "
+          "est le juge.</a></p>"
     )
     return page_shell("Recherche - Backtest - InsertYourCoin", "research", body)
 

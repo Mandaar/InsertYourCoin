@@ -12,12 +12,14 @@ appeler selon `JobManager.status(job_id)` :
 - cancelled                           -> render_report_cancelled()
 - done + resultat                     -> render_result_done(result)
 
-`render_result_done` (Lot 5) lit `result["kind"]` (cf.
+`render_result_done` (Lot 5, etendu Lot 6) lit `result["kind"]` (cf.
 trading/research_runners.py) et delegue au rendu du bon ecran :
 - "compare"/"optimize"/"portfolio" -> trading/compare_page.py,
   optimize_page.py, portfolio_page.py (Lot 5, ecrans dedies : tableau,
   panneaux train/test, heatmap de correlation -- pas de dashboard.py, qui
   reste specifique a un SEUL backtest).
+- "walkforward" -> trading/walkforward_page.py render_walkforward_done
+  (Lot 6, LE JUGE : bandeau verdict, holdout sacre, fenetres OOS par actif).
 - "backtest" (ou absent, compat Lot 4)  -> render_report_done ci-dessous,
   qui reutilise integralement trading/dashboard.py render_dashboard_html --
   AUCUNE logique de rendu de graphiques dupliquee ici. Le champ "kind" a ete
@@ -125,8 +127,8 @@ def render_report_done(result) -> str:
         "<div class='in-sample-badge'>"
         "<span>IN-SAMPLE &mdash; non valide hors-echantillon. De bons chiffres "
         "passes ne garantissent jamais le futur.</span>"
-        "<span class='wf-link'>Le walk-forward est le juge "
-        "(bientot dans l'app : /research/walkforward)</span>"
+        "<span class='wf-link'>Le walk-forward est le juge -- "
+        "<a class='navlink' href='/research/walkforward'>lance-le ici</a></span>"
         "</div>"
     )
     content = render_dashboard_html(detail, comparison, context)
@@ -137,19 +139,21 @@ def render_report_done(result) -> str:
 
 def render_result_done(result) -> str:
     """
-    Dispatcher GENERALISE (Lot 5) du rendu "job termine avec resultat" :
-    LE SEUL point que trading/monitor.py `_report_get` appelle pour l'etat
-    'done' -- quel que soit le type d'analyse. Lit `result.get("kind")`
+    Dispatcher GENERALISE (Lot 5, etendu Lot 6) du rendu "job termine avec
+    resultat" : LE SEUL point que trading/monitor.py `_report_get` appelle
+    pour l'etat 'done' -- quel que soit le type d'analyse. Lit `result.get("kind")`
     (cf. trading/research_runners.py, contrat pose au Lot 5) :
-        "compare"   -> trading/compare_page.py   render_compare_done
-        "optimize"  -> trading/optimize_page.py  render_optimize_done
-        "portfolio" -> trading/portfolio_page.py render_portfolio_done
+        "compare"     -> trading/compare_page.py     render_compare_done
+        "optimize"    -> trading/optimize_page.py    render_optimize_done
+        "portfolio"   -> trading/portfolio_page.py   render_portfolio_done
+        "walkforward" -> trading/walkforward_page.py render_walkforward_done
         "backtest" / absent (compat Lot 4)  -> render_report_done (ci-dessus)
 
-    Import PARESSEUX des 3 modules Lot 5 : evite tout risque de cycle
-    d'import avec ce module (compare_page/optimize_page/portfolio_page
-    n'importent pas report_page, mais rester coherent avec la convention
-    d'imports paresseux deja en place dans trading/research_runners.py).
+    Import PARESSEUX des modules Lot 5/6 : evite tout risque de cycle
+    d'import avec ce module (compare_page/optimize_page/portfolio_page/
+    walkforward_page n'importent pas report_page, mais rester coherent avec
+    la convention d'imports paresseux deja en place dans
+    trading/research_runners.py).
     """
     kind = (result or {}).get("kind") or "backtest"
     if kind == "compare":
@@ -161,4 +165,7 @@ def render_result_done(result) -> str:
     if kind == "portfolio":
         from .portfolio_page import render_portfolio_done
         return render_portfolio_done(result)
+    if kind == "walkforward":
+        from .walkforward_page import render_walkforward_done
+        return render_walkforward_done(result)
     return render_report_done(result)
