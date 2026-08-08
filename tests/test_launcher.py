@@ -58,6 +58,65 @@ def test_assert_paper_only_ignores_interpreter_and_script_paths():
 
 
 # --------------------------------------------------------------------------- #
+#  build_paper_command_params (Lot 7, ecran web /paper) -- variante           #
+#  parametree de build_paper_command, MEME garde-fou paper-only.               #
+# --------------------------------------------------------------------------- #
+def test_build_paper_command_params_inclut_les_reglages_fournis(tmp_path):
+    params = {
+        "strategy": "rsi", "symbol": "BTC/USD", "timeframe": "15m",
+        "stop_loss": 5.0, "take_profit": 10.0, "trailing_stop": 8.0,
+        "position_sizing": "none", "target_vol": None,
+    }
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert cmd[0] == sys.executable
+    assert cmd[1] == str(tmp_path / "main.py")
+    assert cmd[2] == "paper"
+    assert "--strategy" in cmd and cmd[cmd.index("--strategy") + 1] == "rsi"
+    assert "--symbol" in cmd and cmd[cmd.index("--symbol") + 1] == "BTC/USD"
+    assert "--timeframe" in cmd and cmd[cmd.index("--timeframe") + 1] == "15m"
+    assert "--stop-loss" in cmd and cmd[cmd.index("--stop-loss") + 1] == "5.0"
+    assert "--take-profit" in cmd and cmd[cmd.index("--take-profit") + 1] == "10.0"
+    assert "--trailing-stop" in cmd and cmd[cmd.index("--trailing-stop") + 1] == "8.0"
+    assert "--position-sizing" not in cmd  # "none" -> omis (comportement CLI par defaut)
+    for token in cmd[2:]:
+        assert "live" not in str(token).lower()
+
+
+def test_build_paper_command_params_omet_les_champs_de_risque_desactives(tmp_path):
+    params = {
+        "strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+        "stop_loss": None, "take_profit": None, "trailing_stop": None,
+        "position_sizing": "none", "target_vol": None,
+    }
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--stop-loss" not in cmd
+    assert "--take-profit" not in cmd
+    assert "--trailing-stop" not in cmd
+    assert "--target-vol" not in cmd
+
+
+def test_build_paper_command_params_sizing_vol_ajoute_target_vol(tmp_path):
+    params = {
+        "strategy": "tsmom", "symbol": "SOL/USD", "timeframe": "1d",
+        "stop_loss": None, "take_profit": None, "trailing_stop": None,
+        "position_sizing": "vol", "target_vol": 40.0,
+    }
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--position-sizing" in cmd and cmd[cmd.index("--position-sizing") + 1] == "vol"
+    assert "--target-vol" in cmd and cmd[cmd.index("--target-vol") + 1] == "40.0"
+
+
+def test_build_paper_command_params_jamais_live_meme_avec_entree_malveillante(tmp_path):
+    # Garde-fou EN DUR : meme si un champ contenait "live" (impossible depuis
+    # trading/paper_page.py qui valide strategy/timeframe par liste blanche,
+    # mais defense en profondeur), assert_paper_only doit bloquer.
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "position_sizing": "live"}
+    with pytest.raises(RuntimeError):
+        lancer.build_paper_command_params(tmp_path, params)
+
+
+# --------------------------------------------------------------------------- #
 #  Dossiers run/ et logs/                                                       #
 # --------------------------------------------------------------------------- #
 def test_ensure_dirs_creates_run_and_logs(tmp_path):

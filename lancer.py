@@ -98,6 +98,41 @@ def build_paper_command(root: Path, python=None):
     ])
 
 
+def build_paper_command_params(root: Path, params: dict, python=None):
+    """
+    Variante PARAMETREE de build_paper_command (Lot 7, ecran web /paper) :
+    construit `main.py paper` a partir des reglages VALIDES du formulaire
+    (trading/paper_page.py parse_paper_params) au lieu des constantes PAPER_*
+    fixes en tete de ce fichier. Meme garde-fou paper-only EN DUR
+    (assert_paper_only) que build_paper_command -- aucune commande construite
+    ici ne peut contenir "live".
+
+    `params` attendu (deja VALIDE cote appelant) : strategy (str), symbol
+    (str), timeframe (str), stop_loss/take_profit/trailing_stop (float ou
+    None, en POURCENTAGES -- meme convention que --stop-loss/--take-profit/
+    --trailing-stop du CLI), position_sizing ("none"/"vol"), target_vol
+    (float ou None, en POURCENTAGES).
+    """
+    cmd = _base_cmd(root, python) + [
+        "paper",
+        "--strategy", str(params.get("strategy") or PAPER_STRATEGY),
+        "--symbol", str(params.get("symbol") or ""),
+        "--timeframe", str(params.get("timeframe") or PAPER_TIMEFRAME),
+    ]
+    if params.get("stop_loss") is not None:
+        cmd += ["--stop-loss", str(params["stop_loss"])]
+    if params.get("take_profit") is not None:
+        cmd += ["--take-profit", str(params["take_profit"])]
+    if params.get("trailing_stop") is not None:
+        cmd += ["--trailing-stop", str(params["trailing_stop"])]
+    position_sizing = params.get("position_sizing")
+    if position_sizing and position_sizing != "none":
+        cmd += ["--position-sizing", str(position_sizing)]
+        if params.get("target_vol") is not None:
+            cmd += ["--target-vol", str(params["target_vol"])]
+    return assert_paper_only(cmd)
+
+
 def build_monitor_command(root: Path, python=None):
     return assert_paper_only(_base_cmd(root, python) + [
         "monitor", "--port", str(MONITOR_PORT)])

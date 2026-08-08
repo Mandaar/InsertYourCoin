@@ -125,7 +125,7 @@ NAV_ITEMS = (
 # Ecrans REELLEMENT construits et branches. Tenu a jour lot par lot -- c'est la
 # seule ligne a etendre quand un nouvel ecran passe en prod.
 ENABLED_SCREENS = frozenset(
-    {"home", "check", "research", "monitoring", "options", "stats"}
+    {"home", "check", "research", "paper", "monitoring", "options", "stats"}
 )
 
 # Sous-navigation DANS la section Recherche (Lot 5 : compare/optimize/portfolio

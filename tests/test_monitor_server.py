@@ -19,6 +19,7 @@ import urllib.request
 
 import pytest
 
+import lancer
 from trading import monitor as mon
 from trading.options import read_options
 from trading.stats import StatsRecorder
@@ -955,3 +956,265 @@ def test_restart_thread_ecrit_l_erreur_au_lieu_de_l_avaler(tmp_path, monkeypatch
     err = tmp_path / "logs" / "monitor_respawn_error.log"
     assert err.exists()
     assert "respawn ECHEC" in err.read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 7 -- Paper pilotable depuis l'UI (/paper). AUCUN vrai process paper    #
+#  n'est lance : _spawn_paper_detached est TOUJOURS mocke. Identite PID       #
+#  (BUG-009 : Windows recycle les PID) et verrou de log (BUG-014) verifies    #
+#  explicitement, comme pour le monitor. `server_obj` force root=tmp_path --  #
+#  jamais run/paper.pid ni logs/ du VRAI projet touches par ces tests.        #
+# --------------------------------------------------------------------------- #
+def test_route_paper_get_arrete_par_defaut_affiche_formulaire(server_obj):
+    url, srv = server_obj
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "ARRETE" in page
+    assert "action='/paper'" in page
+    assert "name='csrf_token'" in page
+    assert "name='strategy'" in page
+    assert "Demarrer le paper trading" in page
+    assert "name='source'" not in page  # paper = Kraken only, jamais de source
+
+
+def test_route_paper_nav_active_et_habilitee(server_obj):
+    url, srv = server_obj
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "<a class='tab active' href='/paper'>Paper</a>" in page
+
+
+def test_route_paper_post_sans_csrf_rejete(server_obj):
+    url, srv = server_obj
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(url + "/paper", {"action": "start", "strategy": "sma"})
+    assert exc.value.code == 403
+
+
+def test_route_paper_post_start_invalide_reaffiche_formulaire_sans_spawn(
+    server_obj, monkeypatch,
+):
+    url, srv = server_obj
+
+    def boom(*a, **k):
+        raise AssertionError("le spawn ne doit PAS etre appele sur un formulaire invalide")
+    monkeypatch.setattr(mon, "_spawn_paper_detached", boom)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "n-existe-pas",
+    })
+    assert code == 200
+    assert "Strategie inconnue" in page
+    assert "ARRETE" in page
+
+
+def test_route_paper_post_start_lance_process_et_ecrit_pid(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+    spawned = []
+
+    def fake_spawn(cmd, log_path, cwd):
+        spawned.append((cmd, log_path, cwd))
+        return 555555
+    monkeypatch.setattr(mon, "_spawn_paper_detached", fake_spawn)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start",
+        "strategy": "rsi", "symbol": "BTC/USD", "timeframe": "15m",
+        "stop_loss": "5", "take_profit": "10", "trailing_stop": "8",
+        "position_sizing": "none",
+    })
+    assert code == 200
+    assert "EN COURS" in page
+    assert "Paper trading demarre" in page
+
+    assert spawned, "le paper aurait du etre spawn (mocke)"
+    cmd, log_path, cwd = spawned[0]
+    assert "paper" in cmd
+    assert "-u" in cmd                     # flush immediat (autopsie possible, BUG-014)
+    assert "--strategy" in cmd and cmd[cmd.index("--strategy") + 1] == "rsi"
+    assert "--symbol" in cmd and cmd[cmd.index("--symbol") + 1] == "BTC/USD"
+    assert log_path.name == "paper_ui.log"  # log DEDIE, jamais paper_console.log (BUG-014)
+    for token_ in cmd[2:]:
+        assert "live" not in str(token_).lower()  # garde-fou paper-only, jamais construit
+
+    pid_path = tmp_path / "run" / "paper.pid"
+    assert pid_path.exists()
+    assert pid_path.read_text(encoding="ascii").split(":", 1)[0] == "555555"
+
+
+def test_route_paper_post_start_refuse_si_deja_en_cours(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+    (tmp_path / "run").mkdir(exist_ok=True)
+    (tmp_path / "run" / "paper.pid").write_text("424242:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: True)
+
+    def boom(*a, **k):
+        raise AssertionError("un 2e paper ne doit JAMAIS etre spawn (un seul a la fois)")
+    monkeypatch.setattr(mon, "_spawn_paper_detached", boom)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "sma",
+    })
+    assert code == 200
+    assert "deja" in page.lower()
+    assert "EN COURS" in page
+
+
+def test_route_paper_post_start_pid_recycle_traite_comme_arrete(
+    server_obj, monkeypatch, tmp_path,
+):
+    # BUG-009 : un PID vivant-mais-RECYCLE par un process tiers n'est PAS "en
+    # cours" -- le demarrage doit rester POSSIBLE et le pid file rance nettoye.
+    url, srv = server_obj
+    (tmp_path / "run").mkdir(exist_ok=True)
+    (tmp_path / "run" / "paper.pid").write_text("999999999:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: False)
+    monkeypatch.setattr(mon, "_spawn_paper_detached", lambda cmd, log_path, cwd: 777777)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "sma",
+    })
+    assert code == 200
+    assert "EN COURS" in page
+    assert "deja" not in page.lower()
+
+    pid_path = tmp_path / "run" / "paper.pid"
+    assert pid_path.read_text(encoding="ascii").split(":", 1)[0] == "777777"
+
+
+def test_route_paper_post_start_echec_spawn_trace_erreur_et_l_affiche(
+    server_obj, monkeypatch, tmp_path,
+):
+    # M9 signaler-pas-masquer : un spawn en echec DOIT laisser une trace ET
+    # etre affiche a l'utilisateur, jamais avale silencieusement.
+    url, srv = server_obj
+
+    def boom(cmd, log_path, cwd):
+        raise OSError("spawn impossible (simule)")
+    monkeypatch.setattr(mon, "_spawn_paper_detached", boom)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "sma",
+    })
+    assert code == 200
+    assert "chec du d" in page.lower() or "echec" in page.lower()
+    err = tmp_path / "logs" / "paper_ui_error.log"
+    assert err.exists()
+    assert "demarrage paper ECHEC" in err.read_text(encoding="utf-8")
+
+    pid_path = tmp_path / "run" / "paper.pid"
+    assert not pid_path.exists()
+
+
+def test_route_paper_post_stop_sans_process_en_cours(server_obj):
+    url, srv = server_obj
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {"csrf_token": token, "action": "stop"})
+    assert code == 200
+    assert "aucun paper trading en cours" in page.lower()
+
+
+def test_route_paper_post_stop_arrete_process_identite_confirmee(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+    (tmp_path / "run").mkdir(exist_ok=True)
+    (tmp_path / "run" / "paper.pid").write_text("424242:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: True)
+    terminated = []
+    monkeypatch.setattr(lancer, "terminate_pid", lambda pid, timeout=5.0: terminated.append(pid) or True)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {"csrf_token": token, "action": "stop"})
+    assert code == 200
+    assert "ARRETE" in page
+    assert "conserve" in page.lower()  # honnete : historique preserve (L3)
+    assert terminated == [424242]
+
+    pid_path = tmp_path / "run" / "paper.pid"
+    assert not pid_path.exists()
+
+
+def test_route_paper_post_stop_pid_recycle_ne_termine_jamais(
+    server_obj, monkeypatch, tmp_path,
+):
+    # BUG-009, cas symetrique du start : un PID recycle n'est jamais "arrete"
+    # (terminate_pid ne doit JAMAIS etre appele sur une identite non confirmee).
+    url, srv = server_obj
+    (tmp_path / "run").mkdir(exist_ok=True)
+    (tmp_path / "run" / "paper.pid").write_text("999999999:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process", lambda pid, name, ts=None: False)
+
+    def boom(*a, **k):
+        raise AssertionError("terminate_pid ne doit PAS etre appele sur un PID recycle")
+    monkeypatch.setattr(lancer, "terminate_pid", boom)
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {"csrf_token": token, "action": "stop"})
+    assert code == 200
+    assert "aucun paper trading en cours" in page.lower()
+
+
+def test_route_paper_post_action_inconnue(server_obj):
+    url, srv = server_obj
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {"csrf_token": token, "action": "n-existe-pas"})
+    assert code == 200
+    assert "action inconnue" in page.lower()
+
+
+def test_route_paper_ne_construit_jamais_une_commande_live(
+    server_obj, monkeypatch, tmp_path,
+):
+    # Garde-fou explicite du perimetre (brief) : meme avec des champs
+    # adverses, la commande passe par assert_paper_only (RuntimeError si
+    # jamais "live" apparaissait) -- ici on verifie le chemin nominal complet.
+    url, srv = server_obj
+    spawned = []
+    monkeypatch.setattr(
+        mon, "_spawn_paper_detached",
+        lambda cmd, log_path, cwd: spawned.append(cmd) or 111111,
+    )
+    token = _csrf_token(url)
+    _post(url + "/paper", {
+        "csrf_token": token, "action": "start",
+        "strategy": "macd", "symbol": "ETH/USD", "timeframe": "1h",
+        "position_sizing": "vol", "target_vol": "40",
+    })
+    assert spawned
+    for token_ in spawned[0][2:]:
+        assert "live" not in str(token_).lower()
+    assert "--position-sizing" in spawned[0]
+    assert "vol" in spawned[0]
+    assert "--target-vol" in spawned[0]
+
+
+def test_spawn_paper_detached_survit_a_un_log_verrouille(tmp_path, monkeypatch):
+    # Meme recette que _spawn_detached_monitor (BUG-014) : repli DEVNULL si
+    # le log dedie logs/paper_ui.log est inaccessible en ecriture.
+    captured = {}
+
+    class FakeProc:
+        pid = 8181
+
+    def fake_popen(cmd, **kw):
+        captured["stdout"] = kw.get("stdout")
+        return FakeProc()
+
+    monkeypatch.setattr(mon.subprocess, "Popen", fake_popen)
+    bad_parent = tmp_path / "pas_un_dossier.txt"
+    bad_parent.write_text("x", encoding="ascii")
+    locked_log = bad_parent / "paper_ui.log"
+
+    pid = mon._spawn_paper_detached(["python", "-u", "main.py", "paper"], locked_log, tmp_path)
+    assert pid == 8181
+    assert captured["stdout"] == mon.subprocess.DEVNULL

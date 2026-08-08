@@ -27,6 +27,10 @@ Conception :
     GET /report/<job_id> -> resultat d'un job de recherche, generalise par
                          `kind` (Lot 5, etendu Lot 6, cf. trading/report_page.py
                          render_result_done)
+    GET/POST /paper  -> ecran Paper (Lot 7, trading/paper_page.py) : configure
+                         + demarre/arrete le paper trading DEPUIS l'UI (process
+                         detache, PID suivi dans run/paper.pid, meme garde-fou
+                         paper-only que lancer.py -- assert_paper_only).
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
 """
@@ -46,6 +50,7 @@ import urllib.parse
 from pathlib import Path
 
 import config
+import lancer
 from .options import (
     read_options, write_options, update_env_file, keys_configured, LOG_LEVELS,
 )
@@ -58,6 +63,7 @@ from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_
 from .jobs import JobBusy, JobManager
 from . import compare_page
 from . import optimize_page
+from . import paper_page
 from . import portfolio_page
 from . import research_page
 from . import report_page
@@ -665,6 +671,85 @@ def _spawn_detached_monitor(cmd, log_path: Path, cwd: Path) -> int:
     return proc.pid
 
 
+# --------------------------------------------------------------------------- #
+#  Paper trading pilotable (Lot 7, /paper) -- demarrage/arret DEPUIS l'UI,     #
+#  en reutilisant les gardes de lancer.py (BUG-009 identite PID, BUG-014 log  #
+#  verrouille). Le process paper est INDEPENDANT du serveur web : l'arreter   #
+#  ou le demarrer depuis /paper ne touche jamais ce serveur (monitor.pid),    #
+#  ni l'historique accumule (paper_stats.csv / paper_trades.log / etat).      #
+# --------------------------------------------------------------------------- #
+def _paper_pid_path(root: Path) -> Path:
+    return root / "run" / "paper.pid"
+
+
+def _paper_identity(root: Path):
+    """
+    Lit run/paper.pid et confirme l'IDENTITE du process (BUG-009 : Windows
+    RECYCLE les PID, un PID vivant-mais-recycle n'est PAS "en cours"). Retourne
+    (pid, running, start_ts). Un pid file orphelin/recycle est NETTOYE ici
+    (meme comportement que lancer.py do_status/_start_service) -- jamais
+    traite comme "en cours" par la suite.
+    """
+    pid_path = _paper_pid_path(root)
+    pid = lancer.read_pid_file(pid_path)
+    if pid is None:
+        return None, False, None
+    start_ts = lancer.read_pid_start(pid_path)
+    if lancer.is_our_process(pid, "paper", start_ts):
+        return pid, True, start_ts
+    lancer.remove_pid_file(pid_path)  # orphelin/recycle : nettoye, traite ARRETE
+    return None, False, None
+
+
+def _spawn_paper_detached(cmd, log_path: Path, cwd: Path) -> int:
+    """Lance `main.py paper` detache (Lot 7) -- MEME recette robuste que
+    _spawn_detached_monitor (BUG-014 : repli DEVNULL si le log dedie
+    (logs/paper_ui.log) est verrouille par un autre process). Duplique en
+    local plutot qu'importe (meme raison que _spawn_detached_monitor : pas de
+    dependance croisee root <-> package pour cette mecanique bas niveau)."""
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = (getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                                   | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        log = open(log_path, "ab")
+    except OSError:
+        log = None
+    try:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.DEVNULL,
+            stdout=(log if log is not None else subprocess.DEVNULL),
+            stderr=(log if log is not None else subprocess.DEVNULL),
+            cwd=str(cwd), **kwargs)
+    finally:
+        if log is not None:
+            log.close()
+    return proc.pid
+
+
+def _start_paper_from_params(root: Path, params: dict):
+    """
+    Demarre `main.py paper` avec les PARAMETRES du formulaire /paper (Lot 7).
+    Construit la commande via lancer.build_paper_command_params (garde-fou
+    paper-only EN DUR, assert_paper_only -- jamais "live"), -u pour un flush
+    immediat (autopsie possible si le process meurt tot, meme lecon que le
+    respawn du monitor), log DEDIE logs/paper_ui.log (jamais le
+    logs/paper_console.log du lanceur -- BUG-014, verrou exclusif du '>>' shell
+    d'un paper deja lance par lancer.py). Retourne (pid, start_ts) ; leve
+    OSError si le spawn echoue (JAMAIS avale silencieusement, M9).
+    """
+    base_cmd = lancer.build_paper_command_params(root, params)
+    cmd = [base_cmd[0], "-u"] + base_cmd[1:]
+    run_dir, logs_dir = lancer.ensure_dirs(root)
+    log_path = logs_dir / "paper_ui.log"
+    new_pid = _spawn_paper_detached(cmd, log_path, root)
+    start_ts = lancer._process_start_ts(new_pid)
+    lancer.write_pid_file(_paper_pid_path(root), new_pid, start_ts)
+    return new_pid, start_ts
+
+
 def _stop_server_thread(server_ref, root: Path) -> None:
     """Arrete le serveur HTTP. DOIT tourner dans un thread SEPARE de celui qui
     execute serve_forever() (shutdown() bloquerait sinon -- cf. doc stdlib
@@ -1054,6 +1139,78 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 keys_configured(), truststore_active(),
             )
 
+        def _paper_status_view(self):
+            """Assemble le statut affichable par render_paper_page : identite
+            PID confirmee (BUG-009) + alerte inactivite reutilisee de
+            compute_view (memes fichiers stats/log que /monitoring)."""
+            pid, running, start_ts = _paper_identity(root)
+            status = paper_page.compute_paper_status(running, start_ts)
+            view = _compute_view_now() if running else {}
+            return pid, status, bool(view.get("inactif")), view.get("age_seconds")
+
+        def _paper_get(self, errors=None, values=None, message=None):
+            _pid, status, inactif, age_seconds = self._paper_status_view()
+            return paper_page.render_paper_page(
+                status, csrf_token, errors=errors, values=values,
+                message=message, inactif=inactif, age_seconds=age_seconds,
+            )
+
+        def _paper_post(self, form):
+            action = (form.get("action") or "").strip().lower()
+            pid, status, inactif, age_seconds = self._paper_status_view()
+
+            if action == "start":
+                if status["running"]:
+                    return paper_page.render_paper_page(
+                        status, csrf_token, inactif=inactif, age_seconds=age_seconds,
+                        errors=["Un paper trading tourne deja -- arrete-le d'abord "
+                                "(un seul a la fois, meme fichier d'etat)."],
+                    )
+                params, errors = paper_page.parse_paper_params(form)
+                if errors:
+                    return paper_page.render_paper_page(
+                        status, csrf_token, errors=errors, values=form,
+                    )
+                try:
+                    new_pid, start_ts = _start_paper_from_params(root, params)
+                except OSError as exc:
+                    # JAMAIS silencieux (M9) : trace + affiche, comme le
+                    # respawn du monitor (_restart_server_thread).
+                    try:
+                        (root / "logs" / "paper_ui_error.log").write_text(
+                            f"demarrage paper ECHEC : {type(exc).__name__}: {exc}\n",
+                            encoding="utf-8")
+                    except OSError:
+                        pass
+                    return paper_page.render_paper_page(
+                        status, csrf_token, values=form,
+                        errors=[f"Echec du demarrage du paper trading : {exc}"],
+                    )
+                new_status = paper_page.compute_paper_status(True, start_ts)
+                return paper_page.render_paper_page(
+                    new_status, csrf_token, message="Paper trading demarre.",
+                )
+
+            if action == "stop":
+                if not status["running"] or pid is None:
+                    return paper_page.render_paper_page(
+                        status, csrf_token, inactif=inactif, age_seconds=age_seconds,
+                        errors=["Aucun paper trading en cours (rien a arreter)."],
+                    )
+                lancer.terminate_pid(pid)
+                lancer.remove_pid_file(_paper_pid_path(root))
+                stopped_status = paper_page.compute_paper_status(False, None)
+                return paper_page.render_paper_page(
+                    stopped_status, csrf_token,
+                    message="Paper trading arrete. L'historique (paper_stats.csv, "
+                            "paper_trades.log, paper_state.json) est conserve.",
+                )
+
+            return paper_page.render_paper_page(
+                status, csrf_token, inactif=inactif, age_seconds=age_seconds,
+                errors=["Action inconnue."],
+            )
+
         def _stats_page(self):
             qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             requested = (qs.get("file", [""])[0] or "").strip()
@@ -1154,6 +1311,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                                           if "?" in self.path else "")
                     self._send_html(self._options_page(saved=saved))
                     return
+                if self.path.startswith("/paper"):
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._paper_get())
+                    return
                 if self.path.startswith("/check"):
                     if not self._host_ok():
                         return
@@ -1192,7 +1354,7 @@ def build_monitor_server(port=8765, host="127.0.0.1",
         def do_POST(self):
             # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4),
             # /research/{compare,optimize,portfolio} (Lot 5),
-            # /research/walkforward (Lot 6) et /options
+            # /research/walkforward (Lot 6), /paper (Lot 7) et /options
             # acceptent un POST ; tout le reste -> 404.
             if self.path.startswith("/job/"):
                 m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
@@ -1245,6 +1407,15 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
                     return
                 self._send_html(self._research_walkforward_post(form))
+                return
+            if self.path.startswith("/paper"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(self._paper_post(form))
                 return
             if self.path.startswith("/server/stop"):
                 if not self._host_ok():
