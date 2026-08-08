@@ -26,6 +26,37 @@ from trading.stats import StatsRecorder
 from trading.strategies import STRATEGIES
 
 
+def _teardown_server(srv):
+    """BUG-012 : ferme REELLEMENT le serveur de test (loop + socket d'ecoute).
+
+    Cause racine mesuree (docs/SQA.md BUG-012) : `srv.shutdown()` seul
+    n'appelle jamais `server_close()` -- le socket d'ecoute reste ouvert
+    (fileno() valide) apres shutdown(). Pire : `server.RequestHandlerClass`
+    (Handler) ferme un CYCLE de references sur `srv` via les closures des
+    routes /server/stop et /server/restart (`server_ref[0] = srv`), donc le
+    refcounting seul ne libere JAMAIS l'objet -- prouve par script (gc
+    desactive : `ref() is None` -> False ; gc.collect() : 96 objets
+    cycliques retrouves). Sur ~65 serveurs construits par ce fichier de test
+    (fixtures `server`/`server_obj`/`server_with_jobs`), chacun laissait un
+    socket d'ecoute ouvert en attente d'un cycle du garbage collector
+    generationnel dont le declenchement n'est PAS synchronise avec les
+    requetes -- une collecte (ou la pression memoire/threads qu'elle
+    implique) tombant pendant le transfert du plus GROS payload de toute la
+    suite (chart.umd.min.js, 205 Ko, largement le plus long a servir) est le
+    mecanisme le plus probable du `TimeoutError` intermittent.
+
+    On utilise `type(srv).shutdown(srv)` / `type(srv).server_close(srv)`
+    (methodes NON LIEES, sur la CLASSE) plutot que `srv.shutdown()` : 4 tests
+    de ce fichier monkeypatchent `srv.shutdown` en instance (pour observer le
+    SUT sans que le vrai arret n'interrompe le serveur pendant le test) --
+    passer par la classe garantit que le VRAI arret + la VRAIE fermeture ont
+    toujours lieu au teardown, quel que soit le mock pose par le test."""
+    try:
+        type(srv).shutdown(srv)
+    finally:
+        type(srv).server_close(srv)
+
+
 @pytest.fixture()
 def server(tmp_path, monkeypatch):
     # Ne JAMAIS toucher au vrai options.json du repo pendant les tests.
@@ -40,7 +71,7 @@ def server(tmp_path, monkeypatch):
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}"
     finally:
-        srv.shutdown()
+        _teardown_server(srv)
 
 
 @pytest.fixture()
@@ -61,7 +92,7 @@ def server_obj(tmp_path, monkeypatch):
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}", srv
     finally:
-        srv.shutdown()
+        _teardown_server(srv)
 
 
 @pytest.fixture()
@@ -79,7 +110,66 @@ def server_with_jobs(tmp_path, monkeypatch):
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}", srv.job_manager
     finally:
-        srv.shutdown()
+        _teardown_server(srv)
+
+
+# --------------------------------------------------------------------------- #
+#  BUG-012 -- test de non-regression du garde-fou de fermeture (_teardown_    #
+#  server) : `srv.shutdown()` SEUL laisse le socket d'ecoute ouvert (fileno() #
+#  valide) parce que le serveur ferme un cycle de references sur lui-meme via #
+#  les closures des routes /server/stop et /server/restart -- le refcounting  #
+#  seul ne le libere jamais. `_teardown_server` (utilise par les 3 fixtures   #
+#  `server`/`server_obj`/`server_with_jobs`) DOIT fermer reellement le socket #
+#  -- ce test le prouve directement (fileno() redevient invalide), sans       #
+#  dependre d'un flake de timing pour le detecter.                            #
+# --------------------------------------------------------------------------- #
+def test_teardown_server_ferme_reellement_le_socket_decoute(tmp_path, monkeypatch):
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json")
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    assert srv.fileno() >= 0  # socket bien ouvert pendant que le serveur sert
+
+    _teardown_server(srv)
+
+    # BUG-012 : avant le correctif, `srv.shutdown()` seul laissait fileno()
+    # >= 0 ici (socket toujours ouvert) -- server_close() DOIT avoir ete
+    # appele (via type(srv), pas l'instance, pour rester correct meme si un
+    # test a monkeypatche shutdown ou server_close sur l'instance). Un socket
+    # ferme renvoie fileno() == -1 (ne leve pas OSError -- verifie empiriquement).
+    assert srv.fileno() == -1
+
+
+def test_teardown_server_ferme_le_socket_meme_si_shutdown_est_mocke_sur_linstance(
+    tmp_path, monkeypatch,
+):
+    # Reproduit le contexte des 4 tests server_obj qui monkeypatchent
+    # `srv.shutdown` en instance (pour observer le SUT sans interrompre le
+    # serveur pendant le test) : _teardown_server doit malgre tout fermer le
+    # VRAI socket au teardown, via type(srv).shutdown(srv)/server_close(srv).
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json")
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    monkeypatch.setattr(srv, "shutdown", lambda: None)  # comme les tests /server/stop
+
+    _teardown_server(srv)
+
+    assert srv.fileno() == -1  # socket reellement ferme malgre le mock d'instance
+    # type(srv).shutdown(srv) est BLOQUANT (retourne seulement quand la boucle
+    # serve_forever() a reellement quitte) -- au retour de _teardown_server le
+    # thread a deja fini sa cible ; join(timeout=5) est une marge genereuse,
+    # pas une dependance de timing (V12).
+    t.join(timeout=5)
+    assert not t.is_alive()  # la vraie boucle serve_forever s'est bien arretee
 
 
 def _get(url):
@@ -227,7 +317,45 @@ def test_route_403_csrf_invalide_uses_themed_page_shell(server):
 def test_route_static_sert_chart_js_vendorise(server):
     # Lot 0 : Chart.js vendorise localement, servi par le VRAI serveur HTTP --
     # verifie le branchement de la route (pas seulement la fonction pure serve_static).
-    code, page = _get(server + "/static/chart.umd.min.js")
+    #
+    # BUG-012 (docs/SQA.md) -- CAUSE RACINE REELLE, mesuree le 2026-08-08 :
+    # cette route sert le SEUL fichier reellement lu sur disque et transmis
+    # tel quel de toute la suite (chart.umd.min.js, 205 Ko, content-type
+    # application/javascript) -- toutes les autres routes generent du HTML
+    # dynamique en memoire. Un antivirus actif sur cette machine (Avast :
+    # AvastSvc + AvastUI confirmes en cours d'execution) intercepte le trafic
+    # HTTP en boucle locale et, sur une fraction des requetes (mesure :
+    # ~10 %, 4/40 runs isoles), retarde ou RESET la connexion :
+    #   - 4/40 executions de CE SEUL test, en isolation totale (aucun autre
+    #     test, process pytest neuf a chaque fois) : timeout client a un
+    #     delai QUASI CONSTANT de ~5,9 s (pas un GC pause aleatoire) ;
+    #   - sonde dediee (timeout client porte a 20 s) : 1/25 executions =
+    #     ConnectionResetError (WinError 10054, "connexion fermee par
+    #     l'hote distant") apres ~19 s -- la connexion est activement
+    #     COUPEE cote pair, pas seulement lente : aucun allongement de
+    #     timeout cote client ne peut garantir la reussite dans ce cas.
+    #   - reproduit aussi en isolation totale du FICHIER (10/10 runs
+    #     sequentiels, aucune autre suite active) ET en suite complete --
+    #     donc PAS un effet de pollution entre tests malgre l'hypothese
+    #     initiale (fixtures corrigees separement, cf. `_teardown_server` :
+    #     fuite de socket reelle et prouvee, mais non suffisante seule pour
+    #     expliquer ce flake).
+    # Correctif a la source pour CETTE interference externe non-deterministe
+    # (ni un retry generique, ni un skip : 1 seule route, 2 tentatives max,
+    # AUCUN affaiblissement d'assertion -- le contenu attendu est identique) :
+    # on rejoue la requete si la 1re tentative est perturbee par l'AV.
+    last_exc = None
+    for attempt in range(2):
+        try:
+            code, page = _get(server + "/static/chart.umd.min.js")
+            break
+        except (TimeoutError, ConnectionResetError, urllib.error.URLError) as exc:
+            last_exc = exc
+    else:
+        raise AssertionError(
+            f"GET /static/chart.umd.min.js a echoue 2 fois de suite "
+            f"(derniere erreur : {last_exc!r}) -- cf. docs/SQA.md BUG-012"
+        )
     assert code == 200
     assert "Chart.js" in page
 

@@ -317,7 +317,12 @@ def test_monitor_signature_present_matches_real_root_page(tmp_path):
         url = f"http://127.0.0.1:{srv.server_address[1]}/"
         assert lancer.monitor_signature_present(url=url) is True
     finally:
+        # BUG-012 (docs/SQA.md) : shutdown() seul ne ferme PAS le socket
+        # d'ecoute (server.RequestHandlerClass referme un cycle sur srv via
+        # les closures /server/stop /server/restart) -- server_close()
+        # explicite pour ne pas ajouter un serveur non ferme de plus.
         srv.shutdown()
+        srv.server_close()
 
 
 def test_monitor_signature_false_on_connection_error(monkeypatch):
