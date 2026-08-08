@@ -94,11 +94,14 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
   maquette HTML autonome des 13 écrans [`docs/mockups/prototype.html`](docs/mockups/prototype.html),
   et **raccourci bureau** (icône `assets/insertyourcoin.ico` + `installer_raccourci.bat` /
   `desinstaller_raccourci.bat` + `scripts/install_shortcut.ps1`).
-  **Implémentation : Lots 0-5 livrés** (socle+nav+vendoring offline, Accueil+Diagnostic,
-  Labo de stats, infra jobs async, Backtest+Rapport, Comparer/Optimiser/Portefeuille) —
-  serveur `trading/monitor.py` + `trading/webui.py` + `trading/jobs.py` + `trading/*_page.py`.
-  **416 tests verts.** Reste Lots 6-9 (walk-forward, paper pilotable, live verrouillé P0, polish).
-  Reprise détaillée : [`docs/RAPPORT_WEBAPP_SUITE.md`](docs/RAPPORT_WEBAPP_SUITE.md).
+  **Implémentation : Lots 0-9 TERMINÉS (2026-08-08)** — toutes les fonctions sont des écrans web :
+  Accueil, Diagnostic, Monitoring, Labo de stats, Options (+ boutons Arrêter/Redémarrer serveur),
+  Backtest/Comparer/Optimiser/Portefeuille, **Walk-forward (le juge)**, Paper pilotable, **Live
+  verrouillé** (mur de friction : 2 round-trips + nonce + phrase `OUI JE CONFIRME`, dry-run défaut),
+  Aide. Lancement **zéro-fenêtre** (pythonw + spawn détaché masqué). **593 tests verts.**
+  Le Lot 8 (live) a passé une **gate indépendante** qui a trouvé + fait corriger un P0 (race TOCTOU,
+  BUG-015). Reste non bloquant : BUG-016 (P2, même TOCTOU sur le paper). Aucun live réel jamais
+  lancé (exige la frappe user). Reprise détaillée : [`docs/RAPPORT_WEBAPP_SUITE.md`](docs/RAPPORT_WEBAPP_SUITE.md).
 
 ## Prochaines étapes (ordre suggéré)
 1. ~~Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.~~ ✅ fait.

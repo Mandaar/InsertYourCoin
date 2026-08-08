@@ -38,7 +38,7 @@ icône** la lancera sans rien changer.
 3. **Bouton « Tester la liaison Kraken »** dans Options : appel `Query Funds` en lecture
    seule, OK/échec, **solde masqué par défaut**.
 
-## 4. Roadmap d'implémentation (cf. spec §9) — EN COURS (Lots 0-5 faits)
+## 4. Roadmap d'implémentation (cf. spec §9) — ✅ TERMINÉE (Lots 0-9, 2026-08-08)
 
 Par lots, chacun sous **gate SQA** (pytest vert, pas de P0/P1, garde-fous live intacts,
 `VERIFY_SSL=True`, non-régression), délégué au `ui-programmer`, vérifié en runtime réel :
@@ -55,11 +55,22 @@ Par lots, chacun sous **gate SQA** (pytest vert, pas de P0/P1, garde-fous live i
   tests qui survendaient une parité textuelle) — rapport : `docs/audit/REVUE_LOT6_WALKFORWARD.md`.
   Friction `--final` prouvée côté serveur par POST forgé. Gap de couverture noté (bandeau ×
   `holdout_errors`) : mineur, tracé dans le rapport.
-- ⬜ **Lot 7 — Paper pilotable** depuis l'UI (remplace les constantes en tête de `lancer.py`).
-- ⬜ **Lot 8 — Live verrouillé** (`/live`, **P0** — argent réel, exige un feu vert user explicite avant de le lancer).
-- ⬜ **Lot 9 — Polish & accessibilité**.
+- ✅ **Lot 7 — Paper pilotable** depuis l'UI (`/paper`, anti-double-instance, paper-only, conservation historique). `3c96588`
+- ✅ **Lot 9 — Polish & accessibilité** (frais dérivés de `config.FEE`, accents FR, contraste AA calculé, page `/help`, pages d'erreur thémées). `244ef8a`
+- ✅ **Lot 8 — Live verrouillé** (`/live`) : **LIVRÉ ET GATÉ** après **gate indépendante NO-GO → fix P0**.
+  2 round-trips serveur + nonce usage unique TTL 120 s, phrase exacte `OUI JE CONFIRME`, dry-run par défaut,
+  process détaché masqué, pré-requis re-testés serveur, plafonds `config.py` inviolables. **BUG-015 (P0)** :
+  race TOCTOU (2 live concurrents) trouvée par la gate indépendante, corrigée par `_live_start_lock`
+  (preuve : sans lock 2 spawns / avec lock 60 essais verts). `c5aa2b6`. Rapport : `docs/audit/GATE_LOT8_LIVE.md`.
+  ⚠️ Démarrage réel **impossible sans la frappe user** de `OUI JE CONFIRME` ; aucun live réel jamais lancé en dev.
 
-**Point d'entrée pour reprendre : Lot 6 (walk-forward).**
+### Reste-à-faire (non bloquant)
+- **BUG-016 (P2, ouvert)** : même patron TOCTOU que BUG-015 sur le **paper** (`_paper_post` action start) —
+  moins critique (pas d'argent réel), mais 2 papers concurrents corrompraient `paper_state.json`. Même
+  correctif (Lock). Consigné `docs/SQA.md`.
+- Durcissements mineurs Lot 8 notés par la gate (whitelist `symbol`, tests HTTP dédiés host/swap) — cf. rapport.
+
+**Roadmap terminée — l'app couvre toutes les fonctions. Le live reste derrière son mur de friction.**
 
 Architecture web en place (repères pour la reprise) :
 - `trading/webui.py` — `page_shell`, `job_panel_html`, `NAV_ITEMS`/`ENABLED_SCREENS`, `serve_static`, sous-nav recherche.
