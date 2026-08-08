@@ -41,13 +41,13 @@ def test_parse_optimize_params_full_valid_input():
 def test_parse_optimize_params_unknown_strategy_is_error():
     params, errors = op.parse_optimize_params({"strategy": "n-existe-pas"})
     assert params is None
-    assert any("Strategie inconnue" in e for e in errors)
+    assert any("Stratégie inconnue" in e for e in errors)
 
 
 def test_parse_optimize_params_unknown_metric_is_error():
     params, errors = op.parse_optimize_params({"strategy": "sma", "metric": "bogus"})
     assert params is None
-    assert any("Metrique non supportee" in e for e in errors)
+    assert any("Métrique non supportée" in e for e in errors)
 
 
 def test_parse_optimize_params_train_frac_out_of_range_is_error():
@@ -113,7 +113,7 @@ def test_render_optimize_done_shows_train_and_test_panels(make_df):
     result = _real_optimize_result(make_df)
     out = op.render_optimize_done(result)
     assert "Train (in-sample)" in out
-    assert "Test (hors-echantillon)" in out
+    assert "Test (hors-échantillon)" in out
     assert "tt-test" in out
     assert "ETH/USD" in out
     assert "<nav class='nav'>" in out

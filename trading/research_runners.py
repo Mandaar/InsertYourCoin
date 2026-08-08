@@ -120,7 +120,7 @@ def run_backtest(params, progress):
     """
     strategy_key = (params.get("strategy") or "").lower()
     if strategy_key not in STRATEGIES:
-        raise ResearchError(f"Strategie inconnue : {strategy_key or '(vide)'!r}.")
+        raise ResearchError(f"Stratégie inconnue : {strategy_key or '(vide)'!r}.")
 
     try:
         df = _load_ohlcv(params, progress)
@@ -128,14 +128,14 @@ def run_backtest(params, progress):
         raise
     except Exception as exc:  # noqa: BLE001 -- classee en message actionnable, jamais de crash de job
         raise ResearchError(
-            "Donnees indisponibles pour ce symbole/timeframe/source. "
-            f"Detail : {exc}"
+            "Données indisponibles pour ce symbole/timeframe/source. "
+            f"Détail : {exc}"
         ) from exc
 
     if df is None or len(df) < 2:
         raise ResearchError(
-            "Pas assez de bougies chargees pour lancer le backtest "
-            "(symbole/timeframe/jours a verifier)."
+            "Pas assez de bougies chargées pour lancer le backtest "
+            "(symbole/timeframe/jours à vérifier)."
         )
 
     if progress.cancelled:
@@ -148,7 +148,7 @@ def run_backtest(params, progress):
     if progress.cancelled:
         return None
 
-    progress.log("Comparaison des strategies (reference Buy & Hold incluse)...")
+    progress.log("Comparaison des stratégies (référence Buy & Hold incluse)...")
     comparison = []
     for key in STRATEGIES:
         if progress.cancelled:
@@ -158,7 +158,7 @@ def run_backtest(params, progress):
             "metrics": Backtester(**kw).run(df, build_strategy(key)).metrics,
         })
 
-    progress.log("Termine.")
+    progress.log("Terminé.")
     return {
         "kind": "backtest",
         "detail": detail,
@@ -186,20 +186,20 @@ def run_compare(params, progress):
         raise
     except Exception as exc:  # noqa: BLE001
         raise ResearchError(
-            "Donnees indisponibles pour ce symbole/timeframe/source. "
-            f"Detail : {exc}"
+            "Données indisponibles pour ce symbole/timeframe/source. "
+            f"Détail : {exc}"
         ) from exc
 
     if df is None or len(df) < 2:
         raise ResearchError(
-            "Pas assez de bougies chargees pour lancer la comparaison "
-            "(symbole/timeframe/jours a verifier)."
+            "Pas assez de bougies chargées pour lancer la comparaison "
+            "(symbole/timeframe/jours à vérifier)."
         )
 
     if progress.cancelled:
         return None
 
-    progress.log(f"Comparaison des {len(STRATEGIES)} strategies (reference Buy & Hold incluse)...")
+    progress.log(f"Comparaison des {len(STRATEGIES)} stratégies (référence Buy & Hold incluse)...")
     kw = _bt_kwargs(params)
     rows = []
     for key in STRATEGIES:
@@ -212,7 +212,7 @@ def run_compare(params, progress):
 
     buy_hold = float(df["close"].iloc[-1] / df["close"].iloc[0] - 1)
 
-    progress.log("Termine.")
+    progress.log("Terminé.")
     return {
         "kind": "compare",
         "rows": rows,
@@ -238,7 +238,7 @@ def run_optimize(params, progress):
     """
     strategy_key = (params.get("strategy") or "").lower()
     if strategy_key not in STRATEGIES:
-        raise ResearchError(f"Strategie inconnue : {strategy_key or '(vide)'!r}.")
+        raise ResearchError(f"Stratégie inconnue : {strategy_key or '(vide)'!r}.")
 
     try:
         df = _load_ohlcv(params, progress)
@@ -246,14 +246,14 @@ def run_optimize(params, progress):
         raise
     except Exception as exc:  # noqa: BLE001
         raise ResearchError(
-            "Donnees indisponibles pour ce symbole/timeframe/source. "
-            f"Detail : {exc}"
+            "Données indisponibles pour ce symbole/timeframe/source. "
+            f"Détail : {exc}"
         ) from exc
 
     if df is None or len(df) < 2:
         raise ResearchError(
-            "Pas assez de bougies chargees pour optimiser "
-            "(symbole/timeframe/jours a verifier)."
+            "Pas assez de bougies chargées pour optimiser "
+            "(symbole/timeframe/jours à vérifier)."
         )
 
     if progress.cancelled:
@@ -265,7 +265,7 @@ def run_optimize(params, progress):
     train_frac = params.get("train_frac")
     if train_frac is None:
         train_frac = 0.6
-    progress.log(f"Optimisation {build_strategy(strategy_key).name} (critere {metric})...")
+    progress.log(f"Optimisation {build_strategy(strategy_key).name} (critère {metric})...")
     kw = _bt_kwargs(params)
     try:
         res = optimize(df, strategy_key, train_frac=train_frac, metric=metric, **kw)
@@ -279,7 +279,7 @@ def run_optimize(params, progress):
     if progress.cancelled:
         return None
 
-    progress.log("Termine.")
+    progress.log("Terminé.")
     return {
         "kind": "optimize",
         "result": res,
@@ -305,7 +305,7 @@ def run_portfolio(params, progress):
     """
     strategy_key = (params.get("strategy") or "").lower()
     if strategy_key not in STRATEGIES:
-        raise ResearchError(f"Strategie inconnue : {strategy_key or '(vide)'!r}.")
+        raise ResearchError(f"Stratégie inconnue : {strategy_key or '(vide)'!r}.")
 
     symbols = params.get("symbols") or []
     if not symbols:
@@ -316,7 +316,7 @@ def run_portfolio(params, progress):
         return None
     if not data:
         raise ResearchError(
-            "Aucun actif chargeable (tous les symboles ont echoue) : "
+            "Aucun actif chargeable (tous les symboles ont échoué) : "
             + "; ".join(f"{i['symbol']} ({i['error']})" for i in ignored)
         )
 
@@ -331,7 +331,7 @@ def run_portfolio(params, progress):
     if progress.cancelled:
         return None
 
-    progress.log("Termine.")
+    progress.log("Terminé.")
     return {
         "kind": "portfolio",
         "result": res,
@@ -382,7 +382,7 @@ def run_walkforward(params, progress):
     """
     strategy_key = (params.get("strategy") or "").lower()
     if strategy_key not in STRATEGIES:
-        raise ResearchError(f"Strategie inconnue : {strategy_key or '(vide)'!r}.")
+        raise ResearchError(f"Stratégie inconnue : {strategy_key or '(vide)'!r}.")
 
     symbols = params.get("symbols") or []
     if not symbols:
@@ -393,7 +393,7 @@ def run_walkforward(params, progress):
         return None
     if not data:
         raise ResearchError(
-            "Aucun actif chargeable (tous les symboles ont echoue) : "
+            "Aucun actif chargeable (tous les symboles ont échoué) : "
             + "; ".join(f"{i['symbol']} ({i['error']})" for i in ignored)
         )
 
@@ -409,8 +409,8 @@ def run_walkforward(params, progress):
         if holdout_frac > 0:
             cut = holdout_split(len(df), holdout_frac)
             progress.log(
-                f"Holdout reserve [{sym}] : {len(df) - cut} bougies "
-                f"({holdout_pct:g}% recents) -- JAMAIS utilises pour la recherche"
+                f"Holdout réservé [{sym}] : {len(df) - cut} bougies "
+                f"({holdout_pct:g}% récents) -- JAMAIS utilisés pour la recherche"
             )
             research[sym] = df.iloc[:cut]
         else:
@@ -428,7 +428,7 @@ def run_walkforward(params, progress):
     )
     progress.log(
         f"Walk-forward {build_strategy(strategy_key).name} sur "
-        f"{len(research)} actif(s) ({wf_kwargs['n_windows']} fenetres)..."
+        f"{len(research)} actif(s) ({wf_kwargs['n_windows']} fenêtres)..."
     )
     try:
         wf_res = walk_forward_multi(research, strategy_key, **wf_kwargs)
@@ -442,7 +442,7 @@ def run_walkforward(params, progress):
 
     holdout_results, holdout_errors = {}, {}
     if params.get("final") and holdout_frac > 0:
-        progress.log("VALIDATION FINALE sur le holdout sacre (une seule fois par strategie)...")
+        progress.log("VALIDATION FINALE sur le holdout sacré (une seule fois par stratégie)...")
         for sym, df in data.items():
             if progress.cancelled:
                 return None
@@ -456,7 +456,7 @@ def run_walkforward(params, progress):
                 progress.log(f"  Validation finale impossible pour {sym} : {exc}")
                 holdout_errors[sym] = str(exc)
 
-    progress.log("Termine.")
+    progress.log("Terminé.")
     return {
         "kind": "walkforward",
         "results": wf_res["per_symbol"],

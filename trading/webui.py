@@ -33,7 +33,7 @@ THEME_CSS = """
 :root{
   --bg:#0e1116; --bg-deep:#0a0c10; --panel:#171c24; --panel2:#1b212b;
   --line:#232b36; --line-gold:rgba(214,170,90,.22);
-  --txt:#d7dee8; --muted:#7f8c9c; --muted2:#6b7787;
+  --txt:#d7dee8; --muted:#7f8c9c; --muted2:#8b97a6;
   --gold:#d6aa5a; --gold-bright:#f0b429; --gold-soft:rgba(214,170,90,.10);
   --up:#46c46f; --down:#e5534b; --blue:#6cb6ff;
   --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
@@ -72,7 +72,7 @@ body{
 .nav a.tab.active{color:var(--gold); background:var(--gold-soft); font-weight:600}
 .nav span.tab.disabled{
   display:inline-block; color:var(--muted2); font-family:var(--sans); font-size:13.5px;
-  padding:8px 12px; border-radius:7px; letter-spacing:.01em; cursor:default; opacity:.55;
+  padding:8px 12px; border-radius:7px; letter-spacing:.01em; cursor:default;
 }
 .nav .tab .soon{font-family:var(--mono); font-size:9px; letter-spacing:.06em;
   text-transform:uppercase; margin-left:6px; padding:1px 5px; border:1px solid var(--line);
@@ -96,7 +96,7 @@ body{
 .research-subnav a.sub-tab:hover{color:var(--txt); background:rgba(255,255,255,.04)}
 .research-subnav a.sub-tab.active{color:var(--gold); background:var(--gold-soft); font-weight:600}
 .research-subnav span.sub-tab.disabled{color:var(--muted2); font-size:12.5px;
-  padding:6px 11px; border-radius:6px; opacity:.55}
+  padding:6px 11px; border-radius:6px}
 .research-subnav .soon{font-family:var(--mono); font-size:9px; letter-spacing:.06em;
   text-transform:uppercase; margin-left:5px; padding:1px 5px; border:1px solid var(--line);
   border-radius:999px; color:var(--muted2); vertical-align:1px}
@@ -125,7 +125,7 @@ NAV_ITEMS = (
 # Ecrans REELLEMENT construits et branches. Tenu a jour lot par lot -- c'est la
 # seule ligne a etendre quand un nouvel ecran passe en prod.
 ENABLED_SCREENS = frozenset(
-    {"home", "check", "research", "paper", "monitoring", "options", "stats"}
+    {"home", "check", "research", "paper", "monitoring", "options", "stats", "help"}
 )
 
 # Sous-navigation DANS la section Recherche (Lot 5 : compare/optimize/portfolio
@@ -154,7 +154,7 @@ def research_subnav_html(active_key):
         else:
             items.append(
                 f"<span class='sub-tab disabled'>{_esc(label)}"
-                "<span class='soon'>bientot</span></span>"
+                "<span class='soon'>bientôt</span></span>"
             )
     return "<div class='research-subnav'>" + "".join(items) + "</div>"
 
@@ -175,14 +175,14 @@ def _render_nav(active_nav):
         else:
             tabs.append(
                 f"<span class='tab disabled'>{_esc(label)}"
-                "<span class='soon'>bientot</span></span>"
+                "<span class='soon'>bientôt</span></span>"
             )
 
     ssl_on = bool(getattr(config, "VERIFY_SSL", False))
     ssl_pill = (
-        "<span class='pill ssl-ok'><span class='dot'></span>SSL verif. actif</span>"
+        "<span class='pill ssl-ok'><span class='dot'></span>SSL vérif. actif</span>"
         if ssl_on else
-        "<span class='pill ssl-bad'>SSL VERIF. DESACTIVEE</span>"
+        "<span class='pill ssl-bad'>SSL VÉRIF. DÉSACTIVÉE</span>"
     )
 
     return (
@@ -268,9 +268,9 @@ JOB_PANEL_CSS = """
 _JOB_STATE_LABELS = {
     "pending": "En attente...",
     "running": "En cours...",
-    "done": "Termine.",
+    "done": "Terminé.",
     "error": "Erreur.",
-    "cancelled": "Annule.",
+    "cancelled": "Annulé.",
 }
 
 _JOB_JS_TEMPLATE = """
@@ -362,7 +362,7 @@ def job_panel_html(job_id, csrf_token, result_url=None):
         .replace("__PANEL_ID__", json.dumps("job-panel-" + jid))
         .replace("__STATUS_URL__", json.dumps(f"/job/{raw_id}/status"))
         .replace("__CANCEL_URL__", json.dumps(f"/job/{raw_id}/cancel"))
-        .replace("__STATE_LABELS__", json.dumps(_JOB_STATE_LABELS))
+        .replace("__STATE_LABELS__", json.dumps(_JOB_STATE_LABELS, ensure_ascii=False))
     )
     return panel + js
 

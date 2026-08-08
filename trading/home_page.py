@@ -16,9 +16,13 @@ _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
+.soon-link { color: #8b97a6; font-size: 13px; }
+.soon-link .soon { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 9px;
+  letter-spacing: .06em; text-transform: uppercase; margin-left: 5px; padding: 1px 5px;
+  border: 1px solid #232b36; border-radius: 999px; color: #8b97a6; vertical-align: 1px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .hub { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 14px; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -29,7 +33,6 @@ h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercas
 .warn { color: #f0b429; font-weight: 600; }
 .hublink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .hublink:hover { text-decoration: underline; }
-.disabled-link { color: #6b7787; font-size: 13px; }
 .btnrow { margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 """
 
@@ -45,16 +48,16 @@ def _diag_card(check_cache, truststore_ok):
         "<span class='warn'>[!]</span> truststore indisponible"
     )
     if check_cache is None:
-        conn_line = "<span class='muted'>Non verifie cette session.</span>"
+        conn_line = "<span class='muted'>Non vérifié cette session.</span>"
     elif check_cache.get("ok"):
         conn_line = (
             "<span class='ok'>[OK]</span> Connexion Kraken OK "
             f"({_esc(check_cache.get('symbol'))} = {_esc(check_cache.get('price'))}, "
-            f"verifie a {_esc(check_cache.get('time'))})"
+            f"vérifié à {_esc(check_cache.get('time'))})"
         )
     else:
         category = check_cache.get("category") or "network"
-        conn_line = f"<span class='no'>[ECHEC]</span> Connexion Kraken [{_esc(category)}]"
+        conn_line = f"<span class='no'>[ÉCHEC]</span> Connexion Kraken [{_esc(category)}]"
 
     return (
         "<div class='card'><h2>Diagnostic</h2>"
@@ -94,7 +97,7 @@ def _research_card():
     # de faux verdict fabrique.
     return (
         "<div class='card'><h2>Recherche</h2>"
-        "<p class='muted'>Aucune analyse lancee.</p>"
+        "<p class='muted'>Aucune analyse lancée.</p>"
         "<div class='btnrow'><a class='hublink' href='/research/backtest'>"
         "Nouvelle analyse -&gt;</a></div>"
         "</div>"
@@ -104,12 +107,13 @@ def _research_card():
 def _settings_card(keys_ok):
     etat = "<span class='ok'>OUI</span>" if keys_ok else "<span class='no'>NON</span>"
     return (
-        "<div class='card'><h2>Reglages</h2>"
-        f"<p>Cles Kraken configurees : {etat}</p>"
+        "<div class='card'><h2>Réglages</h2>"
+        f"<p>Clés Kraken configurées : {etat}</p>"
         "<div class='btnrow'>"
         "<a class='hublink' href='/options'>Options</a>"
-        "<span class='disabled-link'>Aide (bientot)</span>"
-        "<a class='hublink' href='/options'>passer en live (verrouille)</a>"
+        "<a class='hublink' href='/help'>Aide</a>"
+        "<span class='soon-link'>passer en live"
+        "<span class='soon'>bientôt</span></span>"
         "</div></div>"
     )
 
@@ -130,8 +134,8 @@ def render_home_page(paper_view, check_cache, keys_ok, truststore_ok) -> str:
         + _research_card()
         + _settings_card(keys_ok)
         + "<div class='card warn-full'>Avertissement : outil de recherche. "
-          "Aucun gain promis. Le live engage de l'argent reel -- il est "
-          "verrouille par defaut.</div>"
+          "Aucun gain promis. Le live engage de l'argent réel -- il est "
+          "verrouillé par défaut.</div>"
         + "</div>"
     )
     return page_shell("Accueil - InsertYourCoin", "home", body)

@@ -29,7 +29,7 @@ _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -45,7 +45,7 @@ h1 { font-size: 18px; margin: 0 0 4px; }
 .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: 13px; color: #d7dee8; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .errors { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
@@ -76,7 +76,7 @@ table.corr-table { border-collapse: collapse; font-size: 12px;
   font-family: ui-monospace, Consolas, monospace; margin-top: 8px; }
 table.corr-table th, table.corr-table td { padding: 7px 10px; text-align: center; }
 table.corr-table th { color: #9fb0c3; font-weight: 500; }
-table.corr-table td.diag { color: #6b7787; }
+table.corr-table td.diag { color: #8b97a6; }
 .corr-note { font-size: 12.5px; color: #9fb0c3; margin-top: 10px; line-height: 1.6; }
 """
 
@@ -102,7 +102,7 @@ def parse_portfolio_params(fields: dict):
     strategy = (fields.get("strategy") or "").strip().lower()
     errors = []
     if strategy not in STRATEGIES:
-        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
+        errors.append(f"Stratégie inconnue : {strategy or '(vide)'}.")
 
     tds, tds_errors = parse_timeframe_days_source(fields)
     errors += tds_errors
@@ -130,9 +130,9 @@ def _form_html(csrf_token, values) -> str:
         "<form class='pf-form' method='post' action='/research/portfolio'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<div class='row'>"
-        "<div class='field wide'><label class='flabel' for='symbols'>Symboles (separes par des virgules)</label>"
+        "<div class='field wide'><label class='flabel' for='symbols'>Symboles (séparés par des virgules)</label>"
         f"<input id='symbols' name='symbols' value='{_esc(symbols)}'></div>"
-        "<div class='field'><label class='flabel' for='strategy'>Strategie</label>"
+        "<div class='field'><label class='flabel' for='strategy'>Stratégie</label>"
         f"<select id='strategy' name='strategy'>{strategy_options(v.get('strategy'))}</select></div>"
         "</div>"
 
@@ -154,17 +154,17 @@ def _form_html(csrf_token, values) -> str:
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='stop_loss'>Stop (%)</label>"
         f"<input id='stop_loss' name='stop_loss' type='number' step='0.1' "
-        f"value='{_esc(v.get('stop_loss'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('stop_loss'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='take_profit'>Objectif (%)</label>"
         f"<input id='take_profit' name='take_profit' type='number' step='0.1' "
-        f"value='{_esc(v.get('take_profit'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('take_profit'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='trailing_stop'>Trailing (%)</label>"
         f"<input id='trailing_stop' name='trailing_stop' type='number' step='0.1' "
-        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='position_sizing'>Sizing</label>"
         "<select id='position_sizing' name='position_sizing'>"
         f"<option value='none'{none_checked}>none (tout-ou-rien)</option>"
-        f"<option value='vol'{vol_checked}>vol (cible de volatilite)</option>"
+        f"<option value='vol'{vol_checked}>vol (cible de volatilité)</option>"
         "</select></div>"
         "<div class='field'><label class='flabel' for='target_vol'>Vol cible (%)</label>"
         f"<input id='target_vol' name='target_vol' type='number' step='1' "
@@ -192,9 +192,9 @@ def render_portfolio_form(csrf_token, errors=None, values=None) -> str:
         + "<div class='card'>"
         + _form_html(csrf_token, values)
         + "</div>"
-        + "<p class='muted honesty'>Panier equipondere. La correlation entre actifs "
-          "crypto est generalement elevee (~0.8) : la diversification lisse, "
-          "elle ne protege pas d'un krach systemique.</p>"
+        + "<p class='muted honesty'>Panier équipondéré. La corrélation entre actifs "
+          "crypto est généralement élevée (~0.8) : la diversification lisse, "
+          "elle ne protège pas d'un krach systémique.</p>"
     )
     return page_shell("Recherche - Portefeuille - InsertYourCoin", "research", body)
 
@@ -206,7 +206,7 @@ def render_portfolio_busy(active_label, active_id, csrf_token) -> str:
         + research_subnav_html("portfolio")
         + "<div class='head'><h1>Recherche &mdash; Portefeuille</h1>"
         "<a class='navlink' href='/research/portfolio'>&larr; Formulaire</a></div>"
-        f"<div class='busy'>Une analyse est deja en cours : <strong>{_esc(label)}</strong>. "
+        f"<div class='busy'>Une analyse est déjà en cours : <strong>{_esc(label)}</strong>. "
         "Attends sa fin (panneau ci-dessous) ou annule-la avant d'en lancer une "
         "nouvelle -- un seul job a la fois.</div>"
         "<div class='card'>"
@@ -280,14 +280,14 @@ def render_portfolio_done(result) -> str:
         items = "".join(
             f"<li>{_esc(i['symbol'])} : {_esc(i['error'])}</li>" for i in ignored
         )
-        ignored_html = f"<div class='ignored'>Actif(s) ignore(s) :<ul>{items}</ul></div>"
+        ignored_html = f"<div class='ignored'>Actif(s) ignoré(s) :<ul>{items}</ul></div>"
 
     p, b = res["portfolio"], res["portfolio_bh"]
     kpis = [
         ("Rendement portefeuille", fmt.pct(p["total_return"]), fmt.cls(p["total_return"])),
         ("vs Buy & Hold panier", fmt.pct(b["total_return"]), fmt.cls(b["total_return"])),
         ("Sharpe", fmt.num(p["sharpe"]), fmt.cls(p["sharpe"])),
-        ("Volatilite", fmt.pct(p["volatility"], signed=False), "neu"),
+        ("Volatilité", fmt.pct(p["volatility"], signed=False), "neu"),
         ("Drawdown max", fmt.pct(p["max_drawdown"], signed=False), "down"),
         ("Capital final", f"{res['final_equity']:,.2f} $", "neu"),
     ]
@@ -319,10 +319,10 @@ def render_portfolio_done(result) -> str:
     n = len(vals)
     avg_corr = float(np.mean([vals[i, j] for i in range(n) for j in range(n) if i < j])) if n > 1 else 0.0
     corr_note = (
-        "&rarr; Actifs tres correles : diversification limitee (tout chute ensemble "
-        "en cas de krach). Lisse les bords, ne protege pas du risque systemique crypto."
+        "&rarr; Actifs très corrélés : diversification limitée (tout chute ensemble "
+        "en cas de krach). Lisse les bords, ne protège pas du risque systémique crypto."
         if avg_corr > 0.7 else
-        "&rarr; Correlation moderee : la diversification apporte un vrai lissage ici."
+        "&rarr; Corrélation modérée : la diversification apporte un vrai lissage ici."
     )
 
     symbols = context.get("symbols") or []
@@ -337,9 +337,9 @@ def render_portfolio_done(result) -> str:
         + "<div class='kpi-grid'>" + kpi_html + "</div>"
         + "<div class='card'>" + asset_table + "</div>"
         + "<div class='card'>"
-        + "<p class='muted' style='margin:0 0 4px'>Correlation des rendements (1 = bougent ensemble)</p>"
+        + "<p class='muted' style='margin:0 0 4px'>Corrélation des rendements (1 = bougent ensemble)</p>"
         + heatmap
-        + f"<p class='corr-note'>Correlation moyenne : {avg_corr:.2f}. {corr_note}</p>"
+        + f"<p class='corr-note'>Corrélation moyenne : {avg_corr:.2f}. {corr_note}</p>"
         + "</div>"
     )
     title = f"Portefeuille - {', '.join(symbols)} - InsertYourCoin"

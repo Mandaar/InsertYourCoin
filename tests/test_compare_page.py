@@ -24,7 +24,7 @@ def test_parse_compare_params_defaults_on_minimal_valid_input():
 def test_parse_compare_params_unknown_timeframe_is_error():
     params, errors = cp.parse_compare_params({"timeframe": "3d"})
     assert params is None
-    assert any("Timeframe non supporte" in e for e in errors)
+    assert any("Timeframe non supporté" in e for e in errors)
 
 
 def test_parse_compare_params_negative_days_is_error():
@@ -63,7 +63,7 @@ def test_render_compare_form_no_errors_by_default():
 def test_render_compare_busy_shows_label_and_job_panel():
     out = cp.render_compare_busy("Comparer ETH/USD", "a" * 32, "tok")
     assert "Comparer ETH/USD" in out
-    assert "deja en cours" in out
+    assert "déjà en cours" in out
     assert "class='job-panel'" in out
     assert f"/report/{'a' * 32}" in out
 
@@ -109,11 +109,11 @@ def test_render_compare_done_highlights_when_nothing_beats_buy_hold(make_df):
     # Force le constat honnete : aucune strategie ne bat un Buy & Hold ecrase.
     result["buy_hold"] = 10_000.0
     out = cp.render_compare_done(result)
-    assert "0 strategie ne bat Buy" in out
+    assert "0 stratégie ne bat Buy" in out
 
 
 def test_render_compare_done_no_warning_when_a_strategy_beats_buy_hold(make_df):
     result = _real_compare_result(make_df)
     result["buy_hold"] = -10_000.0  # garanti battu par toute strategie
     out = cp.render_compare_done(result)
-    assert "0 strategie ne bat Buy" not in out
+    assert "0 stratégie ne bat Buy" not in out

@@ -6,7 +6,7 @@ Aucun reseau, aucun serveur : on construit un `summary` via trading.stats
 """
 import html
 
-from trading.stats import HONESTY_NOTE, StatsRecorder, load_stats, summarize
+from trading.stats import StatsRecorder, honesty_note, load_stats, summarize
 from trading.stats_page import render_stats_page
 
 
@@ -37,7 +37,7 @@ def test_render_stats_page_empty_shows_exact_message(tmp_path):
         message = str(exc)
 
     out = render_stats_page("paper_stats.csv", [], None, empty_message=message)
-    assert "Aucune donnee" in out
+    assert "Aucune donnée" in out
     assert message.replace("'", "&#x27;") in out or message in out
     # Nav commune + honnetete restent presentes meme sans donnees.
     assert "<nav class='nav'>" in out
@@ -47,7 +47,7 @@ def test_render_stats_page_empty_shows_exact_message(tmp_path):
 
 def test_render_stats_page_empty_without_message_has_fallback():
     out = render_stats_page("paper_stats.csv", [], None, empty_message=None)
-    assert "Aucune donnee" in out
+    assert "Aucune donnée" in out
 
 
 # --------------------------------------------------------------------------- #
@@ -62,7 +62,7 @@ def test_render_stats_page_with_data_shows_key_metrics(tmp_path):
     assert "Cycles" in out and ">3<" in out
     assert "Rendement" in out
     assert "Drawdown max" in out
-    assert "Reussite" in out
+    assert "Réussite" in out
     assert "PnL total" in out
     assert "Exposition moy." in out
 
@@ -85,12 +85,12 @@ def test_render_stats_page_shows_hour_and_weekday_bars(tmp_path):
 
 
 def test_render_stats_page_honesty_verbatim(tmp_path):
-    """L'encart d'honnetete doit reprendre MOT POUR MOT trading.stats.HONESTY_NOTE
+    """L'encart d'honnetete doit reprendre MOT POUR MOT trading.stats.honesty_note()
     (source unique partagee avec le rendu CLI format_summary) -- compare apres
     html.escape (meme transformation que _esc, XSS-safe par construction)."""
     summary = _build_summary(tmp_path)
     out = render_stats_page("paper_stats.csv", ["paper_stats.csv"], summary)
-    for line in HONESTY_NOTE.splitlines():
+    for line in honesty_note().splitlines():
         assert html.escape(line) in out
 
 
@@ -110,6 +110,7 @@ def test_file_picker_shown_when_multiple_files(tmp_path):
     out = render_stats_page(
         "paper_stats.csv", ["paper_stats.csv", "old_stats.csv"], summary
     )
-    assert "<select name='file'>" in out
+    assert "<select id='file' name='file'>" in out
+    assert "<label for='file'>" in out
     assert "old_stats.csv" in out
     assert "selected" in out

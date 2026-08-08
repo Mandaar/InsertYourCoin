@@ -15,7 +15,7 @@ _CSS = """
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px; }
 .versions { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 13px;
@@ -26,7 +26,7 @@ h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercas
 .diag-form input { padding: 8px 10px; background: #0e1116; color: #d7dee8;
   border: 1px solid #2a333f; border-radius: 6px; font-family: ui-monospace, Consolas, monospace; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .result { border-radius: 8px; padding: 12px 16px; font-weight: 600; }
 .result.ok-cat { background: #12331d; border: 1px solid #46c46f; color: #9ff0b8; }
@@ -46,16 +46,16 @@ def _esc(s):
 def _result_html(result):
     """`result` = dict de diagnostics_web.run_web_check(), ou None si jamais lance."""
     if result is None:
-        return "<p class='neutral'>Diagnostic non lance cette session.</p>"
+        return "<p class='neutral'>Diagnostic non lancé cette session.</p>"
     if result.get("ok"):
         return (
             "<div class='result ok-cat'>Connexion OK -- "
             f"{_esc(result.get('symbol'))} = {_esc(result.get('price'))}"
-            f"<div class='msg'>Verifie a {_esc(result.get('time'))}.</div></div>"
+            f"<div class='msg'>Vérifié à {_esc(result.get('time'))}.</div></div>"
         )
     category = result.get("category") or "network"
     return (
-        f"<div class='result {_esc(category)}'>Echec de connexion "
+        f"<div class='result {_esc(category)}'>Échec de connexion "
         f"[{_esc(category)}]"
         f"<div class='msg'>{_esc(result.get('message'))}</div></div>"
     )
@@ -72,7 +72,7 @@ def render_check_page(symbol, static_lines, result=None) -> str:
 
     retry_html = ""
     if result is not None and not result.get("ok"):
-        retry_html = "<p><a class='navlink' href='/check'>Reessayer</a></p>"
+        retry_html = "<p><a class='navlink' href='/check'>Réessayer</a></p>"
 
     body = (
         f"<style>{_CSS}</style>"

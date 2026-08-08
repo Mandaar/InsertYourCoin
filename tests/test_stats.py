@@ -8,8 +8,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import config
 from trading.stats import (
-    COLUMNS, StatsRecorder, market_features, load_stats, summarize, format_summary,
+    COLUMNS, StatsRecorder, honesty_note, market_features, load_stats, summarize,
+    format_summary,
 )
 
 
@@ -109,7 +111,7 @@ def test_summarize_metrics(tmp_path):
 def test_format_summary_non_empty(tmp_path):
     out = format_summary(summarize(load_stats(_build_csv(tmp_path))))
     assert isinstance(out, str) and len(out) > 0
-    assert "honnetete" in out.lower()                            # disclaimer present
+    assert "honnêteté" in out.lower()                            # disclaimer present
 
 
 # --------------------------------------------------------------------------- #
@@ -118,3 +120,29 @@ def test_format_summary_non_empty(tmp_path):
 def test_load_stats_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_stats(tmp_path / "nope.csv")
+
+
+# --------------------------------------------------------------------------- #
+#  honesty_note : frais DERIVES de config.FEE (P2-1, jamais recopies en dur)  #
+# --------------------------------------------------------------------------- #
+def test_honesty_note_reflects_current_config_fee():
+    """Le pourcentage affiche doit correspondre EXACTEMENT a config.FEE (source
+    unique) -- garantit qu'un futur changement de grille Kraken (comme
+    BUG-003, 0.26% -> 0.80%) ne peut plus laisser un texte perime."""
+    expected_pct = config.FEE * 100
+    assert f"{expected_pct:.2f}%/ordre" in honesty_note()
+
+
+def test_honesty_note_follows_config_fee_when_it_changes(monkeypatch):
+    """Le texte SUIT config.FEE : si les frais changent (nouvelle grille),
+    la phrase change avec, sans toucher au code (BUG P2-1)."""
+    monkeypatch.setattr(config, "FEE", 0.0125, raising=False)
+    assert "1.25%/ordre" in honesty_note()
+    assert "0.80%/ordre" not in honesty_note()
+
+
+def test_honesty_note_never_hardcodes_stale_026_percent():
+    """Non-regression du defaut trouve par l'audit L0-5 (P2-1) : le vieux
+    taux fige "0,26%/ordre" ne doit plus jamais apparaitre."""
+    assert "0,26%" not in honesty_note()
+    assert "0.26%" not in honesty_note()

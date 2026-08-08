@@ -32,7 +32,7 @@ _CSS = """
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -47,7 +47,7 @@ h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercas
   color: #d7dee8; border: 1px solid #2a333f; border-radius: 6px;
   font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .btn-stop { background: #3a1d12; color: #ffb4ad; border: 1px solid #e5534b;
   border-radius: 7px; padding: 9px 18px; font-size: 14px; cursor: pointer; }
@@ -95,14 +95,14 @@ def parse_paper_params(fields: dict):
     strategy = (fields.get("strategy") or "").strip().lower()
     errors = []
     if strategy not in STRATEGIES:
-        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
+        errors.append(f"Stratégie inconnue : {strategy or '(vide)'}.")
 
     symbol = (fields.get("symbol") or "").strip() or config.DEFAULT_SYMBOL
 
     timeframe = (fields.get("timeframe") or "").strip() or "5m"
     if timeframe not in TIMEFRAME_CHOICES:
         errors.append(
-            f"Timeframe non supporte : {timeframe} "
+            f"Timeframe non supporté : {timeframe} "
             f"(attendu : {', '.join(TIMEFRAME_CHOICES)})."
         )
 
@@ -165,7 +165,7 @@ def _form_html(csrf_token, values) -> str:
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<input type='hidden' name='action' value='start'>"
         "<div class='row'>"
-        "<div class='field'><label class='flabel' for='strategy'>Strategie</label>"
+        "<div class='field'><label class='flabel' for='strategy'>Stratégie</label>"
         f"<select id='strategy' name='strategy'>{strategy_options(v.get('strategy'))}</select></div>"
         "<div class='field'><label class='flabel' for='symbol'>Symbole</label>"
         f"<input id='symbol' name='symbol' value='{_esc(symbol)}'></div>"
@@ -176,24 +176,24 @@ def _form_html(csrf_token, values) -> str:
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='stop_loss'>Stop (%)</label>"
         f"<input id='stop_loss' name='stop_loss' type='number' step='0.1' "
-        f"value='{_esc(v.get('stop_loss'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('stop_loss'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='take_profit'>Objectif (%)</label>"
         f"<input id='take_profit' name='take_profit' type='number' step='0.1' "
-        f"value='{_esc(v.get('take_profit'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('take_profit'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='trailing_stop'>Trailing (%)</label>"
         f"<input id='trailing_stop' name='trailing_stop' type='number' step='0.1' "
-        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='position_sizing'>Sizing</label>"
         "<select id='position_sizing' name='position_sizing'>"
         f"<option value='none'{none_checked}>none (tout-ou-rien)</option>"
-        f"<option value='vol'{vol_checked}>vol (cible de volatilite)</option>"
+        f"<option value='vol'{vol_checked}>vol (cible de volatilité)</option>"
         "</select></div>"
         "<div class='field'><label class='flabel' for='target_vol'>Vol cible (%)</label>"
         f"<input id='target_vol' name='target_vol' type='number' step='1' "
         f"value='{_esc(v.get('target_vol'))}' placeholder='si sizing=vol'></div>"
         "</div>"
 
-        "<button class='btn' type='submit'>Demarrer le paper trading</button>"
+        "<button class='btn' type='submit'>Démarrer le paper trading</button>"
         "</form>"
     )
 
@@ -204,7 +204,7 @@ def _stop_form_html(csrf_token) -> str:
         "<form method='post' action='/paper' style='display:inline-block;margin-right:10px'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<input type='hidden' name='action' value='stop'>"
-        "<button class='btn-stop' type='submit'>Arreter</button>"
+        "<button class='btn-stop' type='submit'>Arrêter</button>"
         "</form>"
     )
 
@@ -221,7 +221,7 @@ def render_paper_page(status, csrf_token, errors=None, values=None,
     errors_html = ""
     if errors:
         items = "".join(f"<li>{_esc(e)}</li>" for e in errors)
-        errors_html = f"<div class='errors'>Action refusee :<ul>{items}</ul></div>"
+        errors_html = f"<div class='errors'>Action refusée :<ul>{items}</ul></div>"
 
     message_html = f"<div class='saved'>{_esc(message)}</div>" if message else ""
 
@@ -242,20 +242,20 @@ def render_paper_page(status, csrf_token, errors=None, values=None,
             + _stop_form_html(csrf_token)
             + "<a class='navlink' href='/monitoring'>Voir le monitoring &rarr;</a>"
             "</div>"
-            "<p class='muted honesty'>Demarrer/arreter ne touche pas a "
-            "l'historique accumule : paper_stats.csv et paper_trades.log "
-            "continuent d'exister, et reprennent au prochain demarrage.</p>"
+            "<p class='muted honesty'>Démarrer/arrêter ne touche pas à "
+            "l'historique accumulé : paper_stats.csv et paper_trades.log "
+            "continuent d'exister, et reprennent au prochain démarrage.</p>"
         )
     else:
         status_card = (
             "<div class='card'><h2>Statut</h2>"
-            "<p class='statut-line'>Statut : <strong class='no'>ARRETE</strong></p>"
+            "<p class='statut-line'>Statut : <strong class='no'>ARRÊTÉ</strong></p>"
             "</div>"
             "<div class='card'>" + _form_html(csrf_token, values) + "</div>"
-            "<p class='muted honesty'>Aucune cle Kraken requise (le paper "
-            "n'utilise que des donnees publiques et de l'argent fictif). "
-            "L'historique existant (paper_stats.csv) est conserve et "
-            "continuera de grandir au demarrage.</p>"
+            "<p class='muted honesty'>Aucune clé Kraken requise (le paper "
+            "n'utilise que des données publiques et de l'argent fictif). "
+            "L'historique existant (paper_stats.csv) est conservé et "
+            "continuera de grandir au démarrage.</p>"
         )
 
     body = (

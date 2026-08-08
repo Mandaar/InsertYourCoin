@@ -12,7 +12,7 @@ l'appelant, elle ne resout ni ne lit rien elle-meme.
 """
 import html
 
-from .stats import HONESTY_NOTE, WEEKDAY_NAMES
+from .stats import WEEKDAY_NAMES, honesty_note
 from .webui import page_shell
 
 _CSS = """
@@ -21,7 +21,7 @@ _CSS = """
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -51,7 +51,7 @@ h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercas
 .bartrack { background: #0e1116; border: 1px solid #232b36; border-radius: 5px;
   height: 12px; overflow: hidden; }
 .barfill { display: block; height: 100%; background: #d6aa5a; }
-.barval { color: #6b7787; text-align: right; font-family: ui-monospace, Consolas, monospace; }
+.barval { color: #8b97a6; text-align: right; font-family: ui-monospace, Consolas, monospace; }
 .honesty { font-size: 12px; color: #9fb0c3; line-height: 1.6; white-space: pre-wrap; }
 """
 
@@ -115,11 +115,12 @@ def _bars_card(title, counts: dict, label_fn) -> str:
 
 
 def _honesty_card() -> str:
-    # Repris MOT POUR MOT de trading.stats.HONESTY_NOTE (source unique partagee
-    # avec le rendu CLI format_summary -- aucune copie divergente possible).
+    # Repris MOT POUR MOT de trading.stats.honesty_note() (source unique partagee
+    # avec le rendu CLI format_summary -- aucune copie divergente possible ;
+    # le taux de frais affiche est derive de config.FEE, jamais recopie en dur).
     return (
-        "<div class='card'><h2>Honnetete</h2>"
-        f"<p class='honesty'>{_esc(HONESTY_NOTE)}</p></div>"
+        "<div class='card'><h2>Honnêteté</h2>"
+        f"<p class='honesty'>{_esc(honesty_note())}</p></div>"
     )
 
 
@@ -137,7 +138,7 @@ def _file_picker_html(current_file, available_files) -> str:
     )
     return (
         "<form class='filepick' method='get' action='/stats'>"
-        f"Source : <select name='file'>{options}</select>"
+        f"<label for='file'>Source :</label> <select id='file' name='file'>{options}</select>"
         "<button type='submit'>Charger</button>"
         "</form>"
     )
@@ -156,7 +157,7 @@ def render_stats_page(current_file, available_files, summary, empty_message=None
 
     if summary is None:
         msg = empty_message or (
-            "Aucune donnee de stats. Lance d'abord du paper trading pour "
+            "Aucune donnée de stats. Lance d'abord du paper trading pour "
             "accumuler des cycles."
         )
         body = (
@@ -164,7 +165,7 @@ def render_stats_page(current_file, available_files, summary, empty_message=None
             "<div class='head'><h1>Labo de stats</h1>"
             "<a class='navlink' href='/monitoring'>&larr; Monitoring</a></div>"
             + picker
-            + "<div class='card empty'><h2>Aucune donnee</h2>"
+            + "<div class='card empty'><h2>Aucune donnée</h2>"
             f"<p class='muted'>{_esc(msg)}</p></div>"
             + _honesty_card()
         )
@@ -180,7 +181,7 @@ def render_stats_page(current_file, available_files, summary, empty_message=None
         + _stat_card("Drawdown max", _fmt_pct(summary["max_drawdown"]))
         + _stat_card("Trades", f"{summary['n_trades']} "
                                 f"({summary['n_buy']} achats / {summary['n_sell']} ventes)")
-        + _stat_card("Reussite", _fmt_pct(summary["win_rate"], decimals=0))
+        + _stat_card("Réussite", _fmt_pct(summary["win_rate"], decimals=0))
         + _stat_card("PnL total", f"{summary['pnl_total']:+.2f}", pnl_cls)
         # Part des frais MISE EN EVIDENCE (spec §4.11 -- sur timeframe court,
         # les frais Kraken pesent lourd, deja rappele dans l'encart d'honnetete).
@@ -194,7 +195,7 @@ def render_stats_page(current_file, available_files, summary, empty_message=None
     )
 
     periode = (
-        "<p class='muted'>Periode : "
+        "<p class='muted'>Période : "
         f"{_esc(summary['time_min'])} &rarr; {_esc(summary['time_max'])}</p>"
     )
 

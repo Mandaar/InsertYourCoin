@@ -273,7 +273,7 @@ def test_options_page_warns_no_withdraw_permission():
 
 def test_options_page_saved_banner():
     page = render_options_page("moyen", keys_ok=False, csrf_token="T", saved=True)
-    assert "enregistrees" in page.lower()
+    assert "enregistrées" in page.lower()
 
 
 # --------------------------------------------------------------------------- #
@@ -285,8 +285,8 @@ def test_options_page_has_server_stop_and_restart_forms():
     assert "action='/server/stop'" in page
     assert "action='/server/restart'" in page
     assert page.count("TOKSRV") >= 3   # champ /options + les 2 nouveaux forms
-    assert "paper trading n'est pas affecte" in page.lower() \
-        or "n'est pas affecte" in page.lower()
+    assert "paper trading n'est pas affecté" in page.lower() \
+        or "n'est pas affecté" in page.lower()
 
 
 # --------------------------------------------------------------------------- #

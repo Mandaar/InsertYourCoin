@@ -115,16 +115,26 @@ def test_route_accueil_hub(server):
     assert "Diagnostic" in page
     assert "Paper trading" in page
     assert "Recherche" in page
-    assert "Reglages" in page
+    assert "Réglages" in page
     # item de nav actif = 'home', pas 'monitoring'
     assert "<a class='tab active' href='/'>Accueil</a>" in page
+
+
+def test_route_help_get(server):
+    """Lot 9 (spec §4.14) : /help est desormais branche sur le VRAI serveur
+    (pas seulement la fonction pure render_help_page)."""
+    code, page = _get(server + "/help")
+    assert code == 200
+    assert "<h1>Aide</h1>" in page
+    assert "class='tab active' href='/help'>Aide</a>" in page
+    assert "SETUP.md" in page
 
 
 def test_route_accueil_ne_declenche_aucun_reseau(server):
     # Garde-fou anti-spam Kraken : le simple chargement de l'Accueil ne doit
     # jamais avoir declenche de test de connexion (etat neutre par defaut).
     _, page = _get(server + "/")
-    assert "Non verifie cette session." in page
+    assert "Non vérifié cette session." in page
 
 
 def test_route_check_etat_initial_sans_reseau(server):
@@ -135,7 +145,7 @@ def test_route_check_etat_initial_sans_reseau(server):
     assert "Installation" in page
     assert "Python" in page
     assert "ccxt" in page
-    assert "Diagnostic non lance cette session." in page
+    assert "Diagnostic non lancé cette session." in page
     assert "Lancer le diagnostic" in page
 
 
@@ -172,6 +182,46 @@ def test_post_route_inconnue_404(server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(req, timeout=5)
     assert exc.value.code == 404
+
+
+def test_route_404_uses_themed_page_shell(server):
+    """P3-4 (audit L0-5) : les pages d'erreur brutes (<h1>404</h1>, sans
+    doctype/charset/nav/theme) rompaient la coherence visuelle. Desormais
+    404 passe par page_shell comme le reste de l'app."""
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _get(server + "/cette-route-n-existe-pas")
+    assert exc.value.code == 404
+    body = exc.value.read().decode("utf-8")
+    assert "<!DOCTYPE html>" in body
+    assert "<meta charset='utf-8'>" in body
+    assert "<nav class='nav'>" in body
+    assert "<h1>404" in body
+
+
+def test_route_403_host_non_autorise_uses_themed_page_shell(server):
+    """Idem pour le 403 Host (anti-DNS-rebinding) : theme + nav, jamais un
+    <h1> nu (P3-4)."""
+    req = urllib.request.Request(server + "/", headers={"Host": "evil.example"})
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 403
+    body = exc.value.read().decode("utf-8")
+    assert "<!DOCTYPE html>" in body
+    assert "<nav class='nav'>" in body
+    assert "403" in body
+
+
+def test_route_403_csrf_invalide_uses_themed_page_shell(server):
+    """Idem pour le 403 CSRF (POST /options sans jeton valide) -- P3-4."""
+    data = urllib.parse.urlencode({"csrf_token": "bidon"}).encode()
+    req = urllib.request.Request(server + "/options", data=data, method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 403
+    body = exc.value.read().decode("utf-8")
+    assert "<!DOCTYPE html>" in body
+    assert "<nav class='nav'>" in body
+    assert "CSRF" in body
 
 
 def test_route_static_sert_chart_js_vendorise(server):
@@ -396,7 +446,7 @@ def test_route_research_backtest_post_invalide_reaffiche_formulaire(server):
     code, page = _post(server + "/research/backtest",
                        {"csrf_token": token, "strategy": "n-existe-pas"})
     assert code == 200
-    assert "Strategie inconnue" in page
+    assert "Stratégie inconnue" in page
     assert "class='job-panel'" not in page  # pas de job lance sur un formulaire invalide
 
 
@@ -449,7 +499,7 @@ def test_route_research_backtest_post_second_job_refuses_with_busy_message(
         "csrf_token": token, "strategy": "sma",
     })
     assert code == 200
-    assert "deja en cours" in page
+    assert "déjà en cours" in page
     assert "Backtest sma ETH/USD (1d)" in page
     assert "class='job-panel'" in page  # panneau du job EN COURS, pas un nouveau job
 
@@ -555,7 +605,7 @@ def test_route_research_optimize_post_invalide_reaffiche_formulaire(server):
     code, page = _post(server + "/research/optimize",
                        {"csrf_token": token, "strategy": "n-existe-pas"})
     assert code == 200
-    assert "Strategie inconnue" in page
+    assert "Stratégie inconnue" in page
     assert "class='job-panel'" not in page
 
 
@@ -583,7 +633,7 @@ def test_route_research_optimize_post_creates_job_and_report_shows_result(
     code, report = _get(server + f"/report/{job_id}")
     assert code == 200
     assert "Train (in-sample)" in report
-    assert "Test (hors-echantillon)" in report
+    assert "Test (hors-échantillon)" in report
 
 
 def test_route_research_portfolio_form_shows_default_symbols(server):
@@ -619,7 +669,7 @@ def test_route_research_portfolio_post_creates_job_and_report_shows_result(
     code, report = _get(server + f"/report/{job_id}")
     assert code == 200
     assert "corr-table" in report
-    assert "Correlation moyenne" in report
+    assert "Corrélation moyenne" in report
 
 
 def test_route_research_subnav_links_all_four_screens(server):
@@ -657,7 +707,7 @@ def test_route_research_walkforward_post_invalide_reaffiche_formulaire(server):
     code, page = _post(server + "/research/walkforward",
                        {"csrf_token": token, "strategy": "n-existe-pas"})
     assert code == 200
-    assert "Strategie inconnue" in page
+    assert "Stratégie inconnue" in page
     assert "class='job-panel'" not in page
 
 
@@ -683,7 +733,7 @@ def test_route_research_walkforward_post_final_sans_holdout_exact_cli_message(se
     # '>' est HTML-echappe par le rendu de la liste d'erreurs (_esc), cf.
     # trading/walkforward_page.py render_walkforward_form.
     assert (
-        "Validation finale : exige un holdout &gt; 0 (sans holdout, pas de segment sacre)."
+        "Validation finale : exige un holdout &gt; 0 (sans holdout, pas de segment sacré)."
         in page
     )
     assert "class='job-panel'" not in page
@@ -718,7 +768,7 @@ def test_route_research_walkforward_post_creates_job_and_report_shows_verdict(
     assert code == 200
     assert "VERDICT :" in report
     assert "Recherche &mdash; Walk-forward" in report
-    assert "NON consomme" in report   # holdout=0 -> jamais consomme
+    assert "NON consommé" in report   # holdout=0 -> jamais consomme
 
 
 def test_route_research_subnav_links_walkforward_screen(server):
@@ -754,7 +804,7 @@ def test_route_research_lot5_screens_refuse_second_job_while_busy(
     data = dict(fields, csrf_token=token)
     code, page = _post(url + path, data)
     assert code == 200
-    assert "deja en cours" in page
+    assert "déjà en cours" in page
     assert "class='job-panel'" in page
 
     release.set()
@@ -781,8 +831,8 @@ def test_route_server_stop_avec_csrf_repond_puis_demande_arret(server_obj, monke
     token = _csrf_token(url)
     code, page = _post(url + "/server/stop", {"csrf_token": token})
     assert code == 200
-    assert "arret" in page.lower()
-    assert "n'est pas touche" in page.lower() or "continue" in page.lower()
+    assert "arrêt" in page.lower()
+    assert "n'est pas touché" in page.lower() or "continue" in page.lower()
 
     # L'arret est demande APRES la reponse, dans un thread separe (sinon la
     # requete ne recevrait jamais sa reponse -- cf. do_POST /server/stop).
@@ -859,7 +909,7 @@ def test_route_server_restart_avec_csrf_repond_puis_relance(server_obj, monkeypa
     token = _csrf_token(url)
     code, page = _post(url + "/server/restart", {"csrf_token": token})
     assert code == 200
-    assert "redemarr" in page.lower()
+    assert "redémarr" in page.lower()
 
     assert shutdown_called.wait(timeout=2)
     deadline = time.time() + 2
@@ -969,11 +1019,11 @@ def test_route_paper_get_arrete_par_defaut_affiche_formulaire(server_obj):
     url, srv = server_obj
     code, page = _get(url + "/paper")
     assert code == 200
-    assert "ARRETE" in page
+    assert "ARRÊTÉ" in page
     assert "action='/paper'" in page
     assert "name='csrf_token'" in page
     assert "name='strategy'" in page
-    assert "Demarrer le paper trading" in page
+    assert "Démarrer le paper trading" in page
     assert "name='source'" not in page  # paper = Kraken only, jamais de source
 
 
@@ -1005,8 +1055,8 @@ def test_route_paper_post_start_invalide_reaffiche_formulaire_sans_spawn(
         "csrf_token": token, "action": "start", "strategy": "n-existe-pas",
     })
     assert code == 200
-    assert "Strategie inconnue" in page
-    assert "ARRETE" in page
+    assert "Stratégie inconnue" in page
+    assert "ARRÊTÉ" in page
 
 
 def test_route_paper_post_start_lance_process_et_ecrit_pid(
@@ -1136,7 +1186,7 @@ def test_route_paper_post_stop_arrete_process_identite_confirmee(
     token = _csrf_token(url)
     code, page = _post(url + "/paper", {"csrf_token": token, "action": "stop"})
     assert code == 200
-    assert "ARRETE" in page
+    assert "ARRÊTÉ" in page
     assert "conserve" in page.lower()  # honnete : historique preserve (L3)
     assert terminated == [424242]
 

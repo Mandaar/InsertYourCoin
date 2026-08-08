@@ -39,13 +39,13 @@ def test_parse_backtest_params_full_valid_input():
 def test_parse_backtest_params_unknown_strategy_is_error():
     params, errors = rp.parse_backtest_params({"strategy": "n-existe-pas"})
     assert params is None
-    assert any("Strategie inconnue" in e for e in errors)
+    assert any("Stratégie inconnue" in e for e in errors)
 
 
 def test_parse_backtest_params_unknown_timeframe_is_error():
     params, errors = rp.parse_backtest_params({"strategy": "sma", "timeframe": "3d"})
     assert params is None
-    assert any("Timeframe non supporte" in e for e in errors)
+    assert any("Timeframe non supporté" in e for e in errors)
 
 
 def test_parse_backtest_params_negative_days_is_error():
@@ -55,7 +55,7 @@ def test_parse_backtest_params_negative_days_is_error():
 
 
 def test_parse_backtest_params_garbage_days_falls_back_to_default():
-    # Une saisie non numerique n'est PAS bloquante -- retombe sur le defaut
+    # Une saisie non numérique n'est PAS bloquante -- retombe sur le defaut
     # (720), coherent avec la tolerance des autres champs optionnels.
     params, errors = rp.parse_backtest_params({"strategy": "sma", "days": "beaucoup"})
     assert errors == []
@@ -74,7 +74,7 @@ def test_parse_backtest_params_blank_risk_fields_become_none():
     assert errors == []
     assert params["stop_loss"] is None
     assert params["take_profit"] is None
-    assert params["target_vol"] is None  # non numerique -> None, pas de crash
+    assert params["target_vol"] is None  # non numérique -> None, pas de crash
 
 
 # --------------------------------------------------------------------------- #
@@ -92,10 +92,10 @@ def test_render_backtest_form_lists_all_strategies_and_csrf_token():
 
 def test_render_backtest_form_shows_errors_and_repopulates_values():
     out = rp.render_backtest_form(
-        "tok", errors=["Timeframe non supporte : 3d."],
+        "tok", errors=["Timeframe non supporté : 3d."],
         values={"symbol": "SOL/USD", "timeframe": "1d"},
     )
-    assert "Timeframe non supporte : 3d." in out
+    assert "Timeframe non supporté : 3d." in out
     assert "value='SOL/USD'" in out
 
 
@@ -111,7 +111,7 @@ def test_render_backtest_form_no_errors_by_default():
 def test_render_backtest_busy_shows_label_and_job_panel():
     out = rp.render_backtest_busy("Backtest sma ETH/USD", "a" * 32, "tok")
     assert "Backtest sma ETH/USD" in out
-    assert "deja en cours" in out
+    assert "déjà en cours" in out
     assert "class='job-panel'" in out
     assert f"/report/{'a' * 32}" in out
 

@@ -35,7 +35,7 @@ _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -46,7 +46,7 @@ h1 { font-size: 18px; margin: 0 0 4px; }
   gap: 12px; flex-wrap: wrap; background: #3a2a12; border: 1px solid #f0b429;
   color: #ffd98a; border-radius: 8px; padding: 10px 16px; margin-bottom: 14px;
   font-size: 13px; font-weight: 600; }
-.in-sample-badge .wf-link { color: #6b7787; font-weight: 400; font-size: 12px; }
+.in-sample-badge .wf-link { color: #8b97a6; font-weight: 400; font-size: 12px; }
 """
 
 
@@ -65,7 +65,7 @@ def render_report_unknown() -> str:
     body = (
         "<div class='head'><h1>Rapport</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Nouvelle analyse</a></div>"
-        "<div class='card'>Analyse introuvable (lien expire ou jamais lancee "
+        "<div class='card'>Analyse introuvable (lien expiré ou jamais lancée "
         "sur ce serveur). <a class='navlink' href='/research/backtest'>"
         "Relance un backtest.</a></div>"
     )
@@ -95,7 +95,7 @@ def render_report_error(error_message) -> str:
     body = (
         "<div class='head'><h1>Rapport</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Nouvelle analyse</a></div>"
-        f"<div class='card result-error'>Le backtest a echoue : {_esc(msg)}</div>"
+        f"<div class='card result-error'>Le backtest a échoué : {_esc(msg)}</div>"
     )
     return _wrap("Erreur - Rapport - InsertYourCoin", body)
 
@@ -104,9 +104,9 @@ def render_report_cancelled() -> str:
     body = (
         "<div class='head'><h1>Rapport</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Nouvelle analyse</a></div>"
-        "<div class='card result-cancelled'>Analyse annulee.</div>"
+        "<div class='card result-cancelled'>Analyse annulée.</div>"
     )
-    return _wrap("Analyse annulee - InsertYourCoin", body)
+    return _wrap("Analyse annulée - InsertYourCoin", body)
 
 
 def render_report_done(result) -> str:
@@ -125,8 +125,8 @@ def render_report_done(result) -> str:
 
     badge = (
         "<div class='in-sample-badge'>"
-        "<span>IN-SAMPLE &mdash; non valide hors-echantillon. De bons chiffres "
-        "passes ne garantissent jamais le futur.</span>"
+        "<span>IN-SAMPLE &mdash; non valide hors-échantillon. De bons chiffres "
+        "passés ne garantissent jamais le futur.</span>"
         "<span class='wf-link'>Le walk-forward est le juge -- "
         "<a class='navlink' href='/research/walkforward'>lance-le ici</a></span>"
         "</div>"

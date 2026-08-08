@@ -21,7 +21,7 @@ _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -36,7 +36,7 @@ h1 { font-size: 18px; margin: 0 0 4px; }
 .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: 13px; color: #d7dee8; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .errors { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
@@ -109,24 +109,24 @@ def _form_html(csrf_token, values) -> str:
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='stop_loss'>Stop (%)</label>"
         f"<input id='stop_loss' name='stop_loss' type='number' step='0.1' "
-        f"value='{_esc(v.get('stop_loss'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('stop_loss'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='take_profit'>Objectif (%)</label>"
         f"<input id='take_profit' name='take_profit' type='number' step='0.1' "
-        f"value='{_esc(v.get('take_profit'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('take_profit'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='trailing_stop'>Trailing (%)</label>"
         f"<input id='trailing_stop' name='trailing_stop' type='number' step='0.1' "
-        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='position_sizing'>Sizing</label>"
         "<select id='position_sizing' name='position_sizing'>"
         f"<option value='none'{none_checked}>none (tout-ou-rien)</option>"
-        f"<option value='vol'{vol_checked}>vol (cible de volatilite)</option>"
+        f"<option value='vol'{vol_checked}>vol (cible de volatilité)</option>"
         "</select></div>"
         "<div class='field'><label class='flabel' for='target_vol'>Vol cible (%)</label>"
         f"<input id='target_vol' name='target_vol' type='number' step='1' "
         f"value='{_esc(v.get('target_vol'))}' placeholder='si sizing=vol'></div>"
         "</div>"
 
-        "<button class='btn' type='submit'>Comparer les strategies</button>"
+        "<button class='btn' type='submit'>Comparer les stratégies</button>"
         "</form>"
     )
 
@@ -147,9 +147,9 @@ def render_compare_form(csrf_token, errors=None, values=None) -> str:
         + "<div class='card'>"
         + _form_html(csrf_token, values)
         + "</div>"
-        + "<p class='muted honesty'>Comparaison IN-SAMPLE (sur les donnees vues) -- "
+        + "<p class='muted honesty'>Comparaison IN-SAMPLE (sur les données vues) -- "
           "ce n'est pas une preuve d'edge futur. La ligne Buy &amp; Hold est toujours "
-          "affichee comme reference honnete.</p>"
+          "affichée comme référence honnête.</p>"
     )
     return page_shell("Recherche - Comparer - InsertYourCoin", "research", body)
 
@@ -163,7 +163,7 @@ def render_compare_busy(active_label, active_id, csrf_token) -> str:
         + research_subnav_html("compare")
         + "<div class='head'><h1>Recherche &mdash; Comparer</h1>"
         "<a class='navlink' href='/research/compare'>&larr; Formulaire</a></div>"
-        f"<div class='busy'>Une analyse est deja en cours : <strong>{_esc(label)}</strong>. "
+        f"<div class='busy'>Une analyse est déjà en cours : <strong>{_esc(label)}</strong>. "
         "Attends sa fin (panneau ci-dessous) ou annule-la avant d'en lancer une "
         "nouvelle -- un seul job a la fois.</div>"
         "<div class='card'>"
@@ -214,21 +214,21 @@ def render_compare_done(result) -> str:
         )
     trs.append(
         "<tr class='bh-row'>"
-        f"<td class='nm'>Buy &amp; Hold (reference)</td>"
+        f"<td class='nm'>Buy &amp; Hold (référence)</td>"
         f"<td class='{fmt.cls(buy_hold)}'>{fmt.pct(buy_hold)}</td>"
         "<td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>"
         "</tr>"
     )
     table = (
         "<table class='cmp-table'><thead><tr>"
-        "<th>Strategie</th><th>Rendement</th><th>Sharpe</th><th>DD max</th>"
-        "<th>PF</th><th>Trades</th><th>Reussite</th>"
+        "<th>Stratégie</th><th>Rendement</th><th>Sharpe</th><th>DD max</th>"
+        "<th>PF</th><th>Trades</th><th>Réussite</th>"
         "</tr></thead><tbody>" + "".join(trs) + "</tbody></table>"
     )
 
     none_beats_bh = all(r["metrics"]["total_return"] <= buy_hold for r in rows)
     honesty = (
-        "<div class='no-edge'>0 strategie ne bat Buy &amp; Hold sur cette periode -- "
+        "<div class='no-edge'>0 stratégie ne bat Buy &amp; Hold sur cette période -- "
         "l'edge n'est pas demontre ici.</div>"
         if none_beats_bh else ""
     )
@@ -240,7 +240,7 @@ def render_compare_done(result) -> str:
         + research_subnav_html("compare")
         + "<div class='head'><h1>Recherche &mdash; Comparer</h1>"
         "<a class='navlink' href='/research/compare'>&larr; Nouvelle comparaison</a></div>"
-        + "<div class='in-sample-badge'>IN-SAMPLE &mdash; de bons chiffres passes "
+        + "<div class='in-sample-badge'>IN-SAMPLE &mdash; de bons chiffres passés "
           "ne garantissent jamais le futur.</div>"
         + f"<p class='muted'>{_esc(symbol)} ({_esc(timeframe)})</p>"
         + "<div class='card'>" + table + "</div>"

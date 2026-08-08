@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import config
 from . import indicators as ind
 
 # Ordre EXACT des colonnes du CSV (ne pas reordonner : entete + lecture en dependent).
@@ -164,16 +165,25 @@ def summarize(df: pd.DataFrame) -> dict:
 
 WEEKDAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 
-# Encart d'honnetete : SOURCE UNIQUE, partagee par le rendu CLI (format_summary
-# ci-dessous) et le rendu web (trading/stats_page.py). Garantit que l'ecran web
-# reprend ce texte MOT POUR MOT (spec §4.11) -- une seule chaine, jamais deux
-# copies qui pourraient diverger.
-HONESTY_NOTE = (
-    "Honnetete : stats DESCRIPTIVES, pas une preuve d'edge. Accumuler de la\n"
-    "donnee ne cree aucun profit ; seul le walk-forward (hors-echantillon)\n"
-    "juge une strategie. Sur timeframe court, les frais Kraken (0,26%/ordre)\n"
-    "pesent lourd. La valeur de ce CSV vient de la DUREE d'accumulation."
-)
+
+def honesty_note() -> str:
+    """Encart d'honnetete : SOURCE UNIQUE, partagee par le rendu CLI (format_summary
+    ci-dessous) et le rendu web (trading/stats_page.py). Garantit que l'ecran web
+    reprend ce texte MOT POUR MOT (spec §4.11) -- une seule fonction, jamais deux
+    copies qui pourraient diverger.
+
+    Le taux de frais AFFICHE est DERIVE de `config.FEE` (jamais recopie en dur) :
+    si `config.FEE` change (nouvelle grille Kraken), ce texte suit automatiquement --
+    corrige BUG P2-1 (l'ancien texte fige affichait "0,26%/ordre" alors que
+    config.FEE_TAKER vaut 0,80% depuis BUG-003, docs/SQA.md).
+    """
+    fee_pct = config.FEE * 100
+    return (
+        "Honnêteté : stats DESCRIPTIVES, pas une preuve d'edge. Accumuler de la\n"
+        "donnée ne crée aucun profit ; seul le walk-forward (hors-échantillon)\n"
+        f"juge une stratégie. Sur timeframe court, les frais Kraken ({fee_pct:.2f}%/ordre)\n"
+        "pèsent lourd. La valeur de ce CSV vient de la DURÉE d'accumulation."
+    )
 
 
 def format_summary(d: dict) -> str:
@@ -205,6 +215,6 @@ def format_summary(d: dict) -> str:
             L.append(f"  {nom:9s} : {c['cycles']:4d} / {c['trades']}")
 
     L.append("\n" + "-" * 60)
-    L.extend(HONESTY_NOTE.splitlines())
+    L.extend(honesty_note().splitlines())
     L.append("-" * 60)
     return "\n".join(L)

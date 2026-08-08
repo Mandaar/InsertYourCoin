@@ -41,7 +41,7 @@ _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 h1 { font-size: 18px; margin: 0 0 4px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -59,7 +59,7 @@ h1 { font-size: 18px; margin: 0 0 4px; }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
 .check-row label { font-size: 13px; color: #f0b429; font-weight: 600; cursor: pointer; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .errors { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
@@ -129,7 +129,7 @@ def _parse_fixed_params(raw):
         if not part:
             continue
         if "=" not in part:
-            errors.append(f"Parametres figes : '{part}' invalide (attendu k=v).")
+            errors.append(f"Paramètres figés : '{part}' invalide (attendu k=v).")
             continue
         k, v = part.split("=", 1)
         k, v = k.strip(), v.strip()
@@ -139,7 +139,7 @@ def _parse_fixed_params(raw):
             try:
                 result[k] = float(v)
             except ValueError:
-                errors.append(f"Parametres figes : valeur non numerique pour '{k}' : '{v}'.")
+                errors.append(f"Paramètres figés : valeur non numérique pour '{k}' : '{v}'.")
     if errors:
         return None, errors
     return (result or None), []
@@ -154,12 +154,12 @@ def parse_walkforward_params(fields: dict):
     strategy = (fields.get("strategy") or "").strip().lower()
     errors = []
     if strategy not in STRATEGIES:
-        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
+        errors.append(f"Stratégie inconnue : {strategy or '(vide)'}.")
 
     metric = (fields.get("metric") or "sharpe").strip().lower()
     if metric not in METRIC_CHOICES:
         errors.append(
-            f"Metrique non supportee : {metric} (attendu : {', '.join(METRIC_CHOICES)})."
+            f"Métrique non supportée : {metric} (attendu : {', '.join(METRIC_CHOICES)})."
         )
 
     raw_windows = (fields.get("windows") or "").strip()
@@ -169,11 +169,11 @@ def parse_walkforward_params(fields: dict):
         try:
             windows = int(float(raw_windows))
         except ValueError:
-            errors.append(f"Fenetres : valeur non numerique ({raw_windows!r}).")
+            errors.append(f"Fenêtres : valeur non numérique ({raw_windows!r}).")
             windows = None
         else:
             if windows <= 0:
-                errors.append("Fenetres : doit etre un entier positif.")
+                errors.append("Fenêtres : doit être un entier positif.")
 
     raw_train_frac = (fields.get("train_frac") or "").strip()
     if not raw_train_frac:
@@ -182,7 +182,7 @@ def parse_walkforward_params(fields: dict):
         try:
             train_frac = float(raw_train_frac)
         except ValueError:
-            errors.append(f"Train-frac : valeur non numerique ({raw_train_frac!r}).")
+            errors.append(f"Train-frac : valeur non numérique ({raw_train_frac!r}).")
             train_frac = None
         else:
             if not (0.0 < train_frac < 1.0):
@@ -198,7 +198,7 @@ def parse_walkforward_params(fields: dict):
         try:
             holdout_pct = float(raw_holdout)
         except ValueError:
-            errors.append(f"Holdout : valeur non numerique ({raw_holdout!r}).")
+            errors.append(f"Holdout : valeur non numérique ({raw_holdout!r}).")
             holdout_pct = None
         else:
             if not (0.0 <= holdout_pct < 90.0):
@@ -207,7 +207,7 @@ def parse_walkforward_params(fields: dict):
     final = (fields.get("final") or "").strip().lower() in ("1", "on", "true", "yes")
     if final and (holdout_pct is None or holdout_pct <= 0):
         errors.append(
-            "Validation finale : exige un holdout > 0 (sans holdout, pas de segment sacre)."
+            "Validation finale : exige un holdout > 0 (sans holdout, pas de segment sacré)."
         )
 
     tds, tds_errors = parse_timeframe_days_source(fields)
@@ -237,7 +237,7 @@ _FINAL_CONFIRM_JS = """
   form.addEventListener('submit', function(ev){
     if(box.checked){
       var ok = window.confirm(
-        "A ne faire qu'une fois par strategie : le holdout sera consomme. Continuer ?"
+        "À ne faire qu'une fois par stratégie : le holdout sera consommé. Continuer ?"
       );
       if(!ok){ ev.preventDefault(); }
     }
@@ -267,9 +267,9 @@ def _form_html(csrf_token, values) -> str:
         "<form class='wf-form' method='post' action='/research/walkforward'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<div class='row'>"
-        "<div class='field'><label class='flabel' for='strategy'>Strategie</label>"
+        "<div class='field'><label class='flabel' for='strategy'>Stratégie</label>"
         f"<select id='strategy' name='strategy'>{strategy_options(v.get('strategy'))}</select></div>"
-        "<div class='field wide'><label class='flabel' for='symbols'>Symboles (separes par des virgules)</label>"
+        "<div class='field wide'><label class='flabel' for='symbols'>Symboles (séparés par des virgules)</label>"
         f"<input id='symbols' name='symbols' value='{_esc(symbols)}'></div>"
         "<div class='field'><label class='flabel' for='timeframe'>Timeframe</label>"
         f"<select id='timeframe' name='timeframe'>{timeframe_options(timeframe)}</select></div>"
@@ -280,46 +280,46 @@ def _form_html(csrf_token, values) -> str:
         "<div class='field'><label class='flabel'>Source</label>"
         "<div class='radio-row'>"
         f"<label><input type='radio' name='source' value='binance'{binance_checked}> "
-        "Binance (historique long, recommande)</label>"
+        "Binance (historique long, recommandé)</label>"
         f"<label><input type='radio' name='source' value='kraken'{kraken_checked}> "
         "Kraken (~720 bougies max)</label>"
         "</div></div>"
 
         "<div class='row'>"
-        "<div class='field'><label class='flabel' for='windows'>Fenetres</label>"
+        "<div class='field'><label class='flabel' for='windows'>Fenêtres</label>"
         f"<input id='windows' name='windows' type='number' min='1' step='1' "
         f"value='{_esc(v.get('windows', DEFAULT_WINDOWS))}'></div>"
         "<div class='field'><label class='flabel' for='train_frac'>Train-frac</label>"
         f"<input id='train_frac' name='train_frac' type='number' step='0.05' min='0.05' max='0.95' "
         f"value='{_esc(v.get('train_frac', DEFAULT_TRAIN_FRAC))}'></div>"
-        "<div class='field'><label class='flabel' for='metric'>Metrique</label>"
+        "<div class='field'><label class='flabel' for='metric'>Métrique</label>"
         f"<select id='metric' name='metric'>{metric_opts}</select></div>"
         "</div>"
 
         "<div class='row'>"
-        "<div class='field wide'><label class='flabel' for='fixed'>Parametres FIGES (anti-data-mining, recommande)</label>"
+        "<div class='field wide'><label class='flabel' for='fixed'>Paramètres FIGÉS (anti-data-mining, recommandé)</label>"
         f"<input id='fixed' name='fixed' value='{_esc(v.get('fixed'))}' "
-        "placeholder='ex : fast=50,slow=200 (vide = mode optimise, moins honnete)'></div>"
-        "<div class='field'><label class='flabel' for='holdout'>Holdout sacre (%)</label>"
+        "placeholder='ex : fast=50,slow=200 (vide = mode optimisé, moins honnête)'></div>"
+        "<div class='field'><label class='flabel' for='holdout'>Holdout sacré (%)</label>"
         f"<input id='holdout' name='holdout' type='number' step='1' min='0' max='89' "
         f"value='{_esc(v.get('holdout', DEFAULT_HOLDOUT_PCT))}'></div>"
         "</div>"
 
         "<div class='check-row'>"
         f"<input type='checkbox' id='final' name='final' value='1'{final_checked}>"
-        "<label for='final'>VALIDATION FINALE (1 seule fois par strategie !) -- consomme le holdout</label>"
+        "<label for='final'>VALIDATION FINALE (1 seule fois par stratégie !) -- consomme le holdout</label>"
         "</div>"
 
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='stop_loss'>Stop (%)</label>"
         f"<input id='stop_loss' name='stop_loss' type='number' step='0.1' "
-        f"value='{_esc(v.get('stop_loss'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('stop_loss'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='take_profit'>Objectif (%)</label>"
         f"<input id='take_profit' name='take_profit' type='number' step='0.1' "
-        f"value='{_esc(v.get('take_profit'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('take_profit'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='trailing_stop'>Trailing (%)</label>"
         f"<input id='trailing_stop' name='trailing_stop' type='number' step='0.1' "
-        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(désactivé)'></div>"
         "</div>"
 
         "<button class='btn' type='submit'>Lancer le verdict</button>"
@@ -344,9 +344,9 @@ def render_walkforward_form(csrf_token, errors=None, values=None) -> str:
         + "<div class='card'>"
         + _form_html(csrf_token, values)
         + "</div>"
-        + "<p class='muted honesty'>Le test honnete central : optimisation glissante "
-          "hors-echantillon, multi-actifs, holdout sacre. C'est le walk-forward, "
-          "pas le backtest, qui juge si une strategie a un edge reel.</p>"
+        + "<p class='muted honesty'>Le test honnête central : optimisation glissante "
+          "hors-échantillon, multi-actifs, holdout sacré. C'est le walk-forward, "
+          "pas le backtest, qui juge si une stratégie a un edge réel.</p>"
     )
     return page_shell("Recherche - Walk-forward - InsertYourCoin", "research", body)
 
@@ -358,7 +358,7 @@ def render_walkforward_busy(active_label, active_id, csrf_token) -> str:
         + research_subnav_html("walkforward")
         + "<div class='head'><h1>Recherche &mdash; Walk-forward</h1>"
         "<a class='navlink' href='/research/walkforward'>&larr; Formulaire</a></div>"
-        f"<div class='busy'>Une analyse est deja en cours : <strong>{_esc(label)}</strong>. "
+        f"<div class='busy'>Une analyse est déjà en cours : <strong>{_esc(label)}</strong>. "
         "Attends sa fin (panneau ci-dessous) ou annule-la avant d'en lancer une "
         "nouvelle -- un seul job a la fois.</div>"
         "<div class='card'>"
@@ -374,7 +374,7 @@ def render_walkforward_launched(job_id, csrf_token) -> str:
         + research_subnav_html("walkforward")
         + "<div class='head'><h1>Recherche &mdash; Walk-forward en cours</h1>"
         "<a class='navlink' href='/research/walkforward'>&larr; Formulaire</a></div>"
-        "<p class='muted'>Le plus long des jobs de recherche : plusieurs fenetres, "
+        "<p class='muted'>Le plus long des jobs de recherche : plusieurs fenêtres, "
         "plusieurs actifs, parfois une validation finale. Patience.</p>"
         "<div class='card'>"
         + job_panel_html(job_id, csrf_token, result_url=f"/report/{job_id}")
@@ -411,7 +411,7 @@ def _mono_severity(avg_window_metric, oos_total_return):
     terminal) ; couverte par un test de parite directe contre optimizer._verdict.
     """
     if avg_window_metric is None or not math.isfinite(avg_window_metric):
-        return "orange", "INDECIDABLE"
+        return "orange", "INDÉCIDABLE"
     if oos_total_return is None or oos_total_return < 0 or avg_window_metric < 0:
         return "red", "NE PAS TRADER"
     if avg_window_metric < 0.5:  # 0.5 * max(train_metric=1.0, 1e-9)
@@ -431,12 +431,12 @@ def _holdout_severity(metric_value, total_return):
     recalcul moteur ici.
     """
     if metric_value is None or not math.isfinite(metric_value):
-        return "orange", "INDECIDABLE"
+        return "orange", "INDÉCIDABLE"
     if total_return is None or total_return < 0 or metric_value < 0:
         return "red", "NE PAS TRADER"
     if metric_value < 0.5 * max(0.0, 1e-9):
         return "orange", "SUR-APPRENTISSAGE PROBABLE"
-    return "green", "VALIDATION CONFIRMEE"
+    return "green", "VALIDATION CONFIRMÉE"
 
 
 def _worst_holdout_verdict(holdout_results):
@@ -488,12 +488,12 @@ def _verdict_banner(result) -> str:
         tone, label = _mono_severity(res.get("avg_window_metric"), res.get("oos_total_return"))
         n_win = len(res["windows"])
         n_prof = round(res["pct_profitable"] * n_win) if n_win else 0
-        detail = f"({n_prof} / {n_win} fenetres profitables sur {sym})"
+        detail = f"({n_prof} / {n_win} fenêtres profitables sur {sym})"
     else:
         if summary["robust"]:
             tone, label = "green", "EDGE PLAUSIBLE"
         elif n_positive > 0:
-            tone, label = "orange", "FRAGILE / MITIGE"
+            tone, label = "orange", "FRAGILE / MITIGÉ"
         else:
             tone, label = "red", "PAS D'EDGE FIABLE"
         detail = f"({n_positive} / {n_assets} actifs OOS positifs)"
@@ -502,7 +502,7 @@ def _verdict_banner(result) -> str:
     if worst_holdout and _SEVERITY_RANK[worst_holdout[0]] > _SEVERITY_RANK[tone]:
         tone, holdout_label = worst_holdout
         label = f"{label} -- VALIDATION FINALE : {holdout_label}"
-        detail += f" ; holdout sacre : {holdout_label.lower()}"
+        detail += f" ; holdout sacré : {holdout_label.lower()}"
 
     icon = _TONE_ICON[tone]
     return (
@@ -518,14 +518,14 @@ def _ignored_block(ignored) -> str:
     if not ignored:
         return ""
     items = "".join(f"<li>{_esc(i['symbol'])} : {_esc(i['error'])}</li>" for i in ignored)
-    return f"<div class='ignored'>Actif(s) non charge(s) (donnees indisponibles) :<ul>{items}</ul></div>"
+    return f"<div class='ignored'>Actif(s) non chargé(s) (données indisponibles) :<ul>{items}</ul></div>"
 
 
 def _wf_errors_block(wf_errors) -> str:
     if not wf_errors:
         return ""
     items = "".join(f"<li>{_esc(sym)} : {_esc(msg)}</li>" for sym, msg in wf_errors.items())
-    return f"<div class='errors'>Actif(s) en echec de walk-forward :<ul>{items}</ul></div>"
+    return f"<div class='errors'>Actif(s) en échec de walk-forward :<ul>{items}</ul></div>"
 
 
 def _psr_dsr_line(res) -> str:
@@ -555,7 +555,7 @@ def _windows_table(res) -> str:
         )
     return (
         "<table class='wf-windows'><thead><tr>"
-        "<th>Fenetre (hors-ech.)</th><th>Parametres retenus</th>"
+        "<th>Fenêtre (hors-éch.)</th><th>Paramètres retenus</th>"
         f"<th>{_esc(metric.capitalize())}</th><th>Rendement</th><th>DD max</th>"
         "</tr></thead><tbody>" + "".join(rows) + "</tbody></table>"
     )
@@ -565,9 +565,9 @@ def _symbol_card(sym, res) -> str:
     header = (
         "<div class='wf-sym-head'>"
         f"<span class='wf-sym-name'>{_esc(sym)}</span>"
-        f"<span class='{fmt.cls(res['oos_total_return'])}'>OOS cumule : "
+        f"<span class='{fmt.cls(res['oos_total_return'])}'>OOS cumulé : "
         f"{fmt.pct(res['oos_total_return'])}</span>"
-        f"<span class='muted'>Fenetres profitables : {fmt.pct(res['pct_profitable'], signed=False)}</span>"
+        f"<span class='muted'>Fenêtres profitables : {fmt.pct(res['pct_profitable'], signed=False)}</span>"
         f"<span class='muted'>{_esc(_psr_dsr_line(res))}</span>"
         "</div>"
     )
@@ -578,28 +578,28 @@ def _holdout_block(result) -> str:
     context = result["context"]
     if not context.get("final"):
         return (
-            "<div class='card holdout-state'>Holdout sacre : <strong>NON consomme</strong> "
-            "(aucune validation finale demandee -- coche 'Validation finale' pour "
-            "l'evaluer, une seule fois par strategie).</div>"
+            "<div class='card holdout-state'>Holdout sacré : <strong>NON consommé</strong> "
+            "(aucune validation finale demandée -- coche 'Validation finale' pour "
+            "l'évaluer, une seule fois par stratégie).</div>"
         )
     holdout = result.get("holdout") or {}
     holdout_errors = result.get("holdout_errors") or {}
     blocks = [
         "<div class='card holdout-state holdout-consumed'>"
-        "<strong>VALIDATION FINALE</strong> -- le holdout sacre a ete consomme "
+        "<strong>VALIDATION FINALE</strong> -- le holdout sacré a été consommé "
         "pour le(s) actif(s) ci-dessous.</div>"
     ]
     for sym, res in holdout.items():
         m = res["metrics"]
         bp = ", ".join(f"{k}={v}" for k, v in res["params"].items())
-        src = ("optimises sur la recherche uniquement" if res["optimised_on_research"]
-               else "FIGES, aucune optimisation")
+        src = ("optimisés sur la recherche uniquement" if res["optimised_on_research"]
+               else "FIGÉS, aucune optimisation")
         period = f"{res['holdout_period'][0].date()} &rarr; {res['holdout_period'][1].date()}"
         warn = ""
         if m["n_trades"] < MIN_TRADES:
             warn = (
-                f"<p class='wf-warn'>Tres peu de trades sur le holdout (&lt; {MIN_TRADES}) : "
-                "resultat peu significatif statistiquement.</p>"
+                f"<p class='wf-warn'>Très peu de trades sur le holdout (&lt; {MIN_TRADES}) : "
+                "résultat peu significatif statistiquement.</p>"
             )
         # BUG-011 : verdict CLI equivalent (optimizer._verdict via
         # _holdout_severity) toujours rendu -- pas seulement des chiffres bruts.
@@ -633,12 +633,12 @@ def _holdout_block(result) -> str:
 
 _WHY_WF_HTML = (
     "<details class='wf-why'><summary>Pourquoi le walk-forward est le juge</summary>"
-    "<p>Le backtest simple choisit les meilleurs parametres sur TOUTES les donnees "
-    "vues -- il triche sans le savoir (in-sample). Le walk-forward re-optimise "
-    "periodiquement sur le passe, puis applique ces parametres a la periode SUIVANTE, "
-    "jamais vue -- comme un bot qu'on re-regle de temps en temps. Le verdict porte "
-    "sur la performance CUMULEE hors-echantillon : c'est la mesure la plus honnete "
-    "disponible ici, meme si elle n'est jamais une garantie pour le futur.</p></details>"
+    "<p>Le backtest simple choisit les meilleurs paramètres sur TOUTES les données "
+    "vues -- il triche sans le savoir (in-sample). Le walk-forward ré-optimise "
+    "périodiquement sur le passé, puis applique ces paramètres à la période SUIVANTE, "
+    "jamais vue -- comme un bot qu'on re-règle de temps en temps. Le verdict porte "
+    "sur la performance CUMULÉE hors-échantillon : c'est la mesure la plus honnête "
+    "disponible ici, même si elle n'est jamais une garantie pour le futur.</p></details>"
 )
 
 
@@ -657,10 +657,10 @@ def render_walkforward_done(result) -> str:
 
     fixed = context.get("fixed_params")
     mode = (
-        "parametres FIGES (" + ", ".join(f"{k}={v}" for k, v in fixed.items()) + ") "
+        "paramètres FIGÉS (" + ", ".join(f"{k}={v}" for k, v in fixed.items()) + ") "
         "-- aucune optimisation (anti-data-mining)"
         if fixed else
-        "parametres OPTIMISES sur chaque train (re-selection de la grille)"
+        "paramètres OPTIMISÉS sur chaque train (re-sélection de la grille)"
     )
 
     cards = "".join(_symbol_card(sym, res) for sym, res in result["results"].items())
@@ -671,7 +671,7 @@ def render_walkforward_done(result) -> str:
         + "<div class='head'><h1>Recherche &mdash; Walk-forward</h1>"
         "<a class='navlink' href='/research/walkforward'>&larr; Nouveau walk-forward</a></div>"
         + f"<p class='muted'>{_esc(strategy.upper())} &middot; {_esc(', '.join(symbols))} "
-          f"&middot; {_esc(context.get('timeframe') or '1d')} &middot; critere : {_esc(metric)}"
+          f"&middot; {_esc(context.get('timeframe') or '1d')} &middot; critère : {_esc(metric)}"
           f"<br>{_esc(mode)}</p>"
         + _verdict_banner(result)
         + _ignored_block(result.get("ignored"))

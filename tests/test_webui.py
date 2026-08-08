@@ -4,7 +4,63 @@ Tests du socle web partage (Lot 0) : trading/webui.py.
 Fonctions PURES, sans serveur ni reseau (l'integration serveur reelle est
 couverte par tests/test_monitor_server.py pour la route /static/).
 """
+import re
+
 from trading import webui
+
+
+# --------------------------------------------------------------------------- #
+#  Contraste WCAG (P2-4, audit L0-5) -- ratio CALCULE (formule de luminance   #
+#  relative officielle), jamais estime a l'oeil. Les couleurs sont EXTRAITES  #
+#  du THEME_CSS reel (pas recopiees a la main) : le test re-teste la source.  #
+# --------------------------------------------------------------------------- #
+def _css_var(name):
+    m = re.search(r"--" + re.escape(name) + r":\s*(#[0-9a-fA-F]{6})", webui.THEME_CSS)
+    assert m, f"variable CSS --{name} introuvable dans THEME_CSS"
+    return m.group(1)
+
+
+def _luminance(hexcolor):
+    hexcolor = hexcolor.lstrip("#")
+    r, g, b = (int(hexcolor[i:i + 2], 16) for i in (0, 2, 4))
+
+    def lin(c):
+        cs = c / 255
+        return cs / 12.92 if cs <= 0.03928 else ((cs + 0.055) / 1.055) ** 2.4
+
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+
+
+def _contrast_ratio(c1, c2):
+    l1, l2 = _luminance(c1), _luminance(c2)
+    l1, l2 = max(l1, l2), min(l1, l2)
+    return (l1 + 0.05) / (l2 + 0.05)
+
+
+def test_muted2_reaches_aa_normal_text_on_bg_and_panel():
+    """P2-4 : --muted2 echouait AA (4.15:1 sur --bg, 3.76:1 sur --panel, seuil
+    4.5:1). Verifie le ratio REEL calcule depuis le THEME_CSS courant, sur les
+    DEUX fonds ou il est utilise (nav + panneaux)."""
+    muted2 = _css_var("muted2")
+    bg = _css_var("bg")
+    panel = _css_var("panel")
+    ratio_bg = _contrast_ratio(muted2, bg)
+    ratio_panel = _contrast_ratio(muted2, panel)
+    assert ratio_bg >= 4.5, f"--muted2 vs --bg = {ratio_bg:.2f}:1 (< 4.5 requis)"
+    assert ratio_panel >= 4.5, f"--muted2 vs --panel = {ratio_panel:.2f}:1 (< 4.5 requis, le pire cas)"
+
+
+def test_disabled_nav_items_no_longer_dim_muted2_with_opacity():
+    """P2-4 : l'opacity:.55 sur les elements nav desactives faisait tomber le
+    rendu REEL a ~2.08:1 (bien pire que --muted2 seul). Non-regression :
+    aucune regle de nav/sous-nav desactivee ne doit plus reduire l'opacite
+    d'un texte porteur de sens."""
+    assert "span.tab.disabled{" in webui.THEME_CSS
+    disabled_block = webui.THEME_CSS.split("span.tab.disabled{", 1)[1].split("}", 1)[0]
+    assert "opacity" not in disabled_block
+    assert "span.sub-tab.disabled{" in webui.THEME_CSS
+    sub_disabled_block = webui.THEME_CSS.split("span.sub-tab.disabled{", 1)[1].split("}", 1)[0]
+    assert "opacity" not in sub_disabled_block
 
 
 # --------------------------------------------------------------------------- #
@@ -42,12 +98,12 @@ def test_page_shell_ssl_indicator_reflects_config(monkeypatch):
     monkeypatch.setattr(webui.config, "VERIFY_SSL", True, raising=False)
     out_on = webui.page_shell("T", "options", "<p>x</p>")
     assert "ssl-ok" in out_on
-    assert "SSL VERIF. DESACTIVEE" not in out_on
+    assert "SSL VÉRIF. DÉSACTIVÉE" not in out_on
 
     monkeypatch.setattr(webui.config, "VERIFY_SSL", False, raising=False)
     out_off = webui.page_shell("T", "options", "<p>x</p>")
     assert "ssl-bad" in out_off
-    assert "SSL VERIF. DESACTIVEE" in out_off
+    assert "SSL VÉRIF. DÉSACTIVÉE" in out_off
 
 
 def test_page_shell_escapes_title():
@@ -128,6 +184,6 @@ def test_job_panel_html_with_result_url_embeds_it():
 
 def test_job_panel_html_js_references_state_labels_as_json():
     out = webui.job_panel_html("jid", "tok")
-    assert '"done": "Termine."' in out
+    assert '"done": "Terminé."' in out
     assert '"error": "Erreur."' in out
-    assert '"cancelled": "Annule."' in out
+    assert '"cancelled": "Annulé."' in out

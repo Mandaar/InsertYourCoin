@@ -23,7 +23,7 @@ _CSS = """
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -38,7 +38,7 @@ h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercas
 .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: 13px; color: #d7dee8; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .errors { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
@@ -98,13 +98,13 @@ def parse_timeframe_days_source(fields: dict):
     timeframe = (fields.get("timeframe") or "").strip() or config.DEFAULT_TIMEFRAME
     if timeframe not in TIMEFRAME_CHOICES:
         errors.append(
-            f"Timeframe non supporte : {timeframe} "
+            f"Timeframe non supporté : {timeframe} "
             f"(attendu : {', '.join(TIMEFRAME_CHOICES)})."
         )
 
     days = _to_int(fields.get("days"), 720)
     if days <= 0:
-        errors.append("Jours : doit etre un nombre positif.")
+        errors.append("Jours : doit être un nombre positif.")
 
     source = (fields.get("source") or "kraken").strip().lower()
     if source not in ("kraken", "binance"):
@@ -160,7 +160,7 @@ def parse_backtest_params(fields: dict):
     strategy = (fields.get("strategy") or "").strip().lower()
     errors = []
     if strategy not in STRATEGIES:
-        errors.append(f"Strategie inconnue : {strategy or '(vide)'}.")
+        errors.append(f"Stratégie inconnue : {strategy or '(vide)'}.")
 
     common, common_errors = parse_market_and_risk_fields(fields)
     errors += common_errors
@@ -204,7 +204,7 @@ def _form_html(csrf_token, values) -> str:
         "<form class='bt-form' method='post' action='/research/backtest'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
         "<div class='row'>"
-        "<div class='field'><label class='flabel' for='strategy'>Strategie</label>"
+        "<div class='field'><label class='flabel' for='strategy'>Stratégie</label>"
         f"<select id='strategy' name='strategy'>{strategy_options(v.get('strategy'))}</select></div>"
         "<div class='field'><label class='flabel' for='symbol'>Symbole</label>"
         f"<input id='symbol' name='symbol' value='{_esc(symbol)}'></div>"
@@ -225,17 +225,17 @@ def _form_html(csrf_token, values) -> str:
         "<div class='row'>"
         "<div class='field'><label class='flabel' for='stop_loss'>Stop (%)</label>"
         f"<input id='stop_loss' name='stop_loss' type='number' step='0.1' "
-        f"value='{_esc(v.get('stop_loss'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('stop_loss'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='take_profit'>Objectif (%)</label>"
         f"<input id='take_profit' name='take_profit' type='number' step='0.1' "
-        f"value='{_esc(v.get('take_profit'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('take_profit'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='trailing_stop'>Trailing (%)</label>"
         f"<input id='trailing_stop' name='trailing_stop' type='number' step='0.1' "
-        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(desactive)'></div>"
+        f"value='{_esc(v.get('trailing_stop'))}' placeholder='(désactivé)'></div>"
         "<div class='field'><label class='flabel' for='position_sizing'>Sizing</label>"
         "<select id='position_sizing' name='position_sizing'>"
         f"<option value='none'{none_checked}>none (tout-ou-rien)</option>"
-        f"<option value='vol'{vol_checked}>vol (cible de volatilite)</option>"
+        f"<option value='vol'{vol_checked}>vol (cible de volatilité)</option>"
         "</select></div>"
         "<div class='field'><label class='flabel' for='target_vol'>Vol cible (%)</label>"
         f"<input id='target_vol' name='target_vol' type='number' step='1' "
@@ -267,8 +267,8 @@ def render_backtest_form(csrf_token, errors=None, values=None) -> str:
         + "<div class='card'>"
         + _form_html(csrf_token, values)
         + "</div>"
-        + "<p class='muted honesty'>Le backtest teste une strategie IN-SAMPLE "
-          "(sur les donnees vues) -- ce n'est pas une preuve d'edge futur. "
+        + "<p class='muted honesty'>Le backtest teste une stratégie IN-SAMPLE "
+          "(sur les données vues) -- ce n'est pas une preuve d'edge futur. "
           "<a class='navlink' href='/research/walkforward'>Le walk-forward "
           "est le juge.</a></p>"
     )
@@ -288,7 +288,7 @@ def render_backtest_busy(active_label, active_id, csrf_token) -> str:
         + research_subnav_html("backtest")
         + "<div class='head'><h1>Recherche &mdash; Backtest</h1>"
         "<a class='navlink' href='/research/backtest'>&larr; Formulaire</a></div>"
-        f"<div class='busy'>Une analyse est deja en cours : <strong>{_esc(label)}</strong>. "
+        f"<div class='busy'>Une analyse est déjà en cours : <strong>{_esc(label)}</strong>. "
         "Attends sa fin (panneau ci-dessous) ou annule-la avant d'en lancer une "
         "nouvelle -- un seul job a la fois.</div>"
         "<div class='card'>"

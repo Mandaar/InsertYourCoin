@@ -57,6 +57,7 @@ from .options import (
 from .webui import page_shell, serve_static
 from .home_page import render_home_page
 from .check_page import render_check_page
+from .help_page import render_help_page
 from .stats import load_stats, summarize
 from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
@@ -280,6 +281,22 @@ def _esc(s):
     return html.escape("" if s is None else str(s))
 
 
+def _error_page(title, message) -> str:
+    """
+    Page d'erreur HTTP habillee (theme commun `page_shell`) -- remplace les
+    `<h1>...</h1>` bruts servis sans doctype/charset/nav/theme (P3-4, audit
+    §5) par une rupture visuelle coherente avec le reste de l'app. `title`
+    reste bref ("404", "403 - Host non autorise"...), `message` explique
+    l'erreur en une phrase (jamais de donnee sensible : appelants ne passent
+    que du texte deja assaini, ex. `str(exc)` sans trace)."""
+    body = (
+        "<div class='head'><h1>" + _esc(title) + "</h1></div>"
+        "<div class='card'><p>" + _esc(message) + "</p>"
+        "<p><a class='navlink' href='/' style='color:#6cb6ff'>&larr; Accueil</a></p></div>"
+    )
+    return page_shell(title + " - InsertYourCoin", "", body)
+
+
 def _trades_html(trades):
     if not trades:
         return "<p class='muted'>Aucun ordre pour l'instant.</p>"
@@ -323,15 +340,15 @@ def render_fragment(view) -> str:
     """
     now = _esc(view.get("now"))
     horodatage = (
-        f"<span class='maj'>Derniere maj : {now} (auto-refresh 7s)</span>"
+        f"<span class='maj'>Dernière maj : {now} (auto-refresh 7s)</span>"
     )
 
     if not view.get("has_data"):
         return (
             horodatage
             + "<div class='card empty'>"
-            "<h2>En attente de donnees du paper...</h2>"
-            "<p class='muted'>Lance le paper trading pour voir apparaitre "
+            "<h2>En attente de données du paper...</h2>"
+            "<p class='muted'>Lance le paper trading pour voir apparaître "
             "les cycles, les ordres et le portefeuille ici.</p>"
             "</div>"
         )
@@ -396,10 +413,10 @@ _CSS = """
 h1 { font-size: 18px; margin: 0 0 4px; }
 h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
   letter-spacing: .5px; }
-.muted { color: #6b7787; }
+.muted { color: #8b97a6; }
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
-.head .maj { color: #6b7787; font-size: 12px; }
+.head .maj { color: #8b97a6; font-size: 12px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px; margin-bottom: 14px; }
 .card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
@@ -484,7 +501,7 @@ form.opt { margin: 0; }
   font-family: ui-monospace, Consolas, monospace; }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  padding: 10px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
 .btn-stop { background: #3a1d12; color: #ffb4ad; border: 1px solid #e5534b;
   border-radius: 7px; padding: 9px 18px; font-size: 14px; cursor: pointer; }
@@ -510,14 +527,14 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         log_level = "moyen"
 
     saved_html = (
-        "<div class='saved'>Modifications enregistrees.</div>" if saved else ""
+        "<div class='saved'>Modifications enregistrées.</div>" if saved else ""
     )
 
     # Boutons radio niveau de logs (l'actif est coche).
     radios = []
-    labels = {"leger": "Leger (evenements seuls)",
-              "moyen": "Moyen (defaut : + statut par cycle)",
-              "complet": "Complet (+ detail par cycle)"}
+    labels = {"leger": "Léger (évènements seuls)",
+              "moyen": "Moyen (défaut : + statut par cycle)",
+              "complet": "Complet (+ détail par cycle)"}
     for lvl in LOG_LEVELS:
         checked = " checked" if lvl == log_level else ""
         radios.append(
@@ -542,26 +559,26 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         # (a) Niveau de logs
         "<div class='card'><h2>Niveau de logs du paper</h2>"
         + radio_html
-        + "<p class='help'>Applique a chaud (le paper relit ce reglage a chaque "
-          "cycle). Les ACHAT/VENTE et les erreurs sont toujours journalises.</p>"
+        + "<p class='help'>Appliqué à chaud (le paper relit ce réglage à chaque "
+          "cycle). Les ACHAT/VENTE et les erreurs sont toujours journalisées.</p>"
         "</div>"
 
         # (b) Liaison Kraken
         "<div class='card'><h2>Liaison Kraken</h2>"
-        f"<p>Cles configurees : {etat_cles}</p>"
-        "<div class='field'><label class='flabel' for='api_key'>Cle API "
+        f"<p>Clés configurées : {etat_cles}</p>"
+        "<div class='field'><label class='flabel' for='api_key'>Clé API "
         "(publique)</label>"
         "<input type='password' id='api_key' name='api_key' autocomplete='off' "
         "placeholder='(laisser vide pour ne pas changer)'></div>"
-        "<div class='field'><label class='flabel' for='api_secret'>Cle privee "
+        "<div class='field'><label class='flabel' for='api_secret'>Clé privée "
         "(secret)</label>"
         "<input type='password' id='api_secret' name='api_secret' "
         "autocomplete='off' placeholder='(laisser vide pour ne pas changer)'></div>"
         "<div class='check-row'><input type='checkbox' id='persist' "
         "name='persist' value='1'>"
         "<label for='persist'>Enregistrer dans .env (sinon : session seulement, "
-        "rien n'est ecrit sur disque)</label></div>"
-        "<p class='help'>Cree ta cle sur Kraken avec UNIQUEMENT "
+        "rien n'est écrit sur disque)</label></div>"
+        "<p class='help'>Crée ta clé sur Kraken avec UNIQUEMENT "
         "<strong>Query Funds</strong> + <strong>Create &amp; Modify Orders</strong>. "
         "<span class='warn'>JAMAIS</span> <strong>Withdraw Funds</strong> : cette "
         "application n'a aucun besoin de retirer des fonds.</p>"
@@ -572,29 +589,29 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         # (c) Wallet
         "<div class='card'><h2>Wallet</h2>"
         f"<p><a class='wallet' href='{_WITHDRAW_URL}' target='_blank' "
-        "rel='noopener'>Transferer vers mon wallet (page officielle Kraken)</a></p>"
+        "rel='noopener'>Transférer vers mon wallet (page officielle Kraken)</a></p>"
         "<p class='help'>Le retrait se fait sur Kraken avec ton 2FA. Conseil : "
         "active la <strong>whitelist d'adresses</strong> de retrait. "
-        "CETTE APP NE FAIT JAMAIS DE RETRAIT ET N'ENREGISTRE RIEN COTE WALLET.</p>"
+        "CETTE APP NE FAIT JAMAIS DE RETRAIT ET N'ENREGISTRE RIEN CÔTÉ WALLET.</p>"
         "</div>"
 
         # (d) Serveur web (arret / redemarrage) -- controle UNIQUEMENT ce
         # serveur, jamais le paper trading (process separe).
         "<div class='card'><h2>Serveur web</h2>"
-        "<p class='help'>Controle uniquement CE serveur (le tableau de bord). "
-        "Le <strong>paper trading n'est pas affecte</strong> : il continue de "
-        "tourner et d'ecrire ses donnees, avec ou sans ce serveur.</p>"
+        "<p class='help'>Contrôle uniquement CE serveur (le tableau de bord). "
+        "Le <strong>paper trading n'est pas affecté</strong> : il continue de "
+        "tourner et d'écrire ses données, avec ou sans ce serveur.</p>"
         "<div class='server-actions'>"
         "<form method='post' action='/server/restart'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
-        "<button class='btn' type='submit'>Redemarrer le serveur</button>"
+        "<button class='btn' type='submit'>Redémarrer le serveur</button>"
         "</form>"
         "<form method='post' action='/server/stop' "
-        "onsubmit='return confirm(\"Arreter le serveur web ? Le paper trading "
-        "continue de tourner en arriere-plan. Relance ensuite via le "
+        "onsubmit='return confirm(\"Arrêter le serveur web ? Le paper trading "
+        "continue de tourner en arrière-plan. Relance ensuite via le "
         "raccourci bureau.\");'>"
         f"<input type='hidden' name='csrf_token' value='{token}'>"
-        "<button class='btn-stop' type='submit'>Arreter le serveur</button>"
+        "<button class='btn-stop' type='submit'>Arrêter le serveur</button>"
         "</form>"
         "</div>"
         "</div>"
@@ -813,31 +830,31 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str) -> None
 
 def render_server_stopped_page() -> str:
     body = (
-        "<div class='head'><h1>Serveur arrete</h1></div>"
+        "<div class='head'><h1>Serveur arrêté</h1></div>"
         "<div class='card'>"
-        "<p>Le serveur web de monitoring est arrete.</p>"
+        "<p>Le serveur web de monitoring est arrêté.</p>"
         "<p class='muted'>Le <strong>paper trading continue de tourner</strong> "
-        "en arriere-plan : il n'est pas touche par ce bouton, et continue "
-        "d'ecrire dans paper_stats.csv / paper_trades.log.</p>"
-        "<p>Pour rouvrir le tableau de bord : double-clique l'icone du "
+        "en arrière-plan : il n'est pas touché par ce bouton, et continue "
+        "d'écrire dans paper_stats.csv / paper_trades.log.</p>"
+        "<p>Pour rouvrir le tableau de bord : double-clique l'icône du "
         "bureau, ou lance <code>python lancer.py</code>.</p>"
         "</div>"
     )
-    return page_shell("Serveur arrete - InsertYourCoin", "options", body)
+    return page_shell("Serveur arrêté - InsertYourCoin", "options", body)
 
 
 def render_server_restarting_page() -> str:
     body = (
-        "<div class='head'><h1>Redemarrage en cours...</h1></div>"
+        "<div class='head'><h1>Redémarrage en cours...</h1></div>"
         "<div class='card'>"
-        "<p>Le serveur web redemarre (le paper trading n'est pas touche).</p>"
-        "<p class='muted'>Court trou de disponibilite pendant la bascule : "
-        "l'ancien processus s'arrete puis un nouveau demarre sur le meme "
+        "<p>Le serveur web redémarre (le paper trading n'est pas touché).</p>"
+        "<p class='muted'>Court trou de disponibilité pendant la bascule : "
+        "l'ancien processus s'arrête puis un nouveau démarre sur le même "
         "port. Cette page se recharge automatiquement.</p>"
         "</div>"
         "<script>setTimeout(function(){ window.location.href = '/options'; }, 4000);</script>"
     )
-    return page_shell("Redemarrage - InsertYourCoin", "options", body)
+    return page_shell("Redémarrage - InsertYourCoin", "options", body)
 
 
 def csrf_valid(submitted_token, expected_token) -> bool:
@@ -944,7 +961,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
         def _host_ok(self):
             if not host_allowed(self.headers.get("Host"), bound_port[0]):
-                self._send_html("<h1>403 - Host non autorise</h1>", code=403)
+                self._send_html(
+                    _error_page("403 - Host non autorisé",
+                                "L'en-tête Host de cette requête n'est pas autorisé "
+                                "par ce serveur local."),
+                    code=403,
+                )
                 return False
             return True
 
@@ -970,7 +992,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             form = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
             submitted = (form.get("csrf_token") or [""])[0]
             if not csrf_valid(submitted, csrf_token):
-                self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                 return
             st = jobs.status(job_id)
             if st is None:
@@ -1247,7 +1274,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
         def _send_static(self, rel_path):
             result = serve_static(rel_path)
             if result is None:
-                self._send_html("<h1>404</h1>", code=404)
+                self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
                 return
             data, content_type = result
             self.send_response(200)
@@ -1267,7 +1298,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     if m:
                         self._handle_job_status(m.group(1))
                         return
-                    self._send_html("<h1>404</h1>", code=404)
+                    self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
                     return
                 if self.path.startswith("/research/backtest"):
                     if not self._host_ok():
@@ -1297,7 +1332,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 if self.path.startswith("/report/"):
                     m = _REPORT_RE.match(self.path.split("?", 1)[0])
                     if not m:
-                        self._send_html("<h1>404</h1>", code=404)
+                        self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
                         return
                     if not self._host_ok():
                         return
@@ -1321,6 +1360,13 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                         return
                     self._send_html(self._check_page())
                     return
+                if self.path.startswith("/help"):
+                    # Page statique (spec §4.14) : meme garde Host que le
+                    # reste, aucune donnee lue (contenu entierement fixe).
+                    if not self._host_ok():
+                        return
+                    self._send_html(render_help_page())
+                    return
                 if self.path.startswith("/stats"):
                     if not self._host_ok():
                         return
@@ -1341,15 +1387,15 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                         return
                     self._send_html(self._home_page())
                     return
-                self._send_html("<h1>404</h1>", code=404)
+                self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
             except Exception as exc:  # ne JAMAIS crasher le serveur
                 # NE JAMAIS inclure de donnee sensible : str(exc) ne porte pas de cle.
-                self._send_html(
-                    "<!DOCTYPE html><html lang='fr'><head><meta charset='utf-8'>"
-                    "<title>Erreur monitoring</title></head><body>"
-                    f"<h1>Erreur monitoring : {html.escape(str(exc))}</h1>"
-                    "</body></html>"
-                )
+                # _error_page echappe deja le message (_esc) -- ne pas le faire 2x.
+                self._send_html(_error_page("Erreur monitoring", str(exc)))
 
         def do_POST(self):
             # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4),
@@ -1361,14 +1407,23 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 if m:
                     self._handle_job_cancel(m.group(1))
                     return
-                self._send_html("<h1>404</h1>", code=404)
+                self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
                 return
             if self.path.startswith("/research/backtest"):
                 if not self._host_ok():
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._research_backtest_post(form))
                 return
@@ -1377,7 +1432,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._research_compare_post(form))
                 return
@@ -1386,7 +1446,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._research_optimize_post(form))
                 return
@@ -1395,7 +1460,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._research_portfolio_post(form))
                 return
@@ -1404,7 +1474,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._research_walkforward_post(form))
                 return
@@ -1413,7 +1488,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(self._paper_post(form))
                 return
@@ -1422,7 +1502,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 # Reponse envoyee AVANT de couper (sinon la requete ne recoit
                 # jamais sa reponse -- le serveur qui la sert serait deja
@@ -1435,14 +1520,23 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 form = self._read_post_form()
                 if not csrf_valid(form.get("csrf_token"), csrf_token):
-                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                     return
                 self._send_html(render_server_restarting_page())
                 _service_thread(_restart_server_thread,
                                 (server_ref, root, bound_port[0], host)).start()
                 return
             if not self.path.startswith("/options"):
-                self._send_html("<h1>404</h1>", code=404)
+                self._send_html(
+                    _error_page("404 - Page introuvable",
+                                "Cette adresse ne correspond à aucune page de l'application."),
+                    code=404,
+                )
                 return
             if not self._host_ok():
                 return
@@ -1459,7 +1553,12 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
             # Verification anti-CSRF AVANT toute action.
             if not csrf_valid(_one("csrf_token"), csrf_token):
-                self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
                 return
 
             try:
@@ -1490,10 +1589,19 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             except ValueError:
                 # Valeur refusee (ex : retour a la ligne dans une cle). On NE remonte
                 # PAS la valeur : message generique.
-                self._send_html("<h1>400 - valeur invalide</h1>", code=400)
+                self._send_html(
+                    _error_page("400 - Valeur invalide",
+                                "Un des champs soumis n'est pas accepté (ex. retour "
+                                "à la ligne dans une clé). Rien n'a été enregistré."),
+                    code=400,
+                )
                 return
             except Exception:
-                self._send_html("<h1>500 - erreur enregistrement</h1>", code=500)
+                self._send_html(
+                    _error_page("500 - Erreur d'enregistrement",
+                                "L'enregistrement des options a échoué côté serveur."),
+                    code=500,
+                )
                 return
 
             # Redirection 303 (Post/Redirect/Get) -> evite le re-POST au refresh.

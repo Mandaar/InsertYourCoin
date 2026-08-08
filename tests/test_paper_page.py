@@ -37,13 +37,13 @@ def test_parse_paper_params_symbole_vide_retombe_sur_defaut():
 def test_parse_paper_params_strategie_inconnue_rejetee():
     params, errors = pp.parse_paper_params({"strategy": "n-existe-pas"})
     assert params is None
-    assert any("Strategie inconnue" in e for e in errors)
+    assert any("Stratégie inconnue" in e for e in errors)
 
 
 def test_parse_paper_params_timeframe_invalide_rejete():
     params, errors = pp.parse_paper_params({"strategy": "sma", "timeframe": "3s"})
     assert params is None
-    assert any("Timeframe non supporte" in e for e in errors)
+    assert any("Timeframe non supporté" in e for e in errors)
 
 
 def test_parse_paper_params_aucun_champ_source_jamais_construit():
@@ -106,7 +106,7 @@ def test_compute_paper_status_en_cours_sans_start_ts_reste_coherent():
 def test_render_paper_page_arrete_affiche_formulaire_complet():
     status = pp.compute_paper_status(False, None)
     html = pp.render_paper_page(status, "TOKEN123")
-    assert "ARRETE" in html
+    assert "ARRÊTÉ" in html
     assert "name='csrf_token'" in html
     assert "value='TOKEN123'" in html
     assert "name='strategy'" in html
@@ -116,7 +116,7 @@ def test_render_paper_page_arrete_affiche_formulaire_complet():
     assert "name='take_profit'" in html
     assert "name='trailing_stop'" in html
     assert "name='position_sizing'" in html
-    assert "Demarrer le paper trading" in html
+    assert "Démarrer le paper trading" in html
     assert "name='source'" not in html          # jamais de champ source (paper = Kraken only)
     assert "type='password'" not in html         # aucune cle requise
 
@@ -126,15 +126,15 @@ def test_render_paper_page_en_cours_affiche_statut_et_bouton_arreter():
     html = pp.render_paper_page(status, "TOKEN123")
     assert "EN COURS" in html
     assert "depuis" in html
-    assert "Arreter" in html
+    assert "Arrêter" in html
     assert "/monitoring" in html
-    assert "Demarrer le paper trading" not in html  # pas de formulaire de config pendant l'execution
+    assert "Démarrer le paper trading" not in html  # pas de formulaire de config pendant l'execution
 
 
 def test_render_paper_page_erreurs_affichees():
     status = pp.compute_paper_status(False, None)
-    html = pp.render_paper_page(status, "T", errors=["Strategie inconnue : xx."])
-    assert "Strategie inconnue" in html
+    html = pp.render_paper_page(status, "T", errors=["Stratégie inconnue : xx."])
+    assert "Stratégie inconnue" in html
 
 
 def test_render_paper_page_message_confirmation():
@@ -154,7 +154,7 @@ def test_render_paper_page_re_remplit_formulaire_apres_erreur():
     status = pp.compute_paper_status(False, None)
     html = pp.render_paper_page(
         status, "T",
-        errors=["Timeframe non supporte : 3s (attendu : 1m, 5m, 15m, 1h, 4h, 1d)."],
+        errors=["Timeframe non supporté : 3s (attendu : 1m, 5m, 15m, 1h, 4h, 1d)."],
         values={"strategy": "rsi", "symbol": "BTC/USD", "timeframe": "3s"},
     )
     assert "value='BTC/USD'" in html

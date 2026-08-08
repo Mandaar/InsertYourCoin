@@ -83,7 +83,7 @@ def test_run_backtest_unknown_strategy_raises_without_loading_data(monkeypatch):
         raise AssertionError("le loader ne doit jamais etre appele pour une strategie inconnue")
 
     monkeypatch.setattr(rr, "_load_ohlcv", _boom)
-    with pytest.raises(rr.ResearchError, match="Strategie inconnue"):
+    with pytest.raises(rr.ResearchError, match="Stratégie inconnue"):
         rr.run_backtest(_params(strategy="ne-existe-pas"), FakeProgress())
 
 
@@ -92,7 +92,7 @@ def test_run_backtest_loader_failure_becomes_research_error(monkeypatch):
         raise RuntimeError("Kraken indisponible")
 
     monkeypatch.setattr(rr, "_load_ohlcv", _raise)
-    with pytest.raises(rr.ResearchError, match="Donnees indisponibles"):
+    with pytest.raises(rr.ResearchError, match="Données indisponibles"):
         rr.run_backtest(_params(), FakeProgress())
 
 
@@ -146,7 +146,7 @@ def test_run_compare_loader_failure_becomes_research_error(monkeypatch):
         raise RuntimeError("Kraken indisponible")
 
     monkeypatch.setattr(rr, "_load_ohlcv", _raise)
-    with pytest.raises(rr.ResearchError, match="Donnees indisponibles"):
+    with pytest.raises(rr.ResearchError, match="Données indisponibles"):
         rr.run_compare(_compare_params(), FakeProgress())
 
 
@@ -201,7 +201,7 @@ def test_run_optimize_unknown_strategy_raises_without_loading_data(monkeypatch):
         raise AssertionError("le loader ne doit jamais etre appele")
 
     monkeypatch.setattr(rr, "_load_ohlcv", _boom)
-    with pytest.raises(rr.ResearchError, match="Strategie inconnue"):
+    with pytest.raises(rr.ResearchError, match="Stratégie inconnue"):
         rr.run_optimize(_optimize_params(strategy="ne-existe-pas"), FakeProgress())
 
 
@@ -219,7 +219,7 @@ def test_run_optimize_loader_failure_becomes_research_error(monkeypatch):
         raise RuntimeError("Kraken indisponible")
 
     monkeypatch.setattr(rr, "_load_ohlcv", _raise)
-    with pytest.raises(rr.ResearchError, match="Donnees indisponibles"):
+    with pytest.raises(rr.ResearchError, match="Données indisponibles"):
         rr.run_optimize(_optimize_params(), FakeProgress())
 
 
@@ -276,7 +276,7 @@ def test_run_portfolio_unknown_strategy_raises_without_loading_data(monkeypatch)
         raise AssertionError("le loader ne doit jamais etre appele")
 
     monkeypatch.setattr(rr, "_load_basket_ohlcv", _boom)
-    with pytest.raises(rr.ResearchError, match="Strategie inconnue"):
+    with pytest.raises(rr.ResearchError, match="Stratégie inconnue"):
         rr.run_portfolio(_portfolio_params(strategy="ne-existe-pas"), FakeProgress())
 
 
@@ -364,7 +364,7 @@ def test_run_walkforward_unknown_strategy_raises_without_loading_data(monkeypatc
         raise AssertionError("le loader ne doit jamais etre appele")
 
     monkeypatch.setattr(rr, "_load_basket_ohlcv", _boom)
-    with pytest.raises(rr.ResearchError, match="Strategie inconnue"):
+    with pytest.raises(rr.ResearchError, match="Stratégie inconnue"):
         rr.run_walkforward(_walkforward_params(strategy="ne-existe-pas"), FakeProgress())
 
 
@@ -423,7 +423,7 @@ def test_run_walkforward_logs_holdout_reservation(make_df, monkeypatch):
     monkeypatch.setattr(rr, "_load_basket_ohlcv", lambda params, progress: ({"ETH/USD": df}, []))
     progress = FakeProgress()
     rr.run_walkforward(_walkforward_params(holdout_pct=20.0), progress)
-    assert any("Holdout reserve" in l for l in progress.logs)
+    assert any("Holdout réservé" in l for l in progress.logs)
 
 
 def test_run_walkforward_final_true_populates_holdout(make_df, monkeypatch):

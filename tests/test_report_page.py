@@ -42,7 +42,7 @@ def test_render_report_error_escapes_message():
     out = rep.render_report_error("<script>alert(1)</script>")
     assert "<script>alert(1)</script>" not in out
     assert "&lt;script&gt;" in out
-    assert "a echoue" in out
+    assert "a échoué" in out
 
 
 def test_render_report_error_handles_missing_message():
@@ -52,7 +52,7 @@ def test_render_report_error_handles_missing_message():
 
 def test_render_report_cancelled_shows_cancelled_message():
     out = rep.render_report_cancelled()
-    assert "annulee" in out.lower()
+    assert "annulée" in out.lower()
 
 
 def test_render_report_done_shows_in_sample_badge_and_dashboard(make_df):

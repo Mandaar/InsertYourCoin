@@ -48,13 +48,13 @@ def test_parse_portfolio_params_custom_symbols():
 def test_parse_portfolio_params_unknown_strategy_is_error():
     params, errors = pp.parse_portfolio_params({"strategy": "n-existe-pas"})
     assert params is None
-    assert any("Strategie inconnue" in e for e in errors)
+    assert any("Stratégie inconnue" in e for e in errors)
 
 
 def test_parse_portfolio_params_unknown_timeframe_is_error():
     params, errors = pp.parse_portfolio_params({"strategy": "sma", "timeframe": "3d"})
     assert params is None
-    assert any("Timeframe non supporte" in e for e in errors)
+    assert any("Timeframe non supporté" in e for e in errors)
 
 
 # --------------------------------------------------------------------------- #
@@ -71,9 +71,9 @@ def test_render_portfolio_form_lists_strategies_and_default_symbols():
 
 
 def test_render_portfolio_form_shows_errors_and_repopulates_values():
-    out = pp.render_portfolio_form("tok", errors=["Strategie inconnue : x."],
+    out = pp.render_portfolio_form("tok", errors=["Stratégie inconnue : x."],
                                    values={"symbols": "BTC/USD,ETH/USD"})
-    assert "Strategie inconnue : x." in out
+    assert "Stratégie inconnue : x." in out
     assert "value='BTC/USD,ETH/USD'" in out
 
 
@@ -108,18 +108,18 @@ def test_render_portfolio_done_shows_kpis_and_correlation_heatmap(make_df):
     result = _real_portfolio_result(make_df)
     out = pp.render_portfolio_done(result)
     assert "corr-table" in out
-    assert "Correlation moyenne" in out
+    assert "Corrélation moyenne" in out
     assert "BTC/USD" in out
     assert "ETH/USD" in out
     assert "<nav class='nav'>" in out
 
 
 def test_render_portfolio_done_shows_ignored_symbols(make_df):
-    ignored = [{"symbol": "SOL/USD", "error": "Donnees indisponibles"}]
+    ignored = [{"symbol": "SOL/USD", "error": "Données indisponibles"}]
     result = _real_portfolio_result(make_df, ignored=ignored)
     out = pp.render_portfolio_done(result)
     assert "SOL/USD" in out
-    assert "Donnees indisponibles" in out
+    assert "Données indisponibles" in out
     assert "class='ignored'" in out
 
 
@@ -138,4 +138,4 @@ def test_render_portfolio_done_high_correlation_shows_systemic_warning(make_df):
              "context": {"symbols": ["BTC/USD", "ETH/USD"], "timeframe": "1d",
                         "source": "kraken"}}
     out = pp.render_portfolio_done(result)
-    assert "risque systemique crypto" in out
+    assert "risque systémique crypto" in out

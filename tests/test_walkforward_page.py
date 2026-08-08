@@ -105,31 +105,31 @@ def test_parse_walkforward_params_full_valid_input():
 def test_parse_walkforward_params_unknown_strategy_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "n-existe-pas"})
     assert params is None
-    assert any("Strategie inconnue" in e for e in errors)
+    assert any("Stratégie inconnue" in e for e in errors)
 
 
 def test_parse_walkforward_params_unknown_metric_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "metric": "bogus"})
     assert params is None
-    assert any("Metrique non supportee" in e for e in errors)
+    assert any("Métrique non supportée" in e for e in errors)
 
 
 def test_parse_walkforward_params_unknown_timeframe_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "timeframe": "3d"})
     assert params is None
-    assert any("Timeframe non supporte" in e for e in errors)
+    assert any("Timeframe non supporté" in e for e in errors)
 
 
 def test_parse_walkforward_params_windows_non_positive_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "windows": "0"})
     assert params is None
-    assert any("Fenetres" in e for e in errors)
+    assert any("Fenêtres" in e for e in errors)
 
 
 def test_parse_walkforward_params_windows_non_numeric_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "windows": "beaucoup"})
     assert params is None
-    assert any("Fenetres" in e for e in errors)
+    assert any("Fenêtres" in e for e in errors)
 
 
 def test_parse_walkforward_params_train_frac_out_of_range_is_error():
@@ -147,7 +147,7 @@ def test_parse_walkforward_params_fixed_invalid_format_is_error():
 def test_parse_walkforward_params_fixed_non_numeric_value_is_error():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "fixed": "fast=abc"})
     assert params is None
-    assert any("non numerique" in e for e in errors)
+    assert any("non numérique" in e for e in errors)
 
 
 # Gardes reprises EXACTEMENT de main.py cmd_walkforward (lignes 181-184).
@@ -169,7 +169,7 @@ def test_parse_walkforward_params_final_without_holdout_is_error_exact_cli_messa
     )
     assert params is None
     assert (
-        "Validation finale : exige un holdout > 0 (sans holdout, pas de segment sacre)."
+        "Validation finale : exige un holdout > 0 (sans holdout, pas de segment sacré)."
         in errors
     )
 
@@ -215,7 +215,7 @@ def test_render_walkforward_form_final_checkbox_unchecked_by_default():
 def test_render_walkforward_form_embeds_confirm_modal_js():
     out = wf.render_walkforward_form("tok")
     assert "window.confirm(" in out
-    assert "le holdout sera consomme" in out
+    assert "le holdout sera consommé" in out
 
 
 def test_render_walkforward_form_shows_errors_and_repopulates_values():
@@ -274,7 +274,7 @@ def test_render_walkforward_done_verdict_orange_when_fragile(make_df, monkeypatc
     out = wf.render_walkforward_done(result)
     assert "v-orange" in out
     assert "FRAGILE" in out
-    assert "MITIGE" in out
+    assert "MITIGÉ" in out
 
 
 def test_render_walkforward_done_verdict_red_when_no_edge(make_df, monkeypatch):
@@ -318,7 +318,7 @@ def test_render_walkforward_done_mono_orange_when_metric_nan_is_indecidable(make
     out = wf.render_walkforward_done(result)
     assert "<div class='verdict-banner v-green'>" not in out
     assert "<div class='verdict-banner v-orange'>" in out
-    assert "INDECIDABLE" in out
+    assert "INDÉCIDABLE" in out
 
 
 def test_mono_severity_parity_with_cli_verdict_across_scenarios():
@@ -352,7 +352,7 @@ def test_mono_severity_parity_with_cli_verdict_across_scenarios():
 def test_render_walkforward_done_holdout_not_consumed_by_default(make_df, monkeypatch):
     result = _real_result(make_df, monkeypatch)
     out = wf.render_walkforward_done(result)
-    assert "NON consomme" in out
+    assert "NON consommé" in out
     # La classe CSS `.holdout-consumed` existe dans le <style> (regle) mais ne
     # doit etre appliquee a AUCUN <div> tant que --final n'a pas ete demande.
     assert "class='card holdout-state holdout-consumed'" not in out
@@ -384,7 +384,7 @@ def test_render_walkforward_done_shows_low_trades_warning_on_holdout(make_df, mo
     h["metrics"] = dict(h["metrics"], n_trades=2)
     result["holdout"] = {sym: h}
     out = wf.render_walkforward_done(result)
-    assert "Tres peu de trades sur le holdout" in out
+    assert "Très peu de trades sur le holdout" in out
 
 
 # --------------------------------------------------------------------------- #
@@ -428,7 +428,7 @@ def test_render_walkforward_done_holdout_indecidable_downgrades_banner_to_orange
     out = wf.render_walkforward_done(result)
     assert "<div class='verdict-banner v-orange'>" in out
     assert "<div class='verdict-banner v-green'>" not in out
-    assert "INDECIDABLE" in out
+    assert "INDÉCIDABLE" in out
 
 
 def test_render_walkforward_done_holdout_positive_never_upgrades_bad_research_banner(make_df, monkeypatch):
@@ -473,7 +473,7 @@ def test_render_walkforward_done_shows_windows_table_and_psr_dsr(make_df, monkey
     result = _real_result(make_df, monkeypatch)
     out = wf.render_walkforward_done(result)
     assert "wf-windows" in out
-    assert "Parametres retenus" in out
+    assert "Paramètres retenus" in out
     assert "DD max" in out
     assert "PSR" in out and "DSR" in out
     assert "Pourquoi le walk-forward est le juge" in out
