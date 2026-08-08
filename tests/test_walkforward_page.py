@@ -151,7 +151,7 @@ def test_parse_walkforward_params_fixed_non_numeric_value_is_error():
 
 
 # Gardes reprises EXACTEMENT de main.py cmd_walkforward (lignes 181-184).
-def test_parse_walkforward_params_holdout_out_of_range_is_error_exact_cli_message():
+def test_parse_walkforward_params_holdout_out_of_range_same_rule_as_cli():
     params, errors = wf.parse_walkforward_params({"strategy": "sma", "holdout": "95"})
     assert params is None
     assert "Holdout : pourcentage attendu dans [0, 90[." in errors
@@ -163,7 +163,7 @@ def test_parse_walkforward_params_holdout_negative_is_error():
     assert "Holdout : pourcentage attendu dans [0, 90[." in errors
 
 
-def test_parse_walkforward_params_final_without_holdout_is_error_exact_cli_message():
+def test_parse_walkforward_params_final_without_holdout_same_rule_as_cli():
     params, errors = wf.parse_walkforward_params(
         {"strategy": "sma", "holdout": "0", "final": "1"}
     )
