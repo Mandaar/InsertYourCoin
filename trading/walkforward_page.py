@@ -16,6 +16,7 @@ toujours un dict {symbole: dict EXACT de optimizer.walk_forward}, jamais une
 forme mono-actif distincte -- pas de dispatch a deviner ici.
 """
 import html
+import math
 
 from .optimizer import MIN_TRADES
 from . import metrics_format as fmt
@@ -83,6 +84,13 @@ h1 { font-size: 18px; margin: 0 0 4px; }
 .holdout-state { font-size: 13px; }
 .holdout-state.holdout-consumed { border-color: #f0b429; background: #3a2a12; color: #ffd98a; }
 .result-error { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad; }
+
+/* Verdict holdout par actif (BUG-011) -- meme palette que .verdict-banner. */
+.holdout-verdict { font-size: 13px; margin: 8px 0 0; padding: 6px 10px;
+  border-radius: 6px; display: inline-block; }
+.holdout-verdict.v-green { background: rgba(70,196,111,.12); color: #7ee6a0; }
+.holdout-verdict.v-orange { background: rgba(240,180,41,.12); color: #ffd98a; }
+.holdout-verdict.v-red { background: rgba(229,83,75,.12); color: #ffb4ad; }
 
 .wf-card .wf-sym-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
   margin-bottom: 8px; }
@@ -378,36 +386,125 @@ def render_walkforward_launched(job_id, csrf_token) -> str:
 # --------------------------------------------------------------------------- #
 #  Resultat (render_walkforward_done)                                         #
 # --------------------------------------------------------------------------- #
+_TONE_ICON = {"green": "✓", "orange": "⚠", "red": "✗"}
+_SEVERITY_RANK = {"green": 0, "orange": 1, "red": 2}
+
+
+def _mono_severity(avg_window_metric, oos_total_return):
+    """
+    BUG-010 -- parite web/CLI pour le cas MONO-ACTIF (n_assets == 1).
+
+    `summary["robust"]` (optimizer.walk_forward_multi) degenere pour un seul
+    actif en `oos_total_return > 0` : les branches severes de la CLI
+    (metrique non finie -> "indecidable" ; forte chute de metrique ->
+    "sur-apprentissage probable") disparaissent completement. Cette fonction
+    reproduit EXACTEMENT les 4 branches de optimizer._verdict(avg_window_metric,
+    1.0, oos_total_return, wf=True) -- le meme appel que
+    optimizer.format_walk_forward (optimizer.py:422), donc la meme sortie que
+    `python main.py walkforward` sur un seul symbole (train_metric fige a 1.0
+    pour le walk-forward -> seuil "sur-apprentissage" = 0.5).
+
+    Aucun recalcul moteur : les 2 entrees sont DEJA dans
+    result["results"][sym] (trading.optimizer.walk_forward) -- uniquement de
+    la classification d'affichage. Duplication VOLONTAIRE des seuils
+    (optimizer.py:528-538, evite d'importer un symbole prive pour un texte de
+    terminal) ; couverte par un test de parite directe contre optimizer._verdict.
+    """
+    if avg_window_metric is None or not math.isfinite(avg_window_metric):
+        return "orange", "INDECIDABLE"
+    if oos_total_return is None or oos_total_return < 0 or avg_window_metric < 0:
+        return "red", "NE PAS TRADER"
+    if avg_window_metric < 0.5:  # 0.5 * max(train_metric=1.0, 1e-9)
+        return "orange", "SUR-APPRENTISSAGE PROBABLE"
+    return "green", "EDGE PLAUSIBLE"
+
+
+def _holdout_severity(metric_value, total_return):
+    """
+    BUG-011 -- parite web/CLI pour la VALIDATION FINALE (holdout sacre).
+
+    Reproduit optimizer._verdict(metric_value, 0.0, total_return) -- le meme
+    appel que optimizer.format_holdout (optimizer.py:520). train_metric=0.0 ->
+    le seuil "sur-apprentissage" (0.5 * max(0.0, 1e-9)) est quasi nul et n'est
+    en pratique jamais atteint separement du cas negatif -- conserve pour la
+    parite exacte. Entrees deja calculees par optimizer.holdout_check, aucun
+    recalcul moteur ici.
+    """
+    if metric_value is None or not math.isfinite(metric_value):
+        return "orange", "INDECIDABLE"
+    if total_return is None or total_return < 0 or metric_value < 0:
+        return "red", "NE PAS TRADER"
+    if metric_value < 0.5 * max(0.0, 1e-9):
+        return "orange", "SUR-APPRENTISSAGE PROBABLE"
+    return "green", "VALIDATION CONFIRMEE"
+
+
+def _worst_holdout_verdict(holdout_results):
+    """
+    BUG-011 -- (tone, label) le PLUS SEVERE parmi les validations finales
+    holdout rendues. Sert a qualifier/degrader le bandeau global -- jamais a
+    l'ameliorer (cf. _verdict_banner : n'ecrase le tone recherche que s'il est
+    STRICTEMENT plus severe, un holdout positif ne blanchit jamais un verdict
+    recherche deja rouge/orange).
+    """
+    worst = None
+    for res in (holdout_results or {}).values():
+        m = res["metrics"]
+        tone, label = _holdout_severity(m.get(res.get("metric")), m.get("total_return"))
+        if worst is None or _SEVERITY_RANK[tone] > _SEVERITY_RANK[worst[0]]:
+            worst = (tone, label)
+    return worst
+
+
 def _verdict_banner(result) -> str:
     """
     Bandeau verdict -- element le plus visible de toute l'app (spec §4.6).
-    Source PRIMAIRE : `summary["robust"]` (booleen, optimizer.walk_forward_multi
-    -- SOURCE DE VERITE UNIQUE, jamais recalculee ici). L'orange ne scinde QUE
-    le bucket "non robuste" (jamais le bucket "robuste") selon qu'au moins un
-    actif est OOS positif -- ce n'est PAS un re-test du booleen, seulement un
-    raffinement d'affichage a l'interieur du cas False. Icone + texte (jamais
-    la couleur seule, accessibilite).
+
+    Multi-actifs (n_assets > 1) : source PRIMAIRE `summary["robust"]`
+    (optimizer.walk_forward_multi -- SOURCE DE VERITE UNIQUE, jamais
+    recalculee ici). L'orange ne scinde QUE le bucket "non robuste" (jamais le
+    bucket "robuste") selon qu'au moins un actif est OOS positif -- ce n'est
+    PAS un re-test du booleen, seulement un raffinement d'affichage.
+
+    Mono-actif (n_assets == 1, BUG-010) : `summary["robust"]` degenere en
+    `oos_total_return > 0` et masque les branches severes de la CLI --
+    _mono_severity() restaure la parite en lisant avg_window_metric/
+    oos_total_return DIRECTEMENT depuis result["results"][sym].
+
+    BUG-011 : si une validation finale (holdout) a ete rendue et que son
+    verdict le plus severe est PLUS severe que celui de la recherche, le
+    bandeau est qualifie/degrade en consequence -- jamais un vert nu au-dessus
+    d'un holdout negatif/indecidable.
+
+    Icone + texte toujours (jamais la couleur seule, accessibilite spec §8).
     """
     summary = result["summary"]
     n_assets = summary["n_assets"]
     n_positive = summary["n_positive"]
     per_symbol = result["results"]
 
-    if summary["robust"]:
-        tone, icon, label = "green", "✓", "EDGE PLAUSIBLE"
-    elif n_positive > 0:
-        tone, icon, label = "orange", "⚠", "FRAGILE / MITIGE"
-    else:
-        tone, icon, label = "red", "✗", "PAS D'EDGE FIABLE"
-
     if n_assets == 1 and per_symbol:
         sym, res = next(iter(per_symbol.items()))
+        tone, label = _mono_severity(res.get("avg_window_metric"), res.get("oos_total_return"))
         n_win = len(res["windows"])
         n_prof = round(res["pct_profitable"] * n_win) if n_win else 0
         detail = f"({n_prof} / {n_win} fenetres profitables sur {sym})"
     else:
+        if summary["robust"]:
+            tone, label = "green", "EDGE PLAUSIBLE"
+        elif n_positive > 0:
+            tone, label = "orange", "FRAGILE / MITIGE"
+        else:
+            tone, label = "red", "PAS D'EDGE FIABLE"
         detail = f"({n_positive} / {n_assets} actifs OOS positifs)"
 
+    worst_holdout = _worst_holdout_verdict(result.get("holdout"))
+    if worst_holdout and _SEVERITY_RANK[worst_holdout[0]] > _SEVERITY_RANK[tone]:
+        tone, holdout_label = worst_holdout
+        label = f"{label} -- VALIDATION FINALE : {holdout_label}"
+        detail += f" ; holdout sacre : {holdout_label.lower()}"
+
+    icon = _TONE_ICON[tone]
     return (
         f"<div class='verdict-banner v-{tone}'>"
         f"<span class='v-icon'>{icon}</span>"
@@ -504,6 +601,13 @@ def _holdout_block(result) -> str:
                 f"<p class='wf-warn'>Tres peu de trades sur le holdout (&lt; {MIN_TRADES}) : "
                 "resultat peu significatif statistiquement.</p>"
             )
+        # BUG-011 : verdict CLI equivalent (optimizer._verdict via
+        # _holdout_severity) toujours rendu -- pas seulement des chiffres bruts.
+        v_tone, v_label = _holdout_severity(m.get(res.get("metric")), m.get("total_return"))
+        verdict_html = (
+            f"<p class='holdout-verdict v-{v_tone}'>{_TONE_ICON[v_tone]} "
+            f"Verdict validation finale : <strong>{_esc(v_label)}</strong></p>"
+        )
         blocks.append(
             "<div class='card wf-card'>"
             "<div class='wf-sym-head'>"
@@ -515,6 +619,7 @@ def _holdout_block(result) -> str:
             f"<p class='muted'>Sharpe : {fmt.num(m['sharpe'])} &middot; "
             f"DD max : {fmt.pct(m['max_drawdown'], signed=False)} &middot; "
             f"Trades : {m['n_trades']}</p>"
+            + verdict_html
             + warn +
             "</div>"
         )

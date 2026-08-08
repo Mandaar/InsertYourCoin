@@ -7,14 +7,19 @@ pour verifier l'integration reelle avec optimizer.walk_forward_multi/holdout_che
 
 Le bandeau verdict (_verdict_banner) lit `result["summary"]` tel quel (SOURCE DE
 VERITE UNIQUE, jamais recalculee cote rendu -- cf. optimizer.py commentaire
-lignes 326-329) : les 3 tests de verdict mutent directement ces champs plutot
-que de chercher des donnees qui produiraient chaque cas par hasard.
+lignes 326-329) POUR LE CAS MULTI-ACTIFS SEULEMENT. Pour le cas MONO-ACTIF
+(n_assets == 1, BUG-010), le bandeau lit directement avg_window_metric /
+oos_total_return de result["results"][sym] via wf._mono_severity -- les tests
+de verdict mono mutent donc CES champs (pas `summary`, qui est ignore dans ce
+cas). Les tests "*_mono_parity_with_cli*" verifient que wf._mono_severity ne
+diverge JAMAIS de optimizer._verdict sur les memes entrees (parite stricte).
 """
 import numpy as np
 import pytest
 
 from trading import research_runners as rr
 from trading import walkforward_page as wf
+from trading.optimizer import _verdict as cli_verdict
 from trading.strategies import STRATEGIES
 
 
@@ -241,9 +246,23 @@ def test_render_walkforward_launched_embeds_job_panel():
 # --------------------------------------------------------------------------- #
 #  render_walkforward_done -- bandeau VERDICT (element le plus visible)       #
 # --------------------------------------------------------------------------- #
+def _set_mono_result(result, avg_window_metric, oos_total_return):
+    """Mono-actif (n_assets == 1, BUG-010) : le bandeau ignore desormais
+    `summary["robust"]` et lit avg_window_metric/oos_total_return DIRECTEMENT
+    depuis result["results"][sym] -- ce helper mute ces champs (pas summary,
+    qui n'est plus la source pour ce cas)."""
+    sym = next(iter(result["results"]))
+    res = dict(result["results"][sym], avg_window_metric=avg_window_metric,
+              oos_total_return=oos_total_return)
+    result["results"] = {sym: res}
+    result["summary"] = dict(result["summary"], n_assets=1,
+                             n_positive=(1 if oos_total_return and oos_total_return > 0 else 0))
+    return result
+
+
 def test_render_walkforward_done_verdict_green_when_robust(make_df, monkeypatch):
     result = _real_result(make_df, monkeypatch)
-    result["summary"] = dict(result["summary"], robust=True, n_positive=1, n_assets=1)
+    result = _set_mono_result(result, avg_window_metric=0.8, oos_total_return=0.05)
     out = wf.render_walkforward_done(result)
     assert "v-green" in out
     assert "EDGE PLAUSIBLE" in out
@@ -260,22 +279,71 @@ def test_render_walkforward_done_verdict_orange_when_fragile(make_df, monkeypatc
 
 def test_render_walkforward_done_verdict_red_when_no_edge(make_df, monkeypatch):
     result = _real_result(make_df, monkeypatch)
-    result["summary"] = dict(result["summary"], robust=False, n_positive=0, n_assets=1)
+    result = _set_mono_result(result, avg_window_metric=-0.4, oos_total_return=-0.10)
     out = wf.render_walkforward_done(result)
     assert "v-red" in out
-    assert "PAS D" in out
-    assert "FIABLE" in out
+    assert "NE PAS TRADER" in out
 
 
 def test_render_walkforward_done_verdict_banner_pairs_icon_with_label(make_df, monkeypatch):
     # Daltonisme (spec §8) : jamais la couleur seule -- icone ET libelle textuel
     # doivent accompagner la classe de couleur du bandeau.
     result = _real_result(make_df, monkeypatch)
-    result["summary"] = dict(result["summary"], robust=False, n_positive=0, n_assets=1)
+    result = _set_mono_result(result, avg_window_metric=-0.4, oos_total_return=-0.10)
     out = wf.render_walkforward_done(result)
     assert "v-icon" in out
     assert "v-label" in out
     assert "VERDICT :" in out
+
+
+# --------------------------------------------------------------------------- #
+#  BUG-010 -- parite mono-actif web/CLI (sur-apprentissage / indecidable)     #
+# --------------------------------------------------------------------------- #
+def test_render_walkforward_done_mono_orange_overfit_scenario_never_green(make_df, monkeypatch):
+    # Scenario exact du ticket BUG-010 : 4 fenetres, sharpe moyen 0.2 (fini),
+    # OOS cumule legerement positif (+0.4%) -> CLI dit "sur-apprentissage
+    # probable" (optimizer._verdict: 0.2 < 0.5). Avant le fix : summary["robust"]
+    # degenere en `oos_total_return > 0` -> bandeau VERT survendu.
+    result = _real_result(make_df, monkeypatch)
+    result = _set_mono_result(result, avg_window_metric=0.2, oos_total_return=0.004)
+    out = wf.render_walkforward_done(result)
+    assert "<div class='verdict-banner v-green'>" not in out
+    assert "<div class='verdict-banner v-orange'>" in out
+    assert "SUR-APPRENTISSAGE PROBABLE" in out
+
+
+def test_render_walkforward_done_mono_orange_when_metric_nan_is_indecidable(make_df, monkeypatch):
+    result = _real_result(make_df, monkeypatch)
+    result = _set_mono_result(result, avg_window_metric=float("nan"), oos_total_return=0.01)
+    out = wf.render_walkforward_done(result)
+    assert "<div class='verdict-banner v-green'>" not in out
+    assert "<div class='verdict-banner v-orange'>" in out
+    assert "INDECIDABLE" in out
+
+
+def test_mono_severity_parity_with_cli_verdict_across_scenarios():
+    # V16 : chaque scenario est verifie INDIVIDUELLEMENT contre optimizer._verdict
+    # (le meme appel que la CLI, cf. optimizer.py:422) -- jamais un echantillon.
+    scenarios = [
+        (float("nan"), 0.01, "indecidable"),
+        (float("inf"), 0.01, "indecidable"),
+        (-0.4, -0.1, "negative"),
+        (0.2, 0.004, "sur-apprentissage"),
+        (0.9, 0.05, None),  # succes (pas de mot-cle d'alarme)
+    ]
+    for avg_metric, oos, keyword in scenarios:
+        tone, label = wf._mono_severity(avg_metric, oos)
+        cli_lines = cli_verdict(avg_metric, 1.0, oos, wf=True)
+        cli_text = " ".join(cli_lines)
+        if keyword in ("indecidable", "sur-apprentissage"):
+            assert keyword in cli_text, (avg_metric, oos, cli_text)
+            assert tone == "orange", (avg_metric, oos, tone, cli_text)
+        elif keyword == "negative":
+            assert "negative" in cli_text or "Ne pas trader" in cli_text
+            assert tone == "red", (avg_metric, oos, tone, cli_text)
+        else:
+            assert cli_lines[0].startswith("✓"), (avg_metric, oos, cli_text)
+            assert tone == "green", (avg_metric, oos, tone, cli_text)
 
 
 # --------------------------------------------------------------------------- #
@@ -317,6 +385,85 @@ def test_render_walkforward_done_shows_low_trades_warning_on_holdout(make_df, mo
     result["holdout"] = {sym: h}
     out = wf.render_walkforward_done(result)
     assert "Tres peu de trades sur le holdout" in out
+
+
+# --------------------------------------------------------------------------- #
+#  BUG-011 -- un holdout qui echoue qualifie le bandeau + verdict rendu       #
+# --------------------------------------------------------------------------- #
+def test_render_walkforward_done_holdout_negative_downgrades_green_banner(make_df, monkeypatch):
+    result = _real_result(make_df, monkeypatch, holdout_pct=20.0, final=True)
+    result = _set_mono_result(result, avg_window_metric=0.8, oos_total_return=0.05)
+    sym = next(iter(result["holdout"]))
+    h = dict(result["holdout"][sym])
+    h["metrics"] = dict(h["metrics"], total_return=-0.2, sharpe=-0.5)
+    result["holdout"] = {sym: h}
+    out = wf.render_walkforward_done(result)
+    # BUG-011 : le holdout negatif est STRICTEMENT plus severe (rouge) que le
+    # verdict recherche (vert) -- le bandeau ne doit JAMAIS rester vert nu.
+    assert "<div class='verdict-banner v-red'>" in out
+    assert "<div class='verdict-banner v-green'>" not in out
+    assert "VALIDATION FINALE :" in out
+    assert "NE PAS TRADER" in out
+
+
+def test_render_walkforward_done_holdout_negative_shows_per_symbol_verdict(make_df, monkeypatch):
+    result = _real_result(make_df, monkeypatch, holdout_pct=20.0, final=True)
+    sym = next(iter(result["holdout"]))
+    h = dict(result["holdout"][sym])
+    h["metrics"] = dict(h["metrics"], total_return=-0.2, sharpe=-0.5)
+    result["holdout"] = {sym: h}
+    out = wf.render_walkforward_done(result)
+    assert "holdout-verdict v-red" in out
+    assert "Verdict validation finale" in out
+    assert "NE PAS TRADER" in out
+
+
+def test_render_walkforward_done_holdout_indecidable_downgrades_banner_to_orange(make_df, monkeypatch):
+    result = _real_result(make_df, monkeypatch, holdout_pct=20.0, final=True)
+    result = _set_mono_result(result, avg_window_metric=0.8, oos_total_return=0.05)
+    sym = next(iter(result["holdout"]))
+    h = dict(result["holdout"][sym])
+    h["metrics"] = dict(h["metrics"], sharpe=float("nan"))
+    result["holdout"] = {sym: h}
+    out = wf.render_walkforward_done(result)
+    assert "<div class='verdict-banner v-orange'>" in out
+    assert "<div class='verdict-banner v-green'>" not in out
+    assert "INDECIDABLE" in out
+
+
+def test_render_walkforward_done_holdout_positive_never_upgrades_bad_research_banner(make_df, monkeypatch):
+    # Un holdout POSITIF ne doit jamais "blanchir" un verdict recherche deja
+    # rouge -- _worst_holdout_verdict ne fait QUE degrader, jamais ameliorer.
+    result = _real_result(make_df, monkeypatch, holdout_pct=20.0, final=True)
+    result = _set_mono_result(result, avg_window_metric=-0.4, oos_total_return=-0.10)
+    sym = next(iter(result["holdout"]))
+    h = dict(result["holdout"][sym])
+    h["metrics"] = dict(h["metrics"], total_return=0.15, sharpe=0.9)
+    result["holdout"] = {sym: h}
+    out = wf.render_walkforward_done(result)
+    assert "<div class='verdict-banner v-red'>" in out
+    assert "<div class='verdict-banner v-green'>" not in out
+
+
+def test_holdout_severity_parity_with_cli_verdict_across_scenarios():
+    scenarios = [
+        (float("nan"), 0.02, "indecidable"),
+        (-0.5, -0.2, "negative"),
+        (0.9, 0.15, None),  # succes
+    ]
+    for metric_value, total_return, keyword in scenarios:
+        tone, label = wf._holdout_severity(metric_value, total_return)
+        cli_lines = cli_verdict(metric_value, 0.0, total_return)
+        cli_text = " ".join(cli_lines)
+        if keyword == "indecidable":
+            assert "indecidable" in cli_text, (metric_value, total_return, cli_text)
+            assert tone == "orange", (metric_value, total_return, tone, cli_text)
+        elif keyword == "negative":
+            assert "negative" in cli_text or "Ne pas trader" in cli_text
+            assert tone == "red", (metric_value, total_return, tone, cli_text)
+        else:
+            assert cli_lines[0].startswith("✓"), (metric_value, total_return, cli_text)
+            assert tone == "green", (metric_value, total_return, tone, cli_text)
 
 
 # --------------------------------------------------------------------------- #
