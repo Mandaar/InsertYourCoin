@@ -112,8 +112,12 @@ def _settings_card(keys_ok):
         "<div class='btnrow'>"
         "<a class='hublink' href='/options'>Options</a>"
         "<a class='hublink' href='/help'>Aide</a>"
-        "<span class='soon-link'>passer en live"
-        "<span class='soon'>bientôt</span></span>"
+        # Lot 8 (docs/design/LOT8_LIVE_SPEC.md §1.0) : lien DISCRET vers
+        # l'ecran verrouille -- /live n'est PAS un onglet de la nav
+        # principale (N7) et ce lien est le SEUL point d'entree depuis
+        # l'Accueil. La destination est le vrai mur verrouille : aucune
+        # action reelle n'est possible sans y repasser toutes les gardes.
+        "<a class='hublink' href='/live'>passer en live</a>"
         "</div></div>"
     )
 

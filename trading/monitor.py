@@ -63,6 +63,8 @@ from .stats_page import render_stats_page
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
 from .jobs import JobBusy, JobManager
 from . import compare_page
+from . import live_control
+from . import live_page
 from . import optimize_page
 from . import paper_page
 from . import portfolio_page
@@ -933,6 +935,23 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     # permet a l'Accueil d'afficher "verifie a HH:MM:SS" sans jamais appeler
     # Kraken lui-meme au chargement (cf. diagnostics_web.run_web_check).
     _last_check = {"value": None}
+    # Lot 8 (live verrouille) : nonces d'armement du reel, EN MEMOIRE serveur
+    # uniquement (jamais persistes -- un redemarrage invalide tout armement
+    # en cours, friction assumee). Cf. trading/live_control.ArmTokenStore.
+    _arm_tokens = live_control.ArmTokenStore()
+    # BUG-015 (P0, gate independante Lot 8) : ThreadingHTTPServer => chaque
+    # POST /live/start tourne dans son propre thread. Verifier
+    # live_control.live_identity() (aucun live en cours) PUIS spawn PUIS
+    # ecrire le pid file n'est PAS atomique sans verrou -- deux threads
+    # porteurs chacun d'un nonce distinct et valide peuvent tous deux lire
+    # "aucun live" avant que l'un des deux ait ecrit son pid (reproduit
+    # 10/10 par la gate, docs/audit/GATE_LOT8_LIVE.md FAIL-1). Ce Lock
+    # serialise EXACTEMENT cette sequence (identite -> spawn -> pid file),
+    # pour les deux modes (dry ET reel -- un double dry-run pollue aussi le
+    # pid file/sidecar). Il ne protege QUE la fenetre de demarrage, jamais
+    # le reste du handler (GET /live, /live/arm, /live/stop restent hors
+    # verrou : rien n'y spawn).
+    _live_start_lock = threading.Lock()
 
     def _compute_view_now():
         """Relit les 3 fichiers et calcule la vue (factorise pour les deux routes)."""
@@ -1238,6 +1257,214 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 errors=["Action inconnue."],
             )
 
+        # ------------------------------------------------------------- #
+        #  Lot 8 -- Live verrouille (/live). P0 (argent reel). Suit      #
+        #  docs/design/LOT8_LIVE_SPEC.md a la lettre : deux round-trips  #
+        #  serveur (/live/arm PUIS /live/start) pour le reel, dry-run    #
+        #  par defaut, aucun plafond ni cle en argument (N4/N6),         #
+        #  re-validation des pre-requis a CHAQUE etape (N10).            #
+        # ------------------------------------------------------------- #
+        def _live_check_ok(self):
+            val = _last_check["value"]
+            return bool(val and val.get("ok"))
+
+        def _live_prereq(self):
+            # Pre-requis (A) RE-TESTES ici -- jamais mis en cache (N10) :
+            # cet appel est refait a CHAQUE round-trip (GET /live, POST
+            # /live/arm, POST /live/start).
+            return live_control.check_prerequisites_a(
+                keys_configured(), self._live_check_ok(), state_path.exists(),
+            )
+
+        def _live_get(self):
+            pid, running, start_ts = live_control.live_identity(root)
+            if running:
+                sidecar = live_control.read_live_sidecar(
+                    live_control.live_sidecar_path(root)) or {}
+                now_str = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                live_stats = read_last_stats(root / "live_stats.csv")
+                live_log = tail_log(root / "live_trades.log", 60)
+                # state=None (le live n'ecrit pas de JSON d'etat comme le
+                # paper) -- compute_view deduit "investi" depuis l'exposition.
+                view = compute_view(None, live_stats, live_log,
+                                    config.INITIAL_CAPITAL, now_str)
+                return live_page.render_live_running(sidecar, pid, start_ts,
+                                                      csrf_token, view)
+            prereq = self._live_prereq()
+            return live_page.render_live_wall(
+                prereq, keys_configured(), self._live_check_ok(),
+                state_path.exists(), csrf_token,
+            )
+
+        def _live_arm_post(self, form):
+            # Round-trip 1 du reel (spec §1.3). AVANT tout nonce : re-valide
+            # (A) cote serveur, exige les 3 attestations (B) et mode=="reel"
+            # EXACTEMENT -- un seul manque -> AUCUN nonce emis (N2).
+            prereq = self._live_prereq()
+            mode_ok = live_control.resolve_execute(form)
+            attest_ok = live_control.attestations_ok(form)
+            if not (prereq["ok"] and attest_ok and mode_ok):
+                msgs = []
+                if not prereq["ok"]:
+                    msgs.append(live_page.prereq_refusal_message(prereq))
+                if not attest_ok:
+                    msgs.append("Les 3 attestations doivent être cochées avant "
+                                "de continuer en réel.")
+                if not mode_ok:
+                    msgs.append("Mode réel non demandé.")
+                return live_page.render_live_wall(
+                    prereq, keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token, errors=msgs, values=form,
+                )
+            params, errors = live_page.parse_live_params(form)
+            if errors:
+                return live_page.render_live_wall(
+                    prereq, keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token, errors=errors, values=form,
+                )
+            nonce = _arm_tokens.create(params)
+            return live_page.render_live_recap(params, nonce, csrf_token)
+
+        def _live_start_post(self, form):
+            mode = (form.get("mode") or "").strip().lower()
+
+            if mode == "dry":
+                # Chemin court dry-run (spec §1.5) : AUCUN nonce/phrase
+                # exige -- seulement (A.1) cles + CSRF + host (deja verifies
+                # par l'appelant). Un mode absent/ambigu ne demarre RIEN
+                # (fail-safe N3), gere par le "else" plus bas.
+                if not keys_configured():
+                    return live_page.render_live_wall(
+                        self._live_prereq(), False, self._live_check_ok(),
+                        state_path.exists(), csrf_token,
+                        errors=["Clés API manquantes. Renseigne .env (voir "
+                                ".env.example) avant le mode live."],
+                    )
+                params, errors = live_page.parse_live_params(form)
+                if errors:
+                    return live_page.render_live_wall(
+                        self._live_prereq(), keys_configured(),
+                        self._live_check_ok(), state_path.exists(), csrf_token,
+                        errors=errors, values=form,
+                    )
+                # BUG-015 : identite -> spawn -> pid file, EN UN SEUL BLOC
+                # atomique (deux dry-run concurrents doivent aussi etre
+                # refuses -- meme pid file/sidecar que le reel).
+                with _live_start_lock:
+                    _pid, running, _start_ts = live_control.live_identity(root)
+                    if running:
+                        return self._live_get()
+                    try:
+                        live_control.start_live_process(root, params, execute=False)
+                    except OSError as exc:
+                        try:
+                            (root / "logs" / "live_error.log").write_text(
+                                f"demarrage live (dry) ECHEC : {type(exc).__name__}: {exc}\n",
+                                encoding="utf-8")
+                        except OSError:
+                            pass
+                        return live_page.render_live_wall(
+                            self._live_prereq(), keys_configured(),
+                            self._live_check_ok(), state_path.exists(), csrf_token,
+                            errors=[f"Échec du démarrage (simulation) : {exc}"],
+                        )
+                    return self._live_get()
+
+            # --- Chemin REEL (round-trip 2, spec §1.4) --------------------
+            nonce = form.get("nonce")
+            params = _arm_tokens.peek_params(nonce)
+            if params is None:
+                # Nonce absent/inconnu/consomme/expire -> REFUS, AUCUN spawn
+                # (N2). Un POST /live/start direct (sans /live/arm prealable)
+                # tombe TOUJOURS ici.
+                return live_page.render_live_wall(
+                    self._live_prereq(), keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token,
+                    errors=["Armement expiré ou invalide. Recommence depuis "
+                            "le début."],
+                )
+            prereq = self._live_prereq()  # RE-validation cote serveur (N10)
+            if not prereq["ok"]:
+                return live_page.render_live_wall(
+                    prereq, keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token,
+                    errors=["Un pré-requis a changé depuis l'armement. Annulé. "
+                            "(Aucun ordre envoyé.)"],
+                )
+            if mode != "reel":
+                return live_page.render_live_wall(
+                    prereq, keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token,
+                    errors=["Annulé. (Aucun ordre envoyé.)"],
+                )
+            phrase = form.get("phrase")
+            if not live_control.phrase_ok(phrase):
+                still_valid = _arm_tokens.register_failed_phrase(nonce)
+                if still_valid:
+                    return live_page.render_live_recap(
+                        params, nonce, csrf_token,
+                        errors=["Phrase incorrecte. Annulé. (Aucun ordre envoyé.)"],
+                    )
+                return live_page.render_live_wall(
+                    self._live_prereq(), keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token,
+                    errors=["Annulé. (Aucun ordre envoyé.) Trop de tentatives : "
+                            "recommence depuis le début."],
+                )
+            # "Un seul live a la fois" (spec §1.4.6). BUG-015 : identite ->
+            # consommation du nonce -> spawn -> pid file, EN UN SEUL BLOC
+            # atomique (_live_start_lock) -- sans lui, deux threads porteurs
+            # chacun d'un nonce distinct et valide peuvent tous deux lire
+            # "aucun live en cours" avant que l'un des deux ait ecrit son pid
+            # (reproduit 10/10 par la gate independante, FAIL-1). Le verrou
+            # n'engage que cette fenetre de demarrage, jamais la duree de vie
+            # du trader (le process reste detache, aucun changement d'archi).
+            with _live_start_lock:
+                _pid, running, _start_ts = live_control.live_identity(root)
+                if running:
+                    return self._live_get()
+                # Tout est verifie -> consomme le nonce (USAGE UNIQUE) puis spawn.
+                confirmed_params = _arm_tokens.consume(nonce)
+                if confirmed_params is None:
+                    # Rejeu du meme POST apres un 1er succes : le nonce a deja
+                    # ete consomme -> AUCUN spawn (N2, anti-rejeu).
+                    return live_page.render_live_wall(
+                        self._live_prereq(), keys_configured(), self._live_check_ok(),
+                        state_path.exists(), csrf_token,
+                        errors=["Armement expiré ou invalide. Recommence depuis "
+                                "le début."],
+                    )
+                try:
+                    live_control.start_live_process(root, confirmed_params, execute=True)
+                except OSError as exc:
+                    try:
+                        (root / "logs" / "live_error.log").write_text(
+                            f"demarrage live (reel) ECHEC : {type(exc).__name__}: {exc}\n",
+                            encoding="utf-8")
+                    except OSError:
+                        pass
+                    return live_page.render_live_wall(
+                        self._live_prereq(), keys_configured(), self._live_check_ok(),
+                        state_path.exists(), csrf_token,
+                        errors=[f"Échec du démarrage (réel) : {exc}"],
+                    )
+                return self._live_get()
+
+        def _live_stop_post(self, form):
+            pid, running, _start_ts = live_control.live_identity(root)
+            if not running or pid is None:
+                # Identite non confirmee (BUG-009) est deja NETTOYEE par
+                # live_identity -- on n'appelle JAMAIS terminate_pid ici.
+                return live_page.render_live_wall(
+                    self._live_prereq(), keys_configured(), self._live_check_ok(),
+                    state_path.exists(), csrf_token,
+                    errors=["Aucun live en cours (rien à arrêter)."],
+                )
+            lancer.terminate_pid(pid)
+            lancer.remove_pid_file(live_control.live_pid_path(root))
+            live_control.remove_live_sidecar(live_control.live_sidecar_path(root))
+            return live_page.render_live_stopped()
+
         def _stats_page(self):
             qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             requested = (qs.get("file", [""])[0] or "").strip()
@@ -1354,6 +1581,13 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     if not self._host_ok():
                         return
                     self._send_html(self._paper_get())
+                    return
+                if self.path == "/live" or self.path.startswith("/live?"):
+                    # Lot 8 : GET exact seulement ("/live/arm" etc. sont des
+                    # routes POST -- pas de sous-route GET, cf. §7.1).
+                    if not self._host_ok():
+                        return
+                    self._send_html(self._live_get())
                     return
                 if self.path.startswith("/check"):
                     if not self._host_ok():
@@ -1496,6 +1730,48 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 )
                     return
                 self._send_html(self._paper_post(form))
+                return
+            if self.path.startswith("/live/arm"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
+                    return
+                self._send_html(self._live_arm_post(form))
+                return
+            if self.path.startswith("/live/start"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
+                    return
+                self._send_html(self._live_start_post(form))
+                return
+            if self.path.startswith("/live/stop"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html(
+                    _error_page("403 - Jeton CSRF invalide",
+                                "Ce formulaire a expiré ou provient d'une autre "
+                                "page. Recharge la page et réessaie."),
+                    code=403,
+                )
+                    return
+                self._send_html(self._live_stop_post(form))
                 return
             if self.path.startswith("/server/stop"):
                 if not self._host_ok():

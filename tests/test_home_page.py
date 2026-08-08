@@ -3,6 +3,11 @@ Tests de l'ecran Accueil (/) -- trading/home_page.py, cibles sur le point
 P2-2 de l'audit L0-5 : le lien "passer en live" ne doit JAMAIS pointer vers
 une mauvaise destination (ex. /options) sous un libelle qui promet le live.
 
+Lot 8 (docs/design/LOT8_LIVE_SPEC.md §1.0) : /live existe desormais --
+"passer en live" est un lien ACTIF, mais DISCRET (pas dans la nav
+principale, cf. trading/webui.py NAV_ITEMS/ENABLED_SCREENS ou N7) et pointe
+VERS LE MUR VERROUILLE lui-meme (/live), jamais une autre destination.
+
 Fonctions PURES : aucun reseau, `render_home_page` prend toutes ses donnees
 en parametres (paper_view/check_cache/keys_ok/truststore_ok).
 """
@@ -27,14 +32,14 @@ def test_live_link_is_not_an_active_anchor_to_options():
             raise AssertionError(f"lien actif vers /options avec le mot 'live' : {line[:80]!r}")
 
 
-def test_live_mention_is_disabled_not_a_live_link():
-    """Le concept "live" reste visible (transparence) mais SANS lien actif --
-    meme patron que le reste de l'app pour le "pas encore livre" (span
-    disabled + badge, jamais un <a> vers une destination arbitraire)."""
+def test_live_link_points_to_live_wall_and_is_discreet():
+    """Lot 8 : "passer en live" est desormais un vrai lien, mais UNIQUEMENT
+    vers /live (le mur verrouille) -- jamais /options ni une autre route --
+    et il n'apparait PAS dans la nav principale (webui.NAV_ITEMS)."""
     out = _render()
-    assert "passer en live" in out
-    assert "<span class='soon-link'>passer en live" in out
-    assert "<span class='soon'>bientôt</span>" in out
+    assert "<a class='hublink' href='/live'>passer en live</a>" in out
+    # Toujours absent de la nav persistante (N7 -- pas d'onglet /live).
+    assert "href='/live'" not in out.split("<div class='hub'>", 1)[0]
 
 
 def test_help_link_is_active_and_points_to_help_route():

@@ -547,3 +547,31 @@ def test_do_start_check_subprocess_inherits_console_when_not_headless(tmp_path, 
 
     assert lancer.do_start(tmp_path) == 1
     assert captured["stdout"] is None and captured["stderr"] is None
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 8 (item §5.4 de la spec) -- non-regression du garde-fou paper-only :   #
+#  AUCUNE commande construite par lancer.py ne contient jamais "live", meme   #
+#  maintenant que trading/live_control.py sait construire "main.py live      #
+#  --execute" (module SEPARE, qui n'importe/n'appelle JAMAIS assert_paper_   #
+#  only ni les build_*_command de ce fichier -- cf. N7).                     #
+# --------------------------------------------------------------------------- #
+def test_lanceur_ne_construit_jamais_live(tmp_path):
+    builders = [
+        lancer.build_check_command(tmp_path),
+        lancer.build_paper_command(tmp_path),
+        lancer.build_monitor_command(tmp_path),
+        lancer.build_paper_command_params(tmp_path, {
+            "strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+            "stop_loss": "5", "take_profit": "10",
+        }),
+    ]
+    for cmd in builders:
+        for token in cmd[2:]:  # cmd[0]/cmd[1] = interpreteur/script, hors perimetre
+            assert "live" not in str(token).lower()
+    # lancer.py n'expose AUCUN constructeur de commande live -- le seul
+    # chemin autorise vit dans trading/live_control.build_live_command
+    # (module distinct, jamais importe par lancer.py).
+    assert not hasattr(lancer, "build_live_command")
+    import inspect
+    assert "live_control" not in inspect.getsource(lancer)
