@@ -9,6 +9,7 @@ routes de bout en bout -- ce qui aurait attrape la typo.
 """
 import json
 import math
+import os
 import re
 import threading
 import time
@@ -37,6 +38,27 @@ def server(tmp_path, monkeypatch):
     t.start()
     try:
         yield f"http://127.0.0.1:{srv.server_address[1]}"
+    finally:
+        srv.shutdown()
+
+
+@pytest.fixture()
+def server_obj(tmp_path, monkeypatch):
+    """Comme `server`, mais expose aussi l'objet serveur ET force root=tmp_path
+    (jamais le run/monitor.pid ni les commandes de respawn du VRAI projet) --
+    necessaire pour monkeypatcher shutdown()/spawn dans les tests stop/restart
+    sans jamais toucher au monitor reel de la machine."""
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    monkeypatch.setattr(mon, "project_root", lambda: tmp_path)
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json")
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield f"http://127.0.0.1:{srv.server_address[1]}", srv
     finally:
         srv.shutdown()
 
@@ -735,3 +757,201 @@ def test_route_research_lot5_screens_refuse_second_job_while_busy(
     assert "class='job-panel'" in page
 
     release.set()
+
+
+# --------------------------------------------------------------------------- #
+#  Serveur web : arret / redemarrage (Options) -- CONTROLE UNIQUEMENT le      #
+#  serveur, jamais le paper trading. shutdown()/spawn TOUJOURS mockes ici :   #
+#  ces tests ne doivent ni couper le serveur de test avant la fin des         #
+#  assertions, ni lancer un VRAI process.                                     #
+# --------------------------------------------------------------------------- #
+def test_route_server_stop_sans_csrf_rejete(server_obj):
+    url, srv = server_obj
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(url + "/server/stop", {})
+    assert exc.value.code == 403
+
+
+def test_route_server_stop_avec_csrf_repond_puis_demande_arret(server_obj, monkeypatch):
+    url, srv = server_obj
+    called = threading.Event()
+    monkeypatch.setattr(srv, "shutdown", lambda: called.set())
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/server/stop", {"csrf_token": token})
+    assert code == 200
+    assert "arret" in page.lower()
+    assert "n'est pas touche" in page.lower() or "continue" in page.lower()
+
+    # L'arret est demande APRES la reponse, dans un thread separe (sinon la
+    # requete ne recevrait jamais sa reponse -- cf. do_POST /server/stop).
+    assert called.wait(timeout=2)
+
+
+def test_route_server_stop_cleans_own_pid_file(server_obj, monkeypatch, tmp_path):
+    url, srv = server_obj
+    monkeypatch.setattr(srv, "shutdown", lambda: None)  # pas de vrai arret ici
+    (tmp_path / "run").mkdir(exist_ok=True)
+    pid_path = tmp_path / "run" / "monitor.pid"
+    pid_path.write_text(f"{os.getpid()}:1700000000.0", encoding="ascii")
+
+    token = _csrf_token(url)
+    _post(url + "/server/stop", {"csrf_token": token})
+
+    deadline = time.time() + 2
+    while time.time() < deadline and pid_path.exists():
+        time.sleep(0.02)
+    assert not pid_path.exists()
+
+
+def test_route_server_stop_does_not_remove_pid_file_of_other_process(
+    server_obj, monkeypatch, tmp_path,
+):
+    # Garde-fou identite (meme esprit que lancer.py is_our_process) : un pid
+    # file qui ne pointe PAS ce process n'est jamais touche.
+    url, srv = server_obj
+    monkeypatch.setattr(srv, "shutdown", lambda: None)
+    (tmp_path / "run").mkdir(exist_ok=True)
+    pid_path = tmp_path / "run" / "monitor.pid"
+    pid_path.write_text("999999999:1700000000.0", encoding="ascii")
+
+    token = _csrf_token(url)
+    _post(url + "/server/stop", {"csrf_token": token})
+    time.sleep(0.2)
+    assert pid_path.exists()
+    assert pid_path.read_text(encoding="ascii") == "999999999:1700000000.0"
+
+
+def test_route_server_stop_ne_touche_jamais_paper_pid(server_obj, monkeypatch, tmp_path):
+    # Garde-fou explicite du perimetre (brief) : le bouton stop ne controle
+    # QUE le serveur web, jamais le paper trading.
+    url, srv = server_obj
+    monkeypatch.setattr(srv, "shutdown", lambda: None)
+    (tmp_path / "run").mkdir(exist_ok=True)
+    paper_pid = tmp_path / "run" / "paper.pid"
+    paper_pid.write_text("424242:1700000000.0", encoding="ascii")
+
+    token = _csrf_token(url)
+    _post(url + "/server/stop", {"csrf_token": token})
+    time.sleep(0.2)
+    assert paper_pid.read_text(encoding="ascii") == "424242:1700000000.0"
+
+
+def test_route_server_restart_sans_csrf_rejete(server_obj):
+    url, srv = server_obj
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(url + "/server/restart", {})
+    assert exc.value.code == 403
+
+
+def test_route_server_restart_avec_csrf_repond_puis_relance(server_obj, monkeypatch):
+    url, srv = server_obj
+    shutdown_called = threading.Event()
+    monkeypatch.setattr(srv, "shutdown", lambda: shutdown_called.set())
+    monkeypatch.setattr(srv, "server_close", lambda: None)
+    spawned = []
+    monkeypatch.setattr(
+        mon, "_spawn_detached_monitor",
+        lambda cmd, log_path, cwd: spawned.append((cmd, log_path, cwd)) or 999999,
+    )
+
+    token = _csrf_token(url)
+    code, page = _post(url + "/server/restart", {"csrf_token": token})
+    assert code == 200
+    assert "redemarr" in page.lower()
+
+    assert shutdown_called.wait(timeout=2)
+    deadline = time.time() + 2
+    while time.time() < deadline and not spawned:
+        time.sleep(0.02)
+    assert spawned, "un nouveau process monitor aurait du etre (re)spawn (mocke)"
+    cmd, log_path, cwd = spawned[0]
+    assert "monitor" in cmd and "--port" in cmd
+
+
+def test_route_server_restart_writes_new_pid_file(server_obj, monkeypatch, tmp_path):
+    url, srv = server_obj
+    monkeypatch.setattr(srv, "shutdown", lambda: None)
+    monkeypatch.setattr(srv, "server_close", lambda: None)
+    monkeypatch.setattr(mon, "_spawn_detached_monitor",
+                        lambda cmd, log_path, cwd: 123456)
+
+    token = _csrf_token(url)
+    _post(url + "/server/restart", {"csrf_token": token})
+
+    pid_path = tmp_path / "run" / "monitor.pid"
+    deadline = time.time() + 2
+    while time.time() < deadline and not pid_path.exists():
+        time.sleep(0.02)
+    assert pid_path.exists()
+    assert pid_path.read_text(encoding="ascii").split(":", 1)[0] == "123456"
+
+
+def test_service_thread_est_non_daemon():
+    # BUG-014 : avec daemon=True, le process se terminait des la fin de
+    # serve_forever() en TUANT le thread avant la fin de son travail -- le
+    # respawn du restart ne naissait jamais (mesure E2E : port mort apres
+    # /server/restart). La factory garantit non-daemon PAR CONSTRUCTION.
+    t = mon._service_thread(lambda: None, ())
+    assert t.daemon is False
+
+
+def test_routes_stop_et_restart_passent_par_service_thread(server_obj, monkeypatch):
+    # Les routes doivent creer leur thread via _service_thread (et donc
+    # heriter du non-daemon) -- on remplace la factory par un enregistreur
+    # inoffensif : le vrai target n'est jamais lance (le serveur survit).
+    url, srv = server_obj
+    captured = []
+
+    class _NoopThread:
+        def start(self):
+            pass
+
+    def recording_factory(target, args):
+        captured.append(target.__name__)
+        return _NoopThread()
+
+    monkeypatch.setattr(mon, "_service_thread", recording_factory)
+    token = _csrf_token(url)
+    _post(url + "/server/stop", {"csrf_token": token})
+    token = _csrf_token(url)
+    _post(url + "/server/restart", {"csrf_token": token})
+    assert captured == ["_stop_server_thread", "_restart_server_thread"]
+
+
+def test_spawn_detached_monitor_survit_a_un_log_verrouille(tmp_path, monkeypatch):
+    # BUG-014 (cause racine mesuree) : la redirection shell '>>' du monitor
+    # courant tient monitor_console.log en verrou EXCLUSIF -> open('ab') leve
+    # PermissionError et le respawn ne naissait jamais. Le spawn doit REPLIER
+    # sur DEVNULL et spawner quand meme.
+    captured = {}
+
+    class FakeProc:
+        pid = 4242
+
+    def fake_popen(cmd, **kw):
+        captured["stdout"] = kw.get("stdout")
+        return FakeProc()
+
+    monkeypatch.setattr(mon.subprocess, "Popen", fake_popen)
+    # log_path dont le parent est un FICHIER -> open('ab') leve OSError a coup sur
+    bad_parent = tmp_path / "pas_un_dossier.txt"
+    bad_parent.write_text("x", encoding="ascii")
+    locked_log = bad_parent / "respawn.log"
+
+    pid = mon._spawn_detached_monitor(["python", "-u", "main.py"], locked_log, tmp_path)
+    assert pid == 4242
+    assert captured["stdout"] == mon.subprocess.DEVNULL
+
+
+def test_restart_thread_ecrit_l_erreur_au_lieu_de_l_avaler(tmp_path, monkeypatch):
+    # M9 signaler-pas-masquer : si le respawn echoue, l'erreur DOIT laisser une
+    # trace (logs/monitor_respawn_error.log), jamais un pass silencieux.
+    def boom(cmd, log_path, cwd):
+        raise OSError("respawn impossible (simule)")
+
+    monkeypatch.setattr(mon, "_spawn_detached_monitor", boom)
+    mon._restart_server_thread([None], tmp_path, 8765, "127.0.0.1")
+    err = tmp_path / "logs" / "monitor_respawn_error.log"
+    assert err.exists()
+    assert "respawn ECHEC" in err.read_text(encoding="utf-8")

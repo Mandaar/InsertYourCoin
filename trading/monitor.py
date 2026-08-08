@@ -35,8 +35,13 @@ import datetime as dt
 import html
 import http.server
 import json
+import os
 import re
 import secrets
+import subprocess
+import sys
+import threading
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -475,6 +480,10 @@ form.opt { margin: 0; }
 .btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
   padding: 9px 18px; font-size: 14px; cursor: pointer; }
 .btn:hover { background: #2a7bff; }
+.btn-stop { background: #3a1d12; color: #ffb4ad; border: 1px solid #e5534b;
+  border-radius: 7px; padding: 9px 18px; font-size: 14px; cursor: pointer; }
+.btn-stop:hover { background: #4a2417; }
+.server-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .help { font-size: 12px; color: #7f8c9c; margin: 6px 0; line-height: 1.5; }
 .ok { color: #46c46f; font-weight: 600; }
 .no { color: #e5534b; font-weight: 600; }
@@ -562,10 +571,188 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         "active la <strong>whitelist d'adresses</strong> de retrait. "
         "CETTE APP NE FAIT JAMAIS DE RETRAIT ET N'ENREGISTRE RIEN COTE WALLET.</p>"
         "</div>"
+
+        # (d) Serveur web (arret / redemarrage) -- controle UNIQUEMENT ce
+        # serveur, jamais le paper trading (process separe).
+        "<div class='card'><h2>Serveur web</h2>"
+        "<p class='help'>Controle uniquement CE serveur (le tableau de bord). "
+        "Le <strong>paper trading n'est pas affecte</strong> : il continue de "
+        "tourner et d'ecrire ses donnees, avec ou sans ce serveur.</p>"
+        "<div class='server-actions'>"
+        "<form method='post' action='/server/restart'>"
+        f"<input type='hidden' name='csrf_token' value='{token}'>"
+        "<button class='btn' type='submit'>Redemarrer le serveur</button>"
+        "</form>"
+        "<form method='post' action='/server/stop' "
+        "onsubmit='return confirm(\"Arreter le serveur web ? Le paper trading "
+        "continue de tourner en arriere-plan. Relance ensuite via le "
+        "raccourci bureau.\");'>"
+        f"<input type='hidden' name='csrf_token' value='{token}'>"
+        "<button class='btn-stop' type='submit'>Arreter le serveur</button>"
+        "</form>"
+        "</div>"
+        "</div>"
     )
 
     return page_shell("Options - monitoring", "options",
                       f"<style>{_OPTIONS_CSS}</style>" + body, csrf=csrf_token)
+
+
+# --------------------------------------------------------------------------- #
+#  Arret / redemarrage du SERVEUR WEB (Options) -- controle UNIQUEMENT ce      #
+#  serveur (le tableau de bord). Le paper trading est un process SEPARE,      #
+#  lance et suivi par lancer.py (run/paper.pid) : il n'est JAMAIS touche ici. #
+# --------------------------------------------------------------------------- #
+def _pid_file_path(root: Path) -> Path:
+    return root / "run" / "monitor.pid"
+
+
+def _write_monitor_pid_file(path: Path, pid: int) -> None:
+    """Meme format que lancer.py.write_pid_file ("pid:ts") -- duplique en 3
+    lignes plutot que d'importer lancer.py depuis trading/ (pas de dependance
+    inverse module racine -> package). Best-effort, ne leve jamais."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{int(pid)}:{time.time():.3f}", encoding="ascii")
+    except OSError:
+        pass
+
+
+def _remove_own_pid_file(root: Path) -> None:
+    """Supprime run/monitor.pid SI ET SEULEMENT SI il pointe CE process --
+    n'ecrase jamais le pid d'une instance plus recente (course rare mais
+    gratuite a eviter, meme esprit que lancer.py is_our_process). Best-effort,
+    ne leve jamais."""
+    path = _pid_file_path(root)
+    try:
+        if not path.exists():
+            return
+        raw = path.read_text(encoding="ascii").strip()
+        pid = int(raw.split(":", 1)[0])
+        if pid == os.getpid():
+            path.unlink()
+    except (OSError, ValueError):
+        pass
+
+
+def _spawn_detached_monitor(cmd, log_path: Path, cwd: Path) -> int:
+    """Relance un `main.py monitor` detache -- meme recette que
+    lancer.py.spawn_detached (DETACHED_PROCESS|CREATE_NO_WINDOW sous Windows :
+    zero fenetre console). Duplique en local plutot qu'importe (voir
+    _write_monitor_pid_file)."""
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = (getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                                   | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000))
+    else:
+        kwargs["start_new_session"] = True
+    # Repli DEVNULL si le log est verrouille par un autre process (BUG-014) :
+    # le respawn PRIME sur son log -- perdre la console vaut mieux que ne
+    # jamais redemarrer le serveur.
+    try:
+        log = open(log_path, "ab")
+    except OSError:
+        log = None
+    try:
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.DEVNULL,
+            stdout=(log if log is not None else subprocess.DEVNULL),
+            stderr=(log if log is not None else subprocess.DEVNULL),
+            cwd=str(cwd), **kwargs)
+    finally:
+        if log is not None:
+            log.close()
+    return proc.pid
+
+
+def _stop_server_thread(server_ref, root: Path) -> None:
+    """Arrete le serveur HTTP. DOIT tourner dans un thread SEPARE de celui qui
+    execute serve_forever() (shutdown() bloquerait sinon -- cf. doc stdlib
+    socketserver). Nettoie ensuite le pid file. Le paper trading n'est PAS
+    touche : aucune reference a run/paper.pid ici."""
+    srv = server_ref[0]
+    if srv is not None:
+        srv.shutdown()   # bloque jusqu'a l'arret effectif de serve_forever()
+    _remove_own_pid_file(root)
+
+
+def _service_thread(target, args) -> threading.Thread:
+    """Thread de service stop/restart -- NON-daemon PAR CONSTRUCTION (BUG-014).
+
+    Apres shutdown(), le thread principal sort de serve_forever() et le process
+    se termine : un thread daemon serait TUE avant d'avoir fini son travail
+    (le Popen du respawn ne naissait jamais -- mesure E2E : port mort apres
+    /server/restart). Non-daemon : l'interpreteur attend la fin du thread."""
+    return threading.Thread(target=target, args=args, daemon=False)
+
+
+def _restart_server_thread(server_ref, root: Path, port: int, host: str) -> None:
+    """Arrete l'ancien serveur PUIS demarre un nouveau process detache sur le
+    meme port -- ordre choisi pour eviter toute course de bind (le port doit
+    etre LIBRE avant que le nouveau tente de s'y lier ; pas de retry-bind).
+    COMPROMIS ASSUME (M20) : court trou de disponibilite (l'ancien se ferme
+    avant que le nouveau ne soit pret) plutot qu'une logique de retry-bind
+    plus complexe et plus fragile pour un gain marginal -- la page de reponse
+    /server/restart previent l'utilisateur et se recharge seule. Le paper
+    trading n'est PAS touche."""
+    srv = server_ref[0]
+    if srv is not None:
+        srv.shutdown()
+        try:
+            srv.server_close()   # libere vraiment le socket d'ecoute
+        except OSError:
+            pass
+    # -u : flush immediat -> si le respawn meurt, sa derniere trace est dans le
+    # log (sans -u le buffer est perdu et l'autopsie est aveugle -- meme lecon
+    # que le lancement du paper).
+    cmd = [sys.executable, "-u", str(root / "main.py"), "monitor", "--port", str(port)]
+    # BUG-014 (cause racine MESUREE) : monitor_console.log est tenu en verrou
+    # EXCLUSIF par la redirection shell '>>' du monitor courant -> open('ab')
+    # levait PermissionError, avale par un except silencieux : le respawn ne
+    # naissait JAMAIS. Log DEDIE au respawn (aucun autre detenteur possible).
+    log_path = root / "logs" / "monitor_respawn.log"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        new_pid = _spawn_detached_monitor(cmd, log_path, root)
+        _write_monitor_pid_file(_pid_file_path(root), new_pid)
+    except OSError as exc:
+        # JAMAIS silencieux (M9 signaler-pas-masquer) : l'echec du respawn est
+        # la mort de l'app cote user -- on le trace ou on peut.
+        try:
+            (root / "logs" / "monitor_respawn_error.log").write_text(
+                f"respawn ECHEC : {type(exc).__name__}: {exc}\ncmd={cmd}\n",
+                encoding="utf-8")
+        except OSError:
+            pass
+
+
+def render_server_stopped_page() -> str:
+    body = (
+        "<div class='head'><h1>Serveur arrete</h1></div>"
+        "<div class='card'>"
+        "<p>Le serveur web de monitoring est arrete.</p>"
+        "<p class='muted'>Le <strong>paper trading continue de tourner</strong> "
+        "en arriere-plan : il n'est pas touche par ce bouton, et continue "
+        "d'ecrire dans paper_stats.csv / paper_trades.log.</p>"
+        "<p>Pour rouvrir le tableau de bord : double-clique l'icone du "
+        "bureau, ou lance <code>python lancer.py</code>.</p>"
+        "</div>"
+    )
+    return page_shell("Serveur arrete - InsertYourCoin", "options", body)
+
+
+def render_server_restarting_page() -> str:
+    body = (
+        "<div class='head'><h1>Redemarrage en cours...</h1></div>"
+        "<div class='card'>"
+        "<p>Le serveur web redemarre (le paper trading n'est pas touche).</p>"
+        "<p class='muted'>Court trou de disponibilite pendant la bascule : "
+        "l'ancien processus s'arrete puis un nouveau demarre sur le meme "
+        "port. Cette page se recharge automatiquement.</p>"
+        "</div>"
+        "<script>setTimeout(function(){ window.location.href = '/options'; }, 4000);</script>"
+    )
+    return page_shell("Redemarrage - InsertYourCoin", "options", body)
 
 
 def csrf_valid(submitted_token, expected_token) -> bool:
@@ -626,6 +813,10 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     # Port reellement lie (mis a jour apres bind ; port=0 -> ephemere). Le
     # Handler lit bound_port[0] pour la verification Host (anti DNS-rebinding).
     bound_port = [port]
+    # Reference vers l'objet serveur, remplie juste apres sa construction (le
+    # Handler doit exister AVANT que le serveur soit cree, cf. fin de fonction)
+    # -- consommee par les routes /server/stop et /server/restart.
+    server_ref = [None]
     stats_path = Path(stats_path) if stats_path else root / "paper_stats.csv"
     log_path = Path(log_path) if log_path else root / "paper_trades.log"
     state_path = Path(state_path) if state_path else root / "paper_state.json"
@@ -1055,6 +1246,30 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 self._send_html(self._research_walkforward_post(form))
                 return
+            if self.path.startswith("/server/stop"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                # Reponse envoyee AVANT de couper (sinon la requete ne recoit
+                # jamais sa reponse -- le serveur qui la sert serait deja
+                # arrete). L'arret reel se fait dans un thread SEPARE.
+                self._send_html(render_server_stopped_page())
+                _service_thread(_stop_server_thread, (server_ref, root)).start()
+                return
+            if self.path.startswith("/server/restart"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html("<h1>403 - jeton CSRF invalide</h1>", code=403)
+                    return
+                self._send_html(render_server_restarting_page())
+                _service_thread(_restart_server_thread,
+                                (server_ref, root, bound_port[0], host)).start()
+                return
             if not self.path.startswith("/options"):
                 self._send_html("<h1>404</h1>", code=404)
                 return
@@ -1121,6 +1336,7 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     server = http.server.ThreadingHTTPServer((host, port), Handler)
     bound_port[0] = server.server_address[1]   # port reel (utile si port=0)
     server.job_manager = jobs   # expose pour les tests + les futures routes /research/<type>
+    server_ref[0] = server      # expose pour /server/stop et /server/restart
     return server
 
 

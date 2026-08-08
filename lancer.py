@@ -38,6 +38,13 @@ MONITOR_HOST = "127.0.0.1"   # bind local uniquement (securite)
 MONITOR_PORT = 8765
 MONITOR_URL = f"http://{MONITOR_HOST}:{MONITOR_PORT}"
 
+# Capture au moment de l'IMPORT (avant toute redirection) : sous pythonw.exe
+# (sous-systeme GUI, lance par le raccourci bureau -- cf. scripts/install_shortcut.ps1)
+# sys.stdout/sys.stderr sont None des le depart, il n'existe AUCUNE console. C'est
+# la seule fenetre fiable pour detecter le mode headless : apres redirection,
+# sys.stdout n'est plus None (il pointe logs/lancer.log).
+_HEADLESS = sys.stdout is None
+
 
 # ----------------------------------------------------------------------------- #
 #  Chemins (fonctions pures, racine injectable pour les tests)                   #
@@ -246,8 +253,15 @@ def port_in_use(port=MONITOR_PORT, host=MONITOR_HOST) -> bool:
         return False
 
 
-# Signature HTML servie par notre monitor (titre de page, cf. trading/monitor.py).
-MONITOR_SIGNATURE = "Paper trading - monitoring"
+# Signature HTML servie par NOTRE app, verifiee sur MONITOR_URL ("/"). Vit dans
+# la nav persistante commune a TOUS les ecrans (trading/webui.py page_shell),
+# pas dans une page precise -- robuste aux futures bascules de route.
+# CORRECTIF (trouve en testant chantier 1, 2026-08-08) : l'ancienne signature
+# "Paper trading - monitoring" ne vivait que sur /monitoring ; "/" sert
+# l'Accueil (hub) depuis la bascule de route Lot 1. do_start ne reconnaissait
+# donc plus jamais son propre monitor deja lance -> refusait de rouvrir le
+# navigateur, en SILENCE (rc=0, pas un echec -> aucune notification headless).
+MONITOR_SIGNATURE = "Local 127.0.0.1"
 
 
 def monitor_signature_present(url=MONITOR_URL) -> bool:
@@ -267,6 +281,48 @@ def monitor_signature_present(url=MONITOR_URL) -> bool:
         return MONITOR_SIGNATURE in body
     except Exception:
         return False
+
+
+# ----------------------------------------------------------------------------- #
+#  Mode headless (pythonw.exe, raccourci bureau) : ni print() ni erreur         #
+#  silencieuse. cf. _HEADLESS ci-dessus.                                          #
+# ----------------------------------------------------------------------------- #
+def _redirect_output_to_log(root: Path):
+    """
+    Sous pythonw (_HEADLESS) : sys.stdout/sys.stderr sont None -> TOUT print()
+    explose (AttributeError sur None.write). On les redirige vers logs/lancer.log
+    (append, ligne par ligne) AVANT le premier print. No-op en mode console
+    (CLI/terminal : comportement inchange). Retourne le Path du log, ou None si
+    rien n'a ete redirige (mode console).
+    """
+    if not _HEADLESS:
+        return None
+    _, logs_dir = ensure_dirs(root)
+    log_path = logs_dir / "lancer.log"
+    log_file = open(log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = log_file
+    sys.stderr = log_file
+    return log_path
+
+
+def _notify_failure(title, message):
+    """
+    Signale un echec de facon VISIBLE meme sans console (_HEADLESS) -- sinon un
+    double-clic qui echoue est TOTALEMENT muet (aucune fenetre, aucun message).
+    En mode console : no-op (le message est deja dans le terminal, print()
+    suffit). Best-effort : ne leve JAMAIS -- rater la notification ne doit pas
+    cacher davantage l'echec initial, deja journalise dans logs/lancer.log.
+    """
+    if not _HEADLESS or os.name != "nt":
+        return
+    try:
+        import ctypes
+        MB_ICONERROR = 0x10
+        MB_SYSTEMMODAL = 0x1000  # visible au premier plan, meme sans focus
+        ctypes.windll.user32.MessageBoxW(None, message, title,
+                                         MB_ICONERROR | MB_SYSTEMMODAL)
+    except Exception:
+        pass
 
 
 # ----------------------------------------------------------------------------- #
@@ -436,10 +492,25 @@ def do_start(root: Path) -> int:
 
     # 1) Diagnostic (la sortie de `main.py check` est deja actionnable).
     print("Etape 1/4 -- diagnostic (main.py check)...")
-    rc = subprocess.run(build_check_command(root), cwd=str(root)).returncode
+    # FIX (piege pythonw) : sous _HEADLESS, sys.stdout/stderr du PARENT sont None
+    # (ou invalides au niveau OS) -- un subprocess.run() sans stdout/stderr EXPLICITES
+    # tente d'heriter des handles standard du parent et echoue (WinError, cf. doc
+    # CPython "GUI application without a console"). On redirige donc explicitement
+    # vers sys.stdout (deja bascule sur logs/lancer.log par _redirect_output_to_log
+    # si headless ; sinon None = heritage normal de la console, comportement inchange).
+    out = sys.stdout if _HEADLESS else None
+    rc = subprocess.run(build_check_command(root), cwd=str(root),
+                        stdout=out, stderr=out).returncode
     if rc != 0:
         print("\nLe diagnostic a echoue (voir les messages ci-dessus).")
         print("Corrige le probleme (SETUP.md) puis relance. Rien n'a ete demarre.")
+        _notify_failure(
+            "InsertYourCoin - demarrage impossible",
+            "Le diagnostic (main.py check) a echoue : rien n'a ete demarre.\n\n"
+            f"Detail complet : {logs_dir / 'lancer.log'}\n\n"
+            "Corrige le probleme (SETUP.md section 6, antivirus / SSL) puis "
+            "relance depuis le raccourci bureau."
+        )
         return 1
 
     # 2) Paper trading (detache).
@@ -502,6 +573,7 @@ def build_parser():
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     root = project_root()
+    _redirect_output_to_log(root)   # no-op sauf _HEADLESS (raccourci bureau)
     if args.dry_run:
         return do_dry_run(root)
     if args.status:
@@ -512,4 +584,29 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        # Filet de securite (M9, signaler pas masquer) : un crash NON intercepte
+        # ne doit jamais rester totalement invisible en mode headless. _HEADLESS
+        # est capture a l'IMPORT (avant toute redirection) -- fiable meme si le
+        # crash survient avant ou apres _redirect_output_to_log.
+        if _HEADLESS:
+            import traceback
+            try:
+                root = project_root()
+                _, logs_dir = ensure_dirs(root)
+                with open(logs_dir / "lancer.log", "a", encoding="utf-8") as f:
+                    f.write("\n--- CRASH lancer.py ---\n")
+                    traceback.print_exc(file=f)
+            except Exception:
+                pass
+            _notify_failure(
+                "InsertYourCoin - erreur inattendue",
+                "Le lanceur a rencontre une erreur inattendue et s'est arrete "
+                "avant de pouvoir demarrer quoi que ce soit.\n\n"
+                "Detail : logs/lancer.log"
+            )
+        raise

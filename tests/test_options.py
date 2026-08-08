@@ -277,6 +277,19 @@ def test_options_page_saved_banner():
 
 
 # --------------------------------------------------------------------------- #
+#  Carte "Serveur web" (stop/restart) : formulaires POST, CSRF, paper non      #
+#  affecte (rappel explicite dans le texte).                                  #
+# --------------------------------------------------------------------------- #
+def test_options_page_has_server_stop_and_restart_forms():
+    page = render_options_page("moyen", keys_ok=False, csrf_token="TOKSRV")
+    assert "action='/server/stop'" in page
+    assert "action='/server/restart'" in page
+    assert page.count("TOKSRV") >= 3   # champ /options + les 2 nouveaux forms
+    assert "paper trading n'est pas affecte" in page.lower() \
+        or "n'est pas affecte" in page.lower()
+
+
+# --------------------------------------------------------------------------- #
 #  Securite : verification CSRF et Host (fonctions pures)                      #
 # --------------------------------------------------------------------------- #
 def test_csrf_valid_accepts_matching_token():

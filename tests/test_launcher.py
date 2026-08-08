@@ -7,6 +7,7 @@ le mode --dry-run avec subprocess/webbrowser neutralises par monkeypatch.
 """
 import os
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -226,7 +227,7 @@ def test_monitor_signature_present_true_when_signature_in_body(monkeypatch):
     import urllib.request
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda url, timeout=2.0: _FakeResp(
-                            "<title>Paper trading - monitoring</title>"))
+                            "<span class='pill'>Local 127.0.0.1</span>"))
     assert lancer.monitor_signature_present() is True
 
 
@@ -235,6 +236,29 @@ def test_monitor_signature_absent_when_other_service(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen",
                         lambda url, timeout=2.0: _FakeResp("<title>autre service</title>"))
     assert lancer.monitor_signature_present() is False
+
+
+def test_monitor_signature_present_matches_real_root_page(tmp_path):
+    # Test d'INTEGRATION (VRAI serveur, pas un mock) : verifie que
+    # MONITOR_SIGNATURE est REELLEMENT present sur LA VRAIE page "/" rendue.
+    # Trouve en testant chantier 1 (V4, SQA runtime soi-meme) : l'ancienne
+    # signature "Paper trading - monitoring" ne vivait plus que sur
+    # /monitoring depuis la bascule de route Lot 1 (trading/webui.py) -- "/"
+    # sert desormais l'Accueil (hub). do_start ne reconnaissait donc plus
+    # jamais son propre monitor deja lance : il refusait de rouvrir le
+    # navigateur, en SILENCE (rc=0, pas un echec -> aucune notification).
+    from trading import monitor as mon
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json")
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}/"
+        assert lancer.monitor_signature_present(url=url) is True
+    finally:
+        srv.shutdown()
 
 
 def test_monitor_signature_false_on_connection_error(monkeypatch):
@@ -355,3 +379,107 @@ def test_start_service_replaces_orphan_pid(tmp_path, monkeypatch):
     pid = lancer._start_service("paper", ["x", "y", "paper"], run_dir, logs_dir, tmp_path)
     assert pid == 555
     assert lancer.read_pid_file(run_dir / "paper.pid") == 555
+
+
+# --------------------------------------------------------------------------- #
+#  Mode headless (pythonw.exe, raccourci bureau) : zero fenetre console --     #
+#  ni print() qui explose (sys.stdout is None sous pythonw), ni echec muet.    #
+#  _HEADLESS est teste via monkeypatch (capture au IMPORT en conditions        #
+#  reelles ; ici on simule les deux etats pour les deux branches).             #
+# --------------------------------------------------------------------------- #
+def test_redirect_output_to_log_noop_when_not_headless(tmp_path, monkeypatch):
+    monkeypatch.setattr(lancer, "_HEADLESS", False)
+    assert lancer._redirect_output_to_log(tmp_path) is None
+
+
+def test_redirect_output_to_log_writes_to_log_file_when_headless(tmp_path, monkeypatch):
+    monkeypatch.setattr(lancer, "_HEADLESS", True)
+    orig_stdout, orig_stderr = sys.stdout, sys.stderr
+    try:
+        log_path = lancer._redirect_output_to_log(tmp_path)
+        assert log_path == tmp_path / "logs" / "lancer.log"
+        print("hello-depuis-headless")
+        sys.stdout.flush()
+        assert "hello-depuis-headless" in log_path.read_text(encoding="utf-8")
+    finally:
+        try:
+            sys.stdout.close()
+        except Exception:
+            pass
+        sys.stdout, sys.stderr = orig_stdout, orig_stderr
+
+
+def test_notify_failure_noop_when_not_headless(monkeypatch):
+    monkeypatch.setattr(lancer, "_HEADLESS", False)
+    import ctypes
+
+    def boom(*a, **k):
+        raise AssertionError("MessageBoxW ne doit pas etre appele hors headless")
+    monkeypatch.setattr(ctypes.windll.user32, "MessageBoxW", boom)
+
+    lancer._notify_failure("titre", "message")  # ne doit pas lever
+
+
+def test_notify_failure_shows_messagebox_when_headless(monkeypatch):
+    monkeypatch.setattr(lancer, "_HEADLESS", True)
+    import ctypes
+    calls = []
+    monkeypatch.setattr(ctypes.windll.user32, "MessageBoxW",
+                        lambda *a, **k: calls.append(a) or 1)
+
+    lancer._notify_failure("titre-echec", "message-echec")
+    assert calls
+    hwnd, message, title, flags = calls[0]
+    assert message == "message-echec" and title == "titre-echec"
+
+
+def test_do_start_redirects_check_subprocess_stdout_when_headless(tmp_path, monkeypatch):
+    # FIX piege pythonw : sans redirection explicite, subprocess.run() sous
+    # pythonw echoue (heritage d'un handle stdio invalide, cf. doc CPython).
+    monkeypatch.setattr(lancer, "_HEADLESS", True)
+
+    class _FakeLog:
+        def write(self, s):
+            pass
+
+        def flush(self):
+            pass
+    fake_out = _FakeLog()
+    monkeypatch.setattr(lancer.sys, "stdout", fake_out)
+    captured = {}
+
+    def fake_run(cmd, cwd=None, stdout=None, stderr=None):
+        captured["stdout"] = stdout
+        captured["stderr"] = stderr
+        return type("R", (), {"returncode": 1})()
+    monkeypatch.setattr(lancer.subprocess, "run", fake_run)
+    notified = []
+    monkeypatch.setattr(lancer, "_notify_failure", lambda t, m: notified.append((t, m)))
+
+    assert lancer.do_start(tmp_path) == 1
+    assert captured["stdout"] is fake_out
+    assert captured["stderr"] is fake_out
+    assert notified  # echec headless -> MessageBox demandee
+
+
+def test_do_start_check_subprocess_inherits_console_when_not_headless(tmp_path, monkeypatch):
+    # Non-regression : comportement console INCHANGE (stdout/stderr herites,
+    # comme avant l'ajout du mode headless). _notify_failure REELLE (non
+    # mockee) : verifie qu'elle ne fait rien hors headless (pas de MessageBox
+    # sous Windows console -- cf. test_notify_failure_noop_when_not_headless).
+    monkeypatch.setattr(lancer, "_HEADLESS", False)
+    captured = {}
+
+    def fake_run(cmd, cwd=None, stdout=None, stderr=None):
+        captured["stdout"] = stdout
+        captured["stderr"] = stderr
+        return type("R", (), {"returncode": 1})()
+    monkeypatch.setattr(lancer.subprocess, "run", fake_run)
+    import ctypes
+
+    def boom(*a, **k):
+        raise AssertionError("MessageBoxW ne doit pas etre appele hors headless")
+    monkeypatch.setattr(ctypes.windll.user32, "MessageBoxW", boom)
+
+    assert lancer.do_start(tmp_path) == 1
+    assert captured["stdout"] is None and captured["stderr"] is None
