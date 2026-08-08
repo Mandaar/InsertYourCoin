@@ -1224,6 +1224,84 @@ def test_route_paper_post_start_lance_process_et_ecrit_pid(
     assert pid_path.read_text(encoding="ascii").split(":", 1)[0] == "555555"
 
 
+def test_route_paper_post_start_concurrence_un_seul_spawn(
+    server_obj, monkeypatch, tmp_path,
+):
+    """BUG-016 (P2, meme patron que BUG-015 sur /live/start) : deux POST
+    /paper CONCURRENTS (2 threads), action="start", ne doivent produire
+    QU'UN SEUL spawn -- le second thread doit trouver "paper deja en cours"
+    et etre refuse. SANS le verrou (_paper_start_lock, trading/monitor.py),
+    les deux threads peuvent tous deux lire "aucun paper en cours" (via
+    _paper_status_view au sommet de _paper_post, puis a nouveau juste avant
+    le spawn) avant que l'un des deux ait ecrit run/paper.pid -- meme race
+    TOCTOU que BUG-015 (gate independante Lot 8, repere le meme jour,
+    docs/audit/GATE_LOT8_LIVE.md FAIL-1). Ce test repete le scenario 10x
+    pour prouver le meme determinisme AVEC le fix (une seule execution peut
+    "gagner" la course par hasard meme sans verrou).
+
+    `_spawn_paper_detached` est mocke (aucun process reel) et introduit un
+    `time.sleep` pour ELARGIR la fenetre TOCTOU (meme recette que le test
+    live `test_route_live_start_concurrence_un_seul_spawn_reel`) -- sans ce
+    sleep, le GIL peut masquer la race sur une machine rapide sans jamais la
+    reproduire. `lancer.is_our_process` est force a True des qu'un pid
+    existe : isole precisement la fenetre testee (spawn -> pid file,
+    protegee par le verrou) de la mecanique d'identite psutil (BUG-009,
+    deja couverte ailleurs) -- un pid fictif de test ne correspond a aucun
+    VRAI process OS, donc sans ce patch is_our_process ne confirmerait
+    jamais "en cours" et les deux threads spawneraient toujours, quel que
+    soit le verrou.
+    """
+    import time as _time
+
+    url, srv = server_obj
+    token = _csrf_token(url)
+    monkeypatch.setattr(lancer, "is_our_process",
+                        lambda pid, name, ts=None: pid is not None)
+
+    pid_path = tmp_path / "run" / "paper.pid"
+
+    for essai in range(10):
+        next_pid = [700000 + essai]
+        calls = []
+
+        def fake_spawn(cmd, log_path, cwd):
+            _time.sleep(0.05)  # elargit la fenetre TOCTOU (cf. docstring)
+            next_pid[0] += 1
+            calls.append(next_pid[0])
+            return next_pid[0]
+        monkeypatch.setattr(mon, "_spawn_paper_detached", fake_spawn)
+
+        results = []
+
+        def _start():
+            code, page = _post(url + "/paper", {
+                "csrf_token": token, "action": "start", "strategy": "sma",
+            })
+            results.append((code, page))
+
+        t1 = threading.Thread(target=_start)
+        t2 = threading.Thread(target=_start)
+        t1.start()
+        t2.start()
+        t1.join(timeout=10)
+        t2.join(timeout=10)
+
+        assert len(results) == 2, f"essai {essai}: une requete n'a pas repondu"
+        assert all(code == 200 for code, _ in results)
+        assert len(calls) == 1, (
+            f"essai {essai}: spawns = {len(calls)} (attendu 1 -- "
+            f"BUG-016 : race TOCTOU sur 'un seul paper trading a la fois')"
+        )
+        # Les deux reponses convergent vers "EN COURS" (le gagnant apres son
+        # propre spawn, le perdant apres avoir constate qu'un paper tournait
+        # deja) -- aucune des deux ne relance le formulaire "ARRETE".
+        assert all("EN COURS" in page for _, page in results)
+
+        # Nettoyage entre essais (equivalent d'un /paper stop) pour que le
+        # prochain essai reparte d'un etat "aucun paper en cours".
+        pid_path.unlink(missing_ok=True)
+
+
 def test_route_paper_post_start_refuse_si_deja_en_cours(
     server_obj, monkeypatch, tmp_path,
 ):

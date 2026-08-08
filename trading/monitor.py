@@ -952,6 +952,17 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     # le reste du handler (GET /live, /live/arm, /live/stop restent hors
     # verrou : rien n'y spawn).
     _live_start_lock = threading.Lock()
+    # BUG-016 (P2, meme patron que BUG-015) : ThreadingHTTPServer => chaque
+    # POST /paper start tourne dans son propre thread. Lire _paper_identity()
+    # (aucun paper en cours) PUIS spawn PUIS ecrire run/paper.pid n'est pas
+    # atomique sans verrou -- deux threads peuvent tous deux lire "aucun
+    # paper" avant que l'un des deux ait ecrit son pid, et demarrer deux
+    # paper qui ecrivent le meme paper_state.json/paper_stats.csv (aucun
+    # argent reel en jeu, mais corruption de l'historique). Ce Lock serialise
+    # EXACTEMENT la sequence identite -> spawn -> pid file, comme
+    # _live_start_lock ; il ne protege que la fenetre de demarrage (GET
+    # /paper et l'action "stop" restent hors verrou).
+    _paper_start_lock = threading.Lock()
 
     def _compute_view_now():
         """Relit les 3 fichiers et calcule la vue (factorise pour les deux routes)."""
@@ -1217,25 +1228,42 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return paper_page.render_paper_page(
                         status, csrf_token, errors=errors, values=form,
                     )
-                try:
-                    new_pid, start_ts = _start_paper_from_params(root, params)
-                except OSError as exc:
-                    # JAMAIS silencieux (M9) : trace + affiche, comme le
-                    # respawn du monitor (_restart_server_thread).
+                # BUG-016 : identite -> spawn -> pid file, EN UN SEUL BLOC
+                # atomique (deux "start" concurrents doivent aussi etre
+                # refuses -- meme fichier d'etat/pid). Re-verifie l'identite
+                # ICI (pas seulement au-dessus) : sans ce re-check DANS le
+                # verrou, la fenetre TOCTOU persiste (cf. _live_start_lock,
+                # BUG-015).
+                with _paper_start_lock:
+                    _pid2, running2, start_ts2 = _paper_identity(root)
+                    if running2:
+                        running_status = paper_page.compute_paper_status(
+                            True, start_ts2)
+                        return paper_page.render_paper_page(
+                            running_status, csrf_token,
+                            errors=["Un paper trading tourne deja -- arrete-le "
+                                    "d'abord (un seul a la fois, meme fichier "
+                                    "d'etat)."],
+                        )
                     try:
-                        (root / "logs" / "paper_ui_error.log").write_text(
-                            f"demarrage paper ECHEC : {type(exc).__name__}: {exc}\n",
-                            encoding="utf-8")
-                    except OSError:
-                        pass
+                        new_pid, start_ts = _start_paper_from_params(root, params)
+                    except OSError as exc:
+                        # JAMAIS silencieux (M9) : trace + affiche, comme le
+                        # respawn du monitor (_restart_server_thread).
+                        try:
+                            (root / "logs" / "paper_ui_error.log").write_text(
+                                f"demarrage paper ECHEC : {type(exc).__name__}: {exc}\n",
+                                encoding="utf-8")
+                        except OSError:
+                            pass
+                        return paper_page.render_paper_page(
+                            status, csrf_token, values=form,
+                            errors=[f"Echec du demarrage du paper trading : {exc}"],
+                        )
+                    new_status = paper_page.compute_paper_status(True, start_ts)
                     return paper_page.render_paper_page(
-                        status, csrf_token, values=form,
-                        errors=[f"Echec du demarrage du paper trading : {exc}"],
+                        new_status, csrf_token, message="Paper trading demarre.",
                     )
-                new_status = paper_page.compute_paper_status(True, start_ts)
-                return paper_page.render_paper_page(
-                    new_status, csrf_token, message="Paper trading demarre.",
-                )
 
             if action == "stop":
                 if not status["running"] or pid is None:
