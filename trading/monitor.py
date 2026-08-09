@@ -790,7 +790,9 @@ def _service_thread(target, args) -> threading.Thread:
     return threading.Thread(target=target, args=args, daemon=False)
 
 
-def _restart_server_thread(server_ref, root: Path, port: int, host: str) -> None:
+def _restart_server_thread(server_ref, root: Path, port: int, host: str,
+                           stats_path: Path = None, data_log_path: Path = None,
+                           state_path: Path = None) -> None:
     """Arrete l'ancien serveur PUIS demarre un nouveau process detache sur le
     meme port -- ordre choisi pour eviter toute course de bind (le port doit
     etre LIBRE avant que le nouveau tente de s'y lier ; pas de retry-bind).
@@ -798,7 +800,19 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str) -> None
     avant que le nouveau ne soit pret) plutot qu'une logique de retry-bind
     plus complexe et plus fragile pour un gain marginal -- la page de reponse
     /server/restart previent l'utilisateur et se recharge seule. Le paper
-    trading n'est PAS touche."""
+    trading n'est PAS touche.
+
+    `host`/`stats_path`/`data_log_path`/`state_path` sont RE-FORWARDES au
+    process respawn (Deploiement Docker, 2026-08-09) : sans ca, un clic sur
+    "Redemarrer le serveur" faisait perdre --host (retour silencieux a
+    127.0.0.1 : le conteneur devient injoignable depuis le reverse proxy,
+    sur un AUTRE conteneur du reseau Docker) ET --stats/--log/--state
+    (retour aux chemins par defaut relatifs a project_root(), qui divergent
+    du volume Docker passe au demarrage) -- bug dormant en usage local
+    (ou CWD == project_root() par convention), jamais visible avant ce
+    deploiement multi-conteneurs. `data_log_path` est nomme differemment de
+    la variable locale `log_path` ci-dessous (le log de RESPAWN du process
+    monitor lui-meme, sans rapport avec le --log applicatif)."""
     srv = server_ref[0]
     if srv is not None:
         srv.shutdown()
@@ -809,7 +823,14 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str) -> None
     # -u : flush immediat -> si le respawn meurt, sa derniere trace est dans le
     # log (sans -u le buffer est perdu et l'autopsie est aveugle -- meme lecon
     # que le lancement du paper).
-    cmd = [sys.executable, "-u", str(root / "main.py"), "monitor", "--port", str(port)]
+    cmd = [sys.executable, "-u", str(root / "main.py"), "monitor",
+           "--port", str(port), "--host", str(host)]
+    if stats_path is not None:
+        cmd += ["--stats", str(stats_path)]
+    if data_log_path is not None:
+        cmd += ["--log", str(data_log_path)]
+    if state_path is not None:
+        cmd += ["--state", str(state_path)]
     # BUG-014 (cause racine MESUREE) : monitor_console.log est tenu en verrou
     # EXCLUSIF par la redirection shell '>>' du monitor courant -> open('ab')
     # levait PermissionError, avale par un except silencieux : le respawn ne
@@ -1833,7 +1854,8 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     return
                 self._send_html(render_server_restarting_page())
                 _service_thread(_restart_server_thread,
-                                (server_ref, root, bound_port[0], host)).start()
+                                (server_ref, root, bound_port[0], host,
+                                 stats_path, log_path, state_path)).start()
                 return
             if not self.path.startswith("/options"):
                 self._send_html(

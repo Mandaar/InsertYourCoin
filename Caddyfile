@@ -1,0 +1,46 @@
+# Caddyfile -- reverse proxy TLS + authentification pour InsertYourCoin.
+#
+# Termine le HTTPS, EXIGE une authentification (basic auth, mot de passe
+# hache bcrypt), puis relaie vers le service `monitor` interne (jamais
+# expose directement -- cf. docker-compose.yml).
+#
+# DEUX MODES, choisis par les variables d'environnement (.env.deploy) :
+#   - DOMAINE  : IYC_SITE_ADDRESS=trading.exemple.tld
+#                IYC_TLS_MODE=toi@exemple.tld  (email -> certificat public
+#                Let's Encrypt AUTOMATIQUE, renouvele tout seul. Exige un
+#                DNS qui pointe vers ce serveur + ports 80 ET 443 ouverts.)
+#   - IP SEULE : IYC_SITE_ADDRESS=:443
+#                IYC_TLS_MODE=internal        (certificat auto-signe genere
+#                par la CA interne de Caddy -- fonctionne immediatement,
+#                aucun domaine requis. Le navigateur affiche un avertissement
+#                "connexion non privee/certificat non fiable" a accepter une
+#                fois -- normal et attendu pour un acces perso par IP.)
+#
+# Detail des deux chemins + generation du hash de mot de passe :
+# docs/DEPLOY_DOCKER.md.
+
+{$IYC_SITE_ADDRESS} {
+	tls {$IYC_TLS_MODE}
+
+	# Authentification obligatoire AVANT toute route -- protege TOUTE la
+	# surface applicative, y compris la page Options (qui peut recevoir
+	# des cles API Kraken et n'a elle-meme AUCUNE authentification cote
+	# application -- cf. docs/DEPLOY_DOCKER.md section Securite).
+	basicauth {
+		{$IYC_BASIC_AUTH_USER} {$IYC_BASIC_AUTH_HASH}
+	}
+
+	# Reecrit l'en-tete Host vu par le service monitor sur 127.0.0.1:8765 :
+	# monitor applique sa propre protection anti DNS-rebinding cote
+	# application (host_allowed(), trading/monitor.py) et n'accepte QUE
+	# Host: 127.0.0.1:<port> ou localhost:<port>. Sans cette reecriture,
+	# TOUTE requete passant par ce proxy recevrait un 403 -- monitor ne
+	# sait pas qu'il est derriere un reverse proxy, et c'est volontaire
+	# (aucun code applicatif a faire confiance a un en-tete client).
+	# NOTE : le port 8765 est repete DEUX FOIS ci-dessus (adresse + en-tete
+	# Host) ET doit rester identique a --port dans docker-compose.yml
+	# (service monitor). Si tu changes l'un, change les trois.
+	reverse_proxy monitor:8765 {
+		header_up Host 127.0.0.1:8765
+	}
+}

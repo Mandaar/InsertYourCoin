@@ -1,0 +1,120 @@
+services:
+  # ---------------------------------------------------------------------------
+  # paper -- boucle de paper trading (argent fictif, prix reels Kraken).
+  # AUCUNE cle API requise en Phase 1 (donnees publiques uniquement).
+  # ---------------------------------------------------------------------------
+  paper:
+    build: .
+    image: insertyourcoin:latest
+    container_name: iyc-paper
+    restart: unless-stopped
+    init: true
+    # WORKDIR de CE service = le volume de donnees (pas /app). PaperTrader
+    # (trading/paper_trader.py) ecrit paper_state.json / paper_stats.csv /
+    # paper_trades.log en chemins RELATIFS au repertoire de lancement --
+    # main.py n'expose aucun --state/--stats/--log pour la commande `paper`
+    # (a la difference de `monitor`, cf. plus bas). Fixer working_dir: /data
+    # est donc la facon la PLUS SURE de garantir que ces 3 fichiers atterrissent
+    # dans le volume persistant, sans toucher au code applicatif pour ca.
+    working_dir: /data
+    # GOTCHA (documente en detail dans docs/DEPLOY_DOCKER.md) : les
+    # ${PAPER_STRATEGY:-...} ci-dessous sont resolus par `docker compose`
+    # LUI-MEME, au moment ou il LIT ce fichier YAML -- AVANT meme de creer
+    # le conteneur. C'est une substitution TEXTUELLE differente du mecanisme
+    # `env_file:` (qui peuple l'environnement du PROCESSUS a l'interieur du
+    # conteneur, et que `main.py paper` ne lit de toute facon jamais : ses
+    # parametres sont des --flags CLI, pas des variables d'environnement).
+    # Consequence pratique : `docker compose` doit etre invoque avec
+    # `--env-file .env.deploy` pour que ces valeurs viennent REELLEMENT de
+    # .env.deploy -- sinon la substitution retombe SILENCIEUSEMENT (aucune
+    # erreur) sur les defauts codes ici (sma/ETH-USD/5m/5%/10%/8%). Toutes
+    # les commandes de docs/DEPLOY_DOCKER.md incluent ce flag ; ne l'omets
+    # jamais si tu adaptes une commande.
+    command: >
+      python -u /app/main.py paper
+      --strategy ${PAPER_STRATEGY:-sma}
+      --symbol ${PAPER_SYMBOL:-ETH/USD}
+      --timeframe ${PAPER_TIMEFRAME:-5m}
+      --stop-loss ${PAPER_STOP_LOSS:-5}
+      --take-profit ${PAPER_TAKE_PROFIT:-10}
+      --trailing-stop ${PAPER_TRAILING_STOP:-8}
+    volumes:
+      - iyc_data:/data
+    networks:
+      - iyc-internal
+    # Phase 1 = pas de montage de .env (cles Kraken). Pour ajouter le live
+    # PLUS TARD : voir docs/DEPLOY_DOCKER.md section "Ajouter le live plus
+    # tard" (monte un .env en lecture seule sur un service `live` A PART,
+    # jamais sur `paper` -- ce service reste 100% paper par construction).
+
+  # ---------------------------------------------------------------------------
+  # monitor -- serveur web de suivi (lecture seule des fichiers ecrits par
+  # `paper`). N'est JAMAIS expose directement : aucun `ports:` ici, uniquement
+  # joignable depuis `proxy` via le reseau Docker interne `iyc-internal`.
+  # ---------------------------------------------------------------------------
+  monitor:
+    build: .
+    image: insertyourcoin:latest
+    container_name: iyc-monitor
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - paper
+    command: >
+      python -u /app/main.py monitor
+      --host 0.0.0.0 --port 8765
+      --stats /data/paper_stats.csv
+      --log /data/paper_trades.log
+      --state /data/paper_state.json
+    volumes:
+      - iyc_data:/data
+    networks:
+      - iyc-internal
+    healthcheck:
+      # Sonde interne (127.0.0.1 DANS ce conteneur) : envoie naturellement
+      # Host: 127.0.0.1:8765, ce que host_allowed() attend -- pas besoin de
+      # reproduire la reecriture du proxy pour ce test.
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # proxy -- Caddy : TLS + authentification, SEUL service qui publie un port
+  # sur l'hote. Termine le HTTPS puis relaie vers `monitor` (reseau interne).
+  # ---------------------------------------------------------------------------
+  proxy:
+    image: caddy:2-alpine
+    container_name: iyc-proxy
+    restart: unless-stopped
+    depends_on:
+      - monitor
+    env_file:
+      - .env.deploy
+    ports:
+      - "443:443"
+      - "80:80"   # challenge ACME HTTP-01 (Let's Encrypt) -- necessaire en
+                  # mode domaine ; inoffensif en mode IP (jamais sollicite).
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - iyc-internal
+
+networks:
+  iyc-internal:
+    driver: bridge
+
+volumes:
+  # Donnees persistantes InsertYourCoin (paper_state.json, paper_stats.csv,
+  # paper_trades.log) -- survit aux redemarrages/rebuilds/`docker compose down`
+  # (sans --volumes). Recuperable via `docker cp` ou `docker run --rm -v
+  # insertyourcoin_iyc_data:/data ... ` -- cf. docs/DEPLOY_DOCKER.md.
+  iyc_data:
+  # Certificats TLS (Let's Encrypt ou CA interne Caddy) + config runtime Caddy
+  # -- persistes pour ne pas re-emettre/re-generer a chaque redemarrage.
+  caddy_data:
+  caddy_config:

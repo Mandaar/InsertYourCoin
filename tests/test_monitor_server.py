@@ -1048,6 +1048,61 @@ def test_route_server_restart_avec_csrf_repond_puis_relance(server_obj, monkeypa
     assert "monitor" in cmd and "--port" in cmd
 
 
+def test_route_server_restart_forwards_host_and_data_paths(server_obj, monkeypatch, tmp_path):
+    # Deploiement Docker (2026-08-09) : --host et --stats/--log/--state DOIVENT
+    # survivre a un clic "Redemarrer le serveur", sinon le respawn revient
+    # silencieusement a 127.0.0.1 (injoignable depuis le reverse proxy, sur un
+    # AUTRE conteneur du reseau) et aux chemins par defaut de project_root()
+    # (qui divergent du volume Docker passe au demarrage). server_obj construit
+    # le serveur avec stats_path=tmp_path/s.csv, log_path=tmp_path/l.log,
+    # state_path=tmp_path/st.json -- on verifie qu'ils sont bien reforwardes.
+    url, srv = server_obj
+    monkeypatch.setattr(srv, "shutdown", lambda: None)
+    monkeypatch.setattr(srv, "server_close", lambda: None)
+    spawned = []
+    monkeypatch.setattr(
+        mon, "_spawn_detached_monitor",
+        lambda cmd, log_path, cwd: spawned.append((cmd, log_path, cwd)) or 999999,
+    )
+
+    token = _csrf_token(url)
+    _post(url + "/server/restart", {"csrf_token": token})
+
+    deadline = time.time() + 2
+    while time.time() < deadline and not spawned:
+        time.sleep(0.02)
+    assert spawned
+    cmd, _log_path, _cwd = spawned[0]
+    assert "--host" in cmd and "127.0.0.1" in cmd
+    assert "--stats" in cmd and str(tmp_path / "s.csv") in cmd
+    assert "--log" in cmd and str(tmp_path / "l.log") in cmd
+    assert "--state" in cmd and str(tmp_path / "st.json") in cmd
+
+
+def test_restart_thread_forwards_data_paths_when_provided(tmp_path, monkeypatch):
+    # Unit : appel direct de _restart_server_thread avec les 3 chemins fournis
+    # -> ils apparaissent dans la commande de respawn (complement du test
+    # existant test_restart_thread_ecrit_l_erreur_au_lieu_de_l_avaler, qui
+    # appelle sans eux -- doit rester valide : defauts None retro-compatibles).
+    captured = []
+    monkeypatch.setattr(
+        mon, "_spawn_detached_monitor",
+        lambda cmd, log_path, cwd: captured.append(cmd) or 4242,
+    )
+    mon._restart_server_thread(
+        [None], tmp_path, 8765, "0.0.0.0",
+        stats_path=tmp_path / "s.csv",
+        data_log_path=tmp_path / "l.log",
+        state_path=tmp_path / "st.json",
+    )
+    assert captured
+    cmd = captured[0]
+    assert cmd[cmd.index("--host") + 1] == "0.0.0.0"
+    assert cmd[cmd.index("--stats") + 1] == str(tmp_path / "s.csv")
+    assert cmd[cmd.index("--log") + 1] == str(tmp_path / "l.log")
+    assert cmd[cmd.index("--state") + 1] == str(tmp_path / "st.json")
+
+
 def test_route_server_restart_writes_new_pid_file(server_obj, monkeypatch, tmp_path):
     url, srv = server_obj
     monkeypatch.setattr(srv, "shutdown", lambda: None)

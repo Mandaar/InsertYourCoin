@@ -290,7 +290,7 @@ def cmd_stats(args):
 
 def cmd_monitor(args):
     from trading.monitor import run_monitor
-    run_monitor(port=args.port, stats_path=args.stats,
+    run_monitor(port=args.port, host=args.host, stats_path=args.stats,
                 log_path=args.log, state_path=args.state)
 
 
@@ -494,6 +494,11 @@ def build_parser():
 
     mo = sub.add_parser("monitor")
     mo.add_argument("--port", type=int, default=8765)
+    mo.add_argument("--host", default="127.0.0.1",
+                    help="adresse d'ecoute (defaut: 127.0.0.1, local uniquement). "
+                         "0.0.0.0 = accessible depuis le reseau -- a n'utiliser "
+                         "QUE derriere un reverse proxy TLS+auth (ex. deploiement "
+                         "Docker) ; jamais expose nu sur internet.")
     mo.add_argument("--stats", default=None,
                     help="CSV de stats (defaut: paper_stats.csv a la racine)")
     mo.add_argument("--log", default=None,

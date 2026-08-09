@@ -1,0 +1,55 @@
+# Contexte de build Docker -- exclut tout ce qui est inutile/lourd/sensible.
+# Le Dockerfile ne fait de toute facon que des COPY selectives (main.py,
+# config.py, lancer.py, trading/) : ce fichier est une defense en
+# profondeur + accelere l'envoi du build context au daemon Docker.
+
+# Environnement Python local (jamais dans l'image -- reinstalle proprement)
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# Secrets -- NE JAMAIS envoyer au daemon Docker ni cuire dans une image/layer
+.env
+.env.*
+!.env.example
+!.env.deploy.example
+
+# Donnees runtime locales (le paper/monitor ecrivent dans le volume Docker,
+# jamais dans l'image)
+data/
+run/
+logs/
+paper_state.json
+paper_stats.csv
+paper_trades.log
+live_trades.log
+options.json
+*.png
+dashboard.html
+
+# Non necessaire a l'execution en conteneur (lanceur/raccourci Windows,
+# icones bureau, doc volumineuse, tests -- pas copies par le Dockerfile)
+*.bat
+*.ico
+assets/
+docs/
+tests/
+README.md
+SETUP.md
+CLAUDE.md
+.claude/
+scripts/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
