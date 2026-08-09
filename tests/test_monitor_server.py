@@ -1103,6 +1103,78 @@ def test_restart_thread_forwards_data_paths_when_provided(tmp_path, monkeypatch)
     assert cmd[cmd.index("--state") + 1] == str(tmp_path / "st.json")
 
 
+def test_restart_thread_forwards_allowed_hosts_when_provided(tmp_path, monkeypatch):
+    # Deploiement derriere un reverse-proxy EXISTANT (SWAG, 2026-08-09) : meme
+    # classe de bug que host/stats/log/state ci-dessus -- sans re-forward,
+    # un clic "Redemarrer le serveur" ferait perdre l'allowlist et le
+    # nouveau process respawn tomberait en 403 sur toute requete via SWAG.
+    captured = []
+    monkeypatch.setattr(
+        mon, "_spawn_detached_monitor",
+        lambda cmd, log_path, cwd: captured.append(cmd) or 4242,
+    )
+    mon._restart_server_thread(
+        [None], tmp_path, 8765, "0.0.0.0",
+        allowed_hosts=("iyc.eunivers.net", "other.example"),
+    )
+    assert captured
+    cmd = captured[0]
+    idx = [i for i, tok in enumerate(cmd) if tok == "--allowed-host"]
+    assert len(idx) == 2
+    assert cmd[idx[0] + 1] == "iyc.eunivers.net"
+    assert cmd[idx[1] + 1] == "other.example"
+
+
+def test_restart_thread_without_allowed_hosts_omits_the_flag(tmp_path, monkeypatch):
+    # Non-regression : allowed_hosts=() (defaut) -> aucun --allowed-host dans
+    # la commande de respawn, comportement identique a avant ce patch.
+    captured = []
+    monkeypatch.setattr(
+        mon, "_spawn_detached_monitor",
+        lambda cmd, log_path, cwd: captured.append(cmd) or 4242,
+    )
+    mon._restart_server_thread([None], tmp_path, 8765, "127.0.0.1")
+    assert captured
+    assert "--allowed-host" not in captured[0]
+
+
+def test_route_server_restart_forwards_allowed_hosts(tmp_path, monkeypatch):
+    # Integration bout-en-bout : un serveur construit avec allowed_hosts=(...)
+    # doit les re-forwarder au respawn declenche par POST /server/restart.
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    monkeypatch.setattr(mon, "project_root", lambda: tmp_path)
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json",
+                                   allowed_hosts=("iyc.eunivers.net",))
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    url = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        monkeypatch.setattr(srv, "shutdown", lambda: None)
+        monkeypatch.setattr(srv, "server_close", lambda: None)
+        spawned = []
+        monkeypatch.setattr(
+            mon, "_spawn_detached_monitor",
+            lambda cmd, log_path, cwd: spawned.append(cmd) or 999999,
+        )
+
+        token = _csrf_token(url)
+        _post(url + "/server/restart", {"csrf_token": token})
+
+        deadline = time.time() + 2
+        while time.time() < deadline and not spawned:
+            time.sleep(0.02)
+        assert spawned
+        cmd = spawned[0]
+        assert "--allowed-host" in cmd
+        assert cmd[cmd.index("--allowed-host") + 1] == "iyc.eunivers.net"
+    finally:
+        _teardown_server(srv)
+
+
 def test_route_server_restart_writes_new_pid_file(server_obj, monkeypatch, tmp_path):
     url, srv = server_obj
     monkeypatch.setattr(srv, "shutdown", lambda: None)

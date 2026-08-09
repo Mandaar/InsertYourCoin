@@ -30,6 +30,7 @@ Exemples :
   python main.py live      --strategy sma --execute
 """
 import argparse
+import os
 import sys
 
 # Windows : forcer stdout/stderr en UTF-8 -- la console cp1252 ne peut pas encoder
@@ -288,10 +289,30 @@ def cmd_stats(args):
     print(format_summary(summarize(df)))
 
 
+def _resolve_allowed_hosts(cli_hosts):
+    """
+    Fusionne les hotes additionnels CLI (--allowed-host, repetable) et la
+    variable d'env IYC_ALLOWED_HOSTS (liste separee par virgules) --
+    deploiement derriere un reverse-proxy EXISTANT (SWAG/serveur mutualise,
+    cf. docs/DEPLOY_DOCKER.md). Les deux sources s'AJOUTENT (jamais de
+    remplacement) ; vide des deux cotes -> tuple vide -> host_allowed()
+    retombe sur son defaut strict (127.0.0.1/localhost), comportement
+    INCHANGE pour tout usage local qui ne definit ni l'un ni l'autre.
+    """
+    hosts = list(cli_hosts or [])
+    env_val = os.environ.get("IYC_ALLOWED_HOSTS", "")
+    for h in env_val.split(","):
+        h = h.strip()
+        if h:
+            hosts.append(h)
+    return tuple(hosts)
+
+
 def cmd_monitor(args):
     from trading.monitor import run_monitor
     run_monitor(port=args.port, host=args.host, stats_path=args.stats,
-                log_path=args.log, state_path=args.state)
+                log_path=args.log, state_path=args.state,
+                allowed_hosts=_resolve_allowed_hosts(args.allowed_host))
 
 
 def diagnose_error(exc):
@@ -505,6 +526,14 @@ def build_parser():
                     help="journal du paper (defaut: paper_trades.log a la racine)")
     mo.add_argument("--state", default=None,
                     help="etat du paper (defaut: paper_state.json a la racine)")
+    mo.add_argument("--allowed-host", action="append", default=[],
+                    help="hote HTTP additionnel accepte (anti DNS-rebinding), "
+                         "en plus de 127.0.0.1/localhost -- repetable. Utile "
+                         "derriere un reverse-proxy EXISTANT (ex. SWAG) qui "
+                         "transmet un Host different (ex. iyc.eunivers.net). "
+                         "Se cumule avec la variable d'env IYC_ALLOWED_HOSTS "
+                         "(liste separee par virgules). Vide par defaut -> "
+                         "comportement inchange.")
     mo.set_defaults(func=cmd_monitor)
     return p
 

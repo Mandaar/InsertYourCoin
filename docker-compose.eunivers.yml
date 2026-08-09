@@ -1,0 +1,114 @@
+services:
+  # ---------------------------------------------------------------------------
+  # paper -- boucle de paper trading (argent fictif, prix reels Kraken).
+  # AUCUNE cle API requise en Phase 1 (donnees publiques uniquement).
+  # IDENTIQUE au service `paper` de docker-compose.yml (mode dedie) : seule la
+  # topologie reseau change dans cette variante (pas ce service).
+  # ---------------------------------------------------------------------------
+  paper:
+    build: .
+    image: insertyourcoin:latest
+    container_name: iyc-paper
+    restart: unless-stopped
+    init: true
+    # WORKDIR de CE service = le volume de donnees (pas /app). Cf.
+    # docker-compose.yml (mode dedie) pour le detail du gotcha -- inchange ici.
+    working_dir: /data
+    # GOTCHA IDENTIQUE au mode dedie : ces ${PAPER_*:-...} sont resolus par
+    # `docker compose` lui-meme a la LECTURE de ce fichier -- invoque TOUJOURS
+    # avec `--env-file .env.deploy` (§ doc), sinon retombe silencieusement sur
+    # les defauts codes ici.
+    command: >
+      python -u /app/main.py paper
+      --strategy ${PAPER_STRATEGY:-sma}
+      --symbol ${PAPER_SYMBOL:-ETH/USD}
+      --timeframe ${PAPER_TIMEFRAME:-5m}
+      --stop-loss ${PAPER_STOP_LOSS:-5}
+      --take-profit ${PAPER_TAKE_PROFIT:-10}
+      --trailing-stop ${PAPER_TRAILING_STOP:-8}
+    volumes:
+      - iyc_data:/data
+    networks:
+      - iyc-internal
+    # Phase 1 = pas de montage de .env (cles Kraken). Voir docker-compose.yml
+    # (mode dedie) section commentee "Ajouter le live plus tard" -- meme
+    # marche a suivre ici, sur un service `live` a part, jamais sur `paper`.
+
+  # ---------------------------------------------------------------------------
+  # monitor -- serveur web de suivi (lecture seule des fichiers ecrits par
+  # `paper`). DIFFERENCE avec le mode dedie : AUCUN service `proxy` Caddy dans
+  # cette variante -- SWAG (deja present sur le serveur mutualise, hors de ce
+  # projet) tient DEJA les ports 80/443 et route vers ce conteneur PAR SON NOM
+  # (`container_name` ci-dessous), via le reseau Docker EXTERNE `proxy`.
+  # `monitor` rejoint donc DEUX reseaux : `iyc-internal` (parler a `paper` via
+  # le volume partage) ET `proxy` (etre joignable par SWAG).
+  # ---------------------------------------------------------------------------
+  monitor:
+    build: .
+    image: insertyourcoin:latest
+    # container_name STABLE et EXPLICITE : c'est le nom que la conf SWAG
+    # (session infra, hors de ce depot) cible pour proxy_pass -- ne PAS le
+    # renommer sans coordonner avec cette conf. Documente aussi dans
+    # docs/DEPLOY_DOCKER.md section "reverse-proxy existant".
+    container_name: iyc-monitor
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - paper
+    command: >
+      python -u /app/main.py monitor
+      --host 0.0.0.0 --port 8765
+      --stats /data/paper_stats.csv
+      --log /data/paper_trades.log
+      --state /data/paper_state.json
+    environment:
+      # Allowlist Host anti DNS-rebinding (trading/monitor.py::host_allowed) --
+      # SWAG ne reecrit PAS le Host (double `proxy_set_header Host` = incident
+      # nginx deja vecu sur ce serveur), donc le Host recu par ce conteneur est
+      # le domaine public. Sans cette variable, TOUTE requete via SWAG tombe en
+      # 403 "Host non autorise". Cf. docs/DEPLOY_DOCKER.md pour le detail du
+      # choix (allowlist app plutot que reecriture nginx).
+      - IYC_ALLOWED_HOSTS=${IYC_ALLOWED_HOSTS:-iyc.eunivers.net}
+    # AUCUN `ports:` ICI NON PLUS (comme en mode dedie) : ce n'est PAS ce qui
+    # rend le service joignable par SWAG -- c'est le reseau externe `proxy`
+    # partage ci-dessous, sur lequel Docker resout les conteneurs PAR NOM.
+    volumes:
+      - iyc_data:/data
+    networks:
+      - iyc-internal
+      - proxy
+    healthcheck:
+      # Sonde interne (127.0.0.1 DANS ce conteneur) : Host: 127.0.0.1:8765,
+      # accepte par le defaut STRICT de host_allowed() -- aucun besoin de
+      # IYC_ALLOWED_HOSTS pour ce test, meme raisonnement qu'en mode dedie.
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # PAS de service `proxy` (Caddy) dans cette variante : SWAG (deja present
+  # sur ce serveur mutualise, hors de ce projet) tient 80/443, le certificat
+  # Let's Encrypt (HTTP-01), la Basic Auth ET l'anti-indexation pour TOUTE la
+  # stack (~13 conteneurs) -- les recreer ici serait une double couche
+  # redondante et un second point de configuration a maintenir en synchro.
+  # ---------------------------------------------------------------------------
+
+networks:
+  iyc-internal:
+    driver: bridge
+  # Reseau PARTAGE avec SWAG et les autres stacks du serveur -- NE PAS le
+  # declarer ici (`driver: bridge`) : il doit deja exister AVANT `docker
+  # compose up` sur cette variante (cree par la session infra qui deploie
+  # SWAG). `external: true` fait echouer `docker compose up` avec un message
+  # clair si ce n'est pas le cas, plutot que de creer silencieusement un
+  # second reseau du meme nom que SWAG ne verra jamais.
+  proxy:
+    external: true
+
+volumes:
+  # Donnees persistantes InsertYourCoin -- IDENTIQUE au mode dedie (meme nom,
+  # meme contenu : paper_state.json, paper_stats.csv, paper_trades.log).
+  iyc_data:

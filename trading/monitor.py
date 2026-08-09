@@ -792,7 +792,7 @@ def _service_thread(target, args) -> threading.Thread:
 
 def _restart_server_thread(server_ref, root: Path, port: int, host: str,
                            stats_path: Path = None, data_log_path: Path = None,
-                           state_path: Path = None) -> None:
+                           state_path: Path = None, allowed_hosts=()) -> None:
     """Arrete l'ancien serveur PUIS demarre un nouveau process detache sur le
     meme port -- ordre choisi pour eviter toute course de bind (le port doit
     etre LIBRE avant que le nouveau tente de s'y lier ; pas de retry-bind).
@@ -812,7 +812,15 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str,
     (ou CWD == project_root() par convention), jamais visible avant ce
     deploiement multi-conteneurs. `data_log_path` est nomme differemment de
     la variable locale `log_path` ci-dessous (le log de RESPAWN du process
-    monitor lui-meme, sans rapport avec le --log applicatif)."""
+    monitor lui-meme, sans rapport avec le --log applicatif).
+
+    `allowed_hosts` RE-FORWARDE de la meme facon (reverse-proxy EXISTANT,
+    2026-08-09) : sans ca, un clic sur "Redemarrer le serveur" derriere SWAG
+    ferait perdre l'allowlist -- le nouveau process respawn ne connaitrait
+    plus l'hote configure (ex. iyc.eunivers.net), et TOUTE requete via le
+    reverse-proxy tomberait en 403 "Host non autorise" jusqu'au prochain
+    redemarrage MANUEL du conteneur. Meme classe de bug que host/stats/log/
+    state ci-dessus -- corrigee des l'introduction du parametre (L6)."""
     srv = server_ref[0]
     if srv is not None:
         srv.shutdown()
@@ -831,6 +839,8 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str,
         cmd += ["--log", str(data_log_path)]
     if state_path is not None:
         cmd += ["--state", str(state_path)]
+    for h in (allowed_hosts or ()):
+        cmd += ["--allowed-host", str(h)]
     # BUG-014 (cause racine MESUREE) : monitor_console.log est tenu en verrou
     # EXCLUSIF par la redirection shell '>>' du monitor courant -> open('ab')
     # levait PermissionError, avale par un except silencieux : le respawn ne
@@ -887,14 +897,30 @@ def csrf_valid(submitted_token, expected_token) -> bool:
     return secrets.compare_digest(str(submitted_token), str(expected_token))
 
 
-def host_allowed(host_header, port) -> bool:
+def host_allowed(host_header, port, extra_hosts=()) -> bool:
     """
     L'en-tete Host doit cibler 127.0.0.1/localhost sur le bon port (anti
     DNS-rebinding). Le port peut etre omis par certains clients -> tolere.
+
+    `extra_hosts` (deploiement derriere un reverse-proxy EXISTANT, ex. SWAG sur
+    serveur mutualise -- docs/DEPLOY_DOCKER.md section "reverse-proxy existant") :
+    hotes SUPPLEMENTAIRES acceptes, EN PLUS du defaut ci-dessus qui ne bouge pas.
+    Chaque entree est comparee strip+lower, avec et sans le port courant (le
+    proxy peut transmettre l'un ou l'autre selon sa config). Ajouter un hote
+    ici assouplit l'anti-DNS-rebinding POUR CET HOTE SEULEMENT -- acceptable
+    uniquement si le serveur n'est joignable que via un reseau interne/un
+    reverse-proxy qui filtre deja (TLS + authentification devant), jamais si
+    le port est expose nu sur internet.
     """
     if not host_header:
         return False
     allowed = {f"127.0.0.1:{port}", f"localhost:{port}", "127.0.0.1", "localhost"}
+    for h in extra_hosts:
+        h = (h or "").strip().lower()
+        if not h:
+            continue
+        allowed.add(h)
+        allowed.add(f"{h}:{port}")
     return host_header.strip().lower() in allowed
 
 
@@ -921,7 +947,7 @@ _REPORT_RE = re.compile(r"^/report/([0-9a-f]{32})/?$")
 # --------------------------------------------------------------------------- #
 def build_monitor_server(port=8765, host="127.0.0.1",
                          stats_path=None, log_path=None, state_path=None,
-                         job_manager=None):
+                         job_manager=None, allowed_hosts=()):
     """
     Construit le serveur de monitoring et le RETOURNE (sans le demarrer).
     Separe de run_monitor pour etre testable en integration (port=0 = port
@@ -932,6 +958,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     serveur retourne (`server.job_manager`) pour que les tests -- et les
     futures routes /research/<type> des Lots 4-6 -- puissent y soumettre des
     jobs. None -> une instance neuve est creee (mono-job, en memoire).
+
+    `allowed_hosts` (deploiement derriere un reverse-proxy EXISTANT, ex. SWAG --
+    docs/DEPLOY_DOCKER.md) : iterable d'hotes additionnels transmis a
+    host_allowed() comme extra_hosts. Vide par defaut -> comportement anti
+    DNS-rebinding STRICTEMENT INCHANGE (127.0.0.1/localhost seulement).
     """
     root = project_root()
     jobs = job_manager if job_manager is not None else JobManager()
@@ -1011,7 +1042,7 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             self.wfile.write(body)
 
         def _host_ok(self):
-            if not host_allowed(self.headers.get("Host"), bound_port[0]):
+            if not host_allowed(self.headers.get("Host"), bound_port[0], allowed_hosts):
                 self._send_html(
                     _error_page("403 - Host non autorisé",
                                 "L'en-tête Host de cette requête n'est pas autorisé "
@@ -1855,7 +1886,8 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 self._send_html(render_server_restarting_page())
                 _service_thread(_restart_server_thread,
                                 (server_ref, root, bound_port[0], host,
-                                 stats_path, log_path, state_path)).start()
+                                 stats_path, log_path, state_path,
+                                 allowed_hosts)).start()
                 return
             if not self.path.startswith("/options"):
                 self._send_html(
@@ -1946,9 +1978,10 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
 
 def run_monitor(port=8765, host="127.0.0.1",
-                stats_path=None, log_path=None, state_path=None):
+                stats_path=None, log_path=None, state_path=None, allowed_hosts=()):
     """Demarre le serveur de monitoring (bloquant). Cf. build_monitor_server."""
     server = build_monitor_server(port=port, host=host, stats_path=stats_path,
-                                  log_path=log_path, state_path=state_path)
+                                  log_path=log_path, state_path=state_path,
+                                  allowed_hosts=allowed_hosts)
     print(f"Monitoring sur http://{host}:{server.server_address[1]}  (Ctrl+C pour arreter)")
     server.serve_forever()

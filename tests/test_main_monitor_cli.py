@@ -28,6 +28,7 @@ def test_cmd_monitor_forwards_host_to_run_monitor(monkeypatch):
     def fake_run_monitor(**kwargs):
         captured.update(kwargs)
 
+    monkeypatch.delenv("IYC_ALLOWED_HOSTS", raising=False)
     monkeypatch.setattr("trading.monitor.run_monitor", fake_run_monitor)
     args = main.build_parser().parse_args(
         ["monitor", "--host", "0.0.0.0", "--port", "8765",
@@ -37,4 +38,5 @@ def test_cmd_monitor_forwards_host_to_run_monitor(monkeypatch):
     assert captured == {
         "port": 8765, "host": "0.0.0.0",
         "stats_path": "s.csv", "log_path": "l.log", "state_path": "st.json",
+        "allowed_hosts": (),
     }

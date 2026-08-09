@@ -46,6 +46,13 @@
 Trois conteneurs (`docker-compose.yml`), un volume de données persistant, un réseau
 Docker interne où seul `proxy` est exposé.
 
+> **Deux variantes de déploiement, un seul projet.** Ce document (§1 à §12) couvre le
+> **mode dédié** : ce serveur t'appartient entièrement, `proxy` (Caddy) est le seul
+> service qui publie 80/443. Si tu déploies sur un **serveur mutualisé où un
+> reverse-proxy existe déjà** (SWAG, Traefik, nginx…) et détient ces ports pour
+> plusieurs projets — va directement à **§13**, qui documente `docker-compose.eunivers.yml`
+> (variante sans Caddy, additive, n'affecte en rien ce que tu lis ici).
+
 **Le compromis assumé (M20)** — ce qu'on obtient / ce qu'on abandonne / ce que ça
 coûte :
 - **Obtenu** : accès web HTTPS authentifié depuis n'importe où, données qui survivent
@@ -323,6 +330,103 @@ ces deux changements (`tests/test_main_monitor_cli.py`,
 
 ---
 
+## 13. Déploiement derrière un reverse-proxy existant (SWAG / serveur mutualisé)
+
+> Contexte cible (fourni par la session infra qui gère ce serveur, pas par ce
+> document) : Debian IONOS, ~13 conteneurs derrière **SWAG** (linuxserver, nginx) qui
+> détient déjà 80/443 (Let's Encrypt HTTP-01, CrowdSec, fail2ban). Sous-domaine prévu
+> **`iyc.eunivers.net`**. 1 utilisateur Linux par stack (`/home/iyc/`) ; le clone du
+> projet et la configuration SWAG (bloc `server{}` nginx, DNS) sont faits par la
+> **session infra**, pas par les commandes de cette section.
+
+### 13.1 Ce qui change vs le mode dédié (§0-§12)
+
+| | Mode dédié (`docker-compose.yml`) | Mode reverse-proxy existant (`docker-compose.eunivers.yml`) |
+|---|---|---|
+| Service `proxy` (Caddy) | présent, seul à publier 80/443 | **absent** — SWAG publie déjà 80/443 pour toute la machine |
+| TLS, Basic Auth, anti-indexation | gérés par Caddy (`Caddyfile`, `.env.deploy`) | **gérés par SWAG**, hors de ce dépôt — rien à recréer côté app/compose |
+| Réseau vers `monitor` | `iyc-internal` uniquement (Caddy y a accès) | `iyc-internal` **+** réseau Docker **externe `proxy`**, partagé avec SWAG |
+| Comment `monitor` est trouvé | Caddy relaie par nom de service interne | **SWAG résout par `container_name`** (`iyc-monitor`, port 8765) |
+| Protection Host (anti DNS-rebinding) | Caddy réécrit l'en-tête Host (`header_up Host 127.0.0.1:8765`) | **impossible** : réécrire le Host côté nginx est interdit sur ce serveur (double `proxy_set_header Host` → incident nginx déjà vécu) → **allowlist côté app** (`IYC_ALLOWED_HOSTS`, §13.3) |
+| Secrets `.env.deploy` (TLS, mot de passe) | requis (§3-4) | **non utilisés par cette variante** — l'auth et le TLS sont réglés dans SWAG |
+
+**Le compromis assumé (M20)** — obtenu / abandonné / coût :
+- **Obtenu** : zéro double couche TLS/auth à maintenir en synchro avec les ~12 autres
+  stacks du serveur ; le service `paper` reste identique bit pour bit au mode dédié.
+- **Abandonné** : la protection Host « exige exactement `127.0.0.1`/`localhost` »
+  n'est plus universelle — un hôte configuré (`iyc.eunivers.net`) est explicitement
+  ajouté à l'allowlist (§13.3, périmètre documenté).
+- **Coût** : une variable/un flag à tenir cohérent entre `docker-compose.eunivers.yml`
+  (défaut `iyc.eunivers.net`) et la conf SWAG (côté session infra) — s'ils divergent,
+  symptôme direct : 403 « Host non autorisé » (§12, tableau de dépannage).
+
+### 13.2 Démarrer
+
+Sur le serveur (le clone et le `.env.deploy` sont préparés par la session infra, ou
+suis §2-§4 en adaptant : pas besoin de `IYC_SITE_ADDRESS`/`IYC_TLS_MODE`/
+`IYC_BASIC_AUTH_*`, propres au mode dédié Caddy) :
+
+```bash
+docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build
+```
+
+**Prérequis qui doit déjà exister** (créé par la session infra, `docker network
+create proxy` ou équivalent lors de l'installation de SWAG) : le réseau Docker
+externe `proxy`. S'il n'existe pas, `docker compose up` **échoue avec un message
+clair** plutôt que de créer silencieusement un second réseau `proxy` que SWAG ne
+verra jamais (`networks: proxy: external: true` dans le compose — vérifie
+`docker network ls | grep proxy` avant si le message n'est pas explicite).
+
+**Ce que la session infra fait ensuite** (hors de ce document) : ajouter un bloc SWAG
+qui route `iyc.eunivers.net` vers `iyc-monitor:8765`, avec Basic Auth + TLS + règle
+anti-indexation ; pointer le DNS de `iyc.eunivers.net` vers ce serveur.
+
+### 13.3 Le point Host — pourquoi une allowlist côté app plutôt qu'une réécriture nginx
+
+`host_allowed()` (`trading/monitor.py`) n'acceptait, avant ce patch, que
+`127.0.0.1`/`localhost`. En mode dédié, Caddy contourne ça en réécrivant l'en-tête
+Host avant de relayer. **Sur ce serveur, réécrire le Host côté SWAG (nginx) est
+interdit** — un second `proxy_set_header Host` en plus de celui déjà posé par SWAG
+pour les ~12 autres stacks a déjà provoqué un `nginx: emerg` (conflit de directive).
+
+Solution retenue : une **allowlist configurable côté application, défaut
+strictement inchangé** :
+
+- `host_allowed(host_header, port, extra_hosts=())` — `extra_hosts` vide (défaut) =
+  comportement identique à avant ce patch. Testé dans `tests/test_allowed_hosts.py`
+  et `tests/test_options.py::test_host_allowed_*` (non-régression).
+- Source de config, les deux se cumulent : variable d'env **`IYC_ALLOWED_HOSTS`**
+  (liste séparée par virgules) **et** flag CLI **`--allowed-host`** (répétable) sur
+  `main.py monitor`. `docker-compose.eunivers.yml` positionne
+  `IYC_ALLOWED_HOSTS=${IYC_ALLOWED_HOSTS:-iyc.eunivers.net}` sur le service `monitor`.
+- Re-forwardé au **respawn** déclenché par le bouton « Redémarrer le serveur »
+  (page Options) — même classe de bug que celle déjà corrigée le même jour pour
+  `--host`/`--stats`/`--log`/`--state` (§11) : sans ce re-forward, un clic aurait
+  fait perdre l'allowlist jusqu'au prochain redémarrage manuel du conteneur.
+
+**Sécurité, explicitement** : ajouter un hôte à l'allowlist assouplit l'anti
+DNS-rebinding **pour cet hôte précis seulement** (127.0.0.1/localhost restent
+acceptés en plus, jamais remplacés). Acceptable dans ce déploiement parce que
+`monitor` n'est joignable **que** via le réseau Docker `proxy` (aucun `ports:` publié
+par ce conteneur, comme en mode dédié) **et** que SWAG impose Basic Auth + TLS avant
+que la requête n'atteigne l'application — les deux couches qui protègent réellement
+restent intactes ; l'allowlist ne fait que permettre à une requête déjà filtrée par
+SWAG de passer le contrôle applicatif interne.
+
+### 13.4 Fichiers de cette variante
+
+| Fichier | Rôle |
+|---|---|
+| `docker-compose.eunivers.yml` | variante sans `proxy` (Caddy), réseau externe `proxy`, `IYC_ALLOWED_HOSTS` |
+| `.env.deploy.example` | section dédiée « reverse-proxy existant » (`IYC_ALLOWED_HOSTS`), sans effet en mode dédié |
+| `trading/monitor.py`, `main.py` | `host_allowed(..., extra_hosts=...)`, `build_monitor_server(..., allowed_hosts=...)`, `--allowed-host` CLI, re-forward au respawn |
+
+Le mode dédié (`docker-compose.yml`, `Caddyfile`) **n'est pas modifié** par cette
+variante — les deux compose files coexistent, tu choisis celui qui correspond à ton
+serveur avec `-f`.
+
+---
+
 ## Annexe — ce qui a été VÉRIFIÉ vs ce qui reste À VÉRIFIER sur la cible
 
 **Vérifié sur cette machine (Windows, pas de Docker installé)** :
@@ -348,3 +452,49 @@ n'est pas dans le PATH) — à valider sur le serveur Debian réel, dans cet ord
 - La syntaxe exacte de la directive `basicauth` sur `caddy:2-alpine` (cf. tableau de
   dépannage ci-dessus) et l'obtention effective d'un certificat Let's Encrypt (mode A)
   ou auto-signé (mode B).
+
+### Annexe bis — variante §13 (`docker-compose.eunivers.yml`, reverse-proxy existant)
+
+**Vérifié sur cette machine (lecture de code + tests, pas d'exécution Docker)** :
+- `host_allowed(host_header, port, extra_hosts=())` : défaut vide → comportement
+  identique à avant ce patch (`tests/test_options.py::test_host_allowed_*`, verts,
+  non-régression) ; hôte configuré accepté/rejeté correctement, avec/sans port,
+  insensible à la casse (`tests/test_allowed_hosts.py`).
+- `build_monitor_server(..., allowed_hosts=...)`, `run_monitor(..., allowed_hosts=...)`
+  et le Handler (`_host_ok`) transmettent bien `allowed_hosts` à `host_allowed()`.
+- `--allowed-host` (répétable) + `IYC_ALLOWED_HOSTS` (CSV) fusionnent sans se
+  remplacer (`main._resolve_allowed_hosts`), défaut = tuple vide sans configuration.
+- `_restart_server_thread` re-forwarde `--allowed-host` au respawn (même correctif
+  que `--host`/`--stats`/`--log`/`--state` du §11, appliqué à ce nouveau paramètre
+  dès son introduction — pas après coup) : couvert par 3 tests dans
+  `tests/test_monitor_server.py` (unit + intégration HTTP réelle sur `/server/restart`).
+- `docker-compose.eunivers.yml` : validé **structurellement** via PyYAML (installé
+  temporairement pour l'audit puis désinstallé, pas une dépendance du projet) —
+  2 services (`paper`, `monitor`), ni l'un ni l'autre ne publie `ports:`, `monitor`
+  est sur les deux réseaux `iyc-internal`+`proxy`, `proxy` est bien `external: true`,
+  aucun service `proxy`/Caddy présent, `container_name: iyc-monitor` confirmé.
+- **599 → 616 tests pytest verts** (`.venv\Scripts\python.exe -m pytest -q`), dont
+  17 nouveaux ciblant précisément cette variante (`tests/test_allowed_hosts.py` +
+  3 tests ajoutés à `tests/test_monitor_server.py` + 1 test CLI ajusté dans
+  `tests/test_main_monitor_cli.py`).
+
+**Non vérifiable depuis cette machine — à valider sur le serveur Debian réel** :
+- Que le réseau Docker externe **`proxy` existe déjà** avant le premier
+  `docker compose -f docker-compose.eunivers.yml up` (créé par la session infra qui
+  installe SWAG) — sans lui, `docker compose up` doit échouer avec un message
+  explicite (`external: true`) plutôt que créer un second réseau invisible pour SWAG ;
+  comportement documenté de Compose, jamais exécuté ici faute de daemon Docker.
+- Que **SWAG résout effectivement `iyc-monitor` par son `container_name`** une fois
+  les deux stacks sur le même réseau `proxy` (résolution DNS Docker interne,
+  standard, mais dépend de la conf SWAG réelle — hors de ce dépôt, faite par la
+  session infra).
+- Que la Basic Auth + l'anti-indexation + le TLS **configurés dans SWAG** (pas dans
+  ce dépôt) protègent bien `iyc.eunivers.net` avant que la requête n'atteigne
+  `monitor` — à vérifier par un accès direct au sous-domaine une fois la conf SWAG
+  posée.
+- Qu'un hôte non listé dans `IYC_ALLOWED_HOSTS` retourne bien 403 en conditions
+  réelles derrière SWAG (le comportement de `host_allowed()` est testé en local,
+  mais pas le chemin réseau complet SWAG → conteneur).
+- La syntaxe healthcheck (`test: ["CMD", "python", "-c", ...]`) est identique au
+  mode dédié déjà documenté ci-dessus comme À VÉRIFIER — aucune différence
+  introduite par cette variante sur ce point.
