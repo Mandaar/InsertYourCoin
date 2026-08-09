@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# Overlay Lot 8B -- live REEL en conteneur, superviseur + armement persistant.
+# docs/design/LOT8B_LIVE_CONTENEUR_SPEC.md §4. Procedure complete :
+# docs/DEPLOY_DOCKER.md §8.
+#
+# NON ACTIVE PAR DEFAUT -- ce fichier n'a AUCUN EFFET tant qu'il n'est pas
+# explicitement ajoute a la commande `docker compose` avec `-f` :
+#
+#   docker compose -f docker-compose.yml -f docker-compose.live.yml \
+#     --env-file .env.deploy up -d --build
+#
+# (ou docker-compose.eunivers.yml au lieu de docker-compose.yml, selon la
+# variante de deploiement -- ce fichier est IDENTIQUE dans les deux cas :
+# aucune dependance a Caddy ni a SWAG, le service `live` ne publie jamais de
+# port et ne rejoint que le reseau interne).
+#
+# AUCUNE cle n'est montee par ce depot -- `./.env` doit exister sur l'hote
+# AVANT d'activer cet overlay (copie de .env.example, cles Kraken SANS le
+# droit "Withdraw Funds", cf. DEPLOY_DOCKER.md §8 point 1). Ce fichier ne
+# cree, ne modifie et ne lit JAMAIS ce `.env` lui-meme -- il se contente de
+# le monter en LECTURE SEULE sur le service `live` UNIQUEMENT.
+# ---------------------------------------------------------------------------
+services:
+  # -------------------------------------------------------------------------
+  # live -- superviseur (`main.py live-run`) : (re)lance `main.py live
+  # [--execute]` tant qu'un marqueur d'armement persistant existe
+  # (/data/live/armed.json, ecrit UNIQUEMENT par
+  # `docker compose run --rm live live-arm`, jamais par ce service ni par le
+  # web). Ne PASSE JAMAIS d'ordre lui-meme -- il gere le cycle de vie du
+  # process enfant qui, seul, appelle Kraken.
+  # -------------------------------------------------------------------------
+  live:
+    build: .
+    image: insertyourcoin:latest
+    container_name: iyc-live
+    restart: unless-stopped
+    init: true                      # tini : propage SIGTERM au superviseur (PID 1), reap les zombies
+    # WORKDIR = le volume de donnees (comme `paper`) : live_state.json,
+    # live_trades.log, live_stats.csv, live/armed.json, live/stop_request,
+    # live/status.json, run/live.pid atterrissent TOUS sur /data (chemins
+    # relatifs au cwd, meme convention que PaperTrader/LiveTrader).
+    working_dir: /data
+    command: python -u /app/main.py live-run
+    volumes:
+      - iyc_data:/data
+      # CLES, LECTURE SEULE -- sur CE service UNIQUEMENT, jamais paper/monitor
+      # (docs/DEPLOY_DOCKER.md §8 point 2 ; garde N6 de LOT8_LIVE_SPEC.md).
+      - ./.env:/app/.env:ro
+    networks:
+      - iyc-internal              # egress Kraken uniquement
+    # PAS de `ports:` -- aucun listener entrant.
+    # PAS du reseau `proxy` -- jamais internet-facing en entree (le service
+    # ne sert aucune page web ; /live reste servi par `monitor`).
+
+  # -------------------------------------------------------------------------
+  # monitor -- ferme le footgun web (§3.1) : demarrage/armement du live
+  # NEUTRALISES cote /live (spawn dans monitor = isole du volume, footgun
+  # identique au paper, DEPLOY_DOCKER.md §7) ; arret CONSERVE (sentinelle +
+  # desarmement, §3.2 -- PAS terminate_pid, cross-namespace). MERGE additif
+  # sur la definition de base (docker-compose.yml OU
+  # docker-compose.eunivers.yml) : seule `environment:` est etendue ici,
+  # AUCUN `command:` redeclare (Compose REMPLACE `command:` a la fusion --
+  # le redeclarer ici ferait perdre --stats/--log/--state/--live-root de la
+  # commande de base, meme classe de bug que §11 de DEPLOY_DOCKER.md).
+  # -------------------------------------------------------------------------
+  monitor:
+    environment:
+      - IYC_DISABLE_LIVE_CONTROL=1
+
+networks:
+  iyc-internal:
+    driver: bridge
+
+volumes:
+  iyc_data:

@@ -245,32 +245,175 @@ docker run --rm \
   déploiement Phase 1 — il n'y en a pas besoin, et ça ouvrirait une surface inutile.
   Voir §8 pour l'ajouter proprement plus tard.
 
-## 8. Ajouter le live plus tard (PAS activé aujourd'hui)
+## 8. Ajouter le live (Lot 8B — superviseur + armement persistant, conteneur)
 
-Le jour où tu voudras passer une partie en trading réel (petits montants, garde-fous
-serrés `config.py` — cf. `CLAUDE.md` du projet), voici le chemin, **sans rien
-changer aujourd'hui** :
+> **Statut : implémenté, NON ACTIVÉ par défaut.** L'overlay `docker-compose.live.yml`
+> n'a **aucun effet** tant qu'il n'est pas explicitement ajouté avec `-f` à la
+> commande `docker compose` — voir §5. Ce document décrit la procédure **réelle**
+> (superviseur conteneurisé, armement persistant, mur web neutralisé côté
+> démarrage) : elle **remplace** l'ancienne esquisse "un service `live --execute`
+> qui bloque sur `docker compose run`" — cf.
+> `docs/design/LOT8B_LIVE_CONTENEUR_SPEC.md` pour le détail complet des décisions
+> et leurs justifications (M19, gate indépendante).
 
-1. Crée un fichier `.env` (les clés Kraken — **jamais** le même fichier que
-   `.env.deploy`) à partir de `.env.example`, avec une clé Kraken **sans** la
-   permission *Withdraw Funds*.
-2. Ajoute un **nouveau service** `live` dans `docker-compose.yml` (copie du service
-   `paper`, en changeant `paper` en `live --execute` dans la commande) qui monte ce
-   `.env` **en lecture seule** : `- ./.env:/app/.env:ro`. Ne l'ajoute **jamais** au
-   service `paper` existant — la séparation est volontaire (Loi 3 / conservation :
-   le paper reste 100% sûr par construction, indépendamment du reste).
-3. La friction applicative reste intacte et n'est PAS contournable depuis ce
-   déploiement : `main.py live --execute` exige de taper `OUI JE CONFIRME` sur un
-   **terminal interactif** — donc démarrer ce service en `docker compose up -d`
-   (détaché, sans TTY) **bloquera indéfiniment sur ce prompt**, ce qui est en
-   pratique un garde-fou de plus, pas un bug : il faudra lancer ce service au
-   premier plan (`docker compose run --rm live`) au moins une fois pour confirmer,
-   ou accepter de retravailler ce point avec un `qa-tester`/`release-engineer` avant
-   d'automatiser le live (hors scope de cette mission, volontairement).
-4. Les plafonds (`MAX_TRADE_VALUE_USD`, `MAX_POSITION_VALUE_USD`,
-   `MIN_TRADE_INTERVAL_SEC`) restent dans `config.py`, donc dans l'image — les
-   changer exige un rebuild (`--build`), jamais une variable d'environnement
-   silencieuse.
+### 8.1 Pourquoi le local (Lot 8, `input()` interactif) ne suffit pas ici
+
+Le live **local** exige de taper `OUI JE CONFIRME` sur un terminal interactif à
+**chaque** démarrage (`main.py live --execute`). Sous `restart: unless-stopped`,
+ça tombe en trois pièges : le prompt **bloque indéfiniment** sans TTY, l'état de
+risque (stop/trailing) ne vivait qu'**en mémoire** (perdu à chaque restart), et le
+bouton web `/live` spawnerait un process **dans le conteneur `monitor`**, isolé du
+volume — trois hypothèses locales qui tombent toutes en conteneur. Le Lot 8B
+répond par **un marqueur d'armement persistant** (confirmé UNE fois, via un
+terminal, puis relu par un **superviseur** dédié qui reprend/relance
+`main.py live --execute` de lui-même, sans jamais redemander la phrase).
+
+### 8.2 Ce que tu obtiens (compromis chiffré, M20)
+
+- **Obtenu** : reprise automatique après crash/redémarrage du conteneur (Docker
+  `restart: unless-stopped` + superviseur qui reconnecte l'état via Kraken) ;
+  armement confirmé **une fois**, jamais par accident (le marqueur n'existe QUE si
+  un humain a tapé `OUI JE CONFIRME` sur un terminal interactif) ; un seul live à
+  la fois **garanti** (même verrou anti-TOCTOU que BUG-015) ; le bouton web
+  « Arrêter » du dashboard reste fonctionnel (sentinelle + désarmement) même si le
+  démarrage web est neutralisé.
+- **Abandonné** : le démarrage/armement depuis la page web `/live` — en conteneur,
+  ce canal est **entièrement désactivé** (lecture seule) ; le seul canal
+  d'armement est un terminal shell sur l'hôte (`docker compose run --rm live
+  live-arm`).
+- **Coût** : deux commandes à connaître (`live-arm`/`live-disarm`), un fichier
+  `.env` (clés Kraken) à préparer sur l'hôte, une case déjà connue (BUG-015)
+  qu'un test de concurrence continue de couvrir.
+
+### 8.3 Préparer les clés (comme le local — jamais commité)
+
+```bash
+cp .env.example .env
+```
+
+Édite `.env` avec une clé Kraken **sans** la permission *Withdraw Funds* (Query
+Funds + Orders seulement). Ce fichier est **différent** de `.env.deploy` (qui
+configure Caddy/le paper) — ne les confonds jamais. `.env` est déjà dans
+`.gitignore`.
+
+### 8.4 Activer l'overlay (mode dédié) ou (reverse-proxy existant)
+
+```bash
+# Mode dédié (docker-compose.yml, Caddy) :
+docker compose -f docker-compose.yml -f docker-compose.live.yml \
+  --env-file .env.deploy up -d --build
+
+# Reverse-proxy existant (docker-compose.eunivers.yml, SWAG) :
+docker compose -f docker-compose.eunivers.yml -f docker-compose.live.yml \
+  --env-file .env.deploy up -d --build
+```
+
+`docker-compose.live.yml` ajoute le service `live` (superviseur, `command: python
+-u /app/main.py live-run`, `.env` monté en **lecture seule**, réseau
+`iyc-internal` **seul** — jamais `proxy`, aucun `ports:`) et étend
+`environment:` du service `monitor` existant avec `IYC_DISABLE_LIVE_CONTROL=1`
+(fusion additive Compose — le `command:` du `monitor` de base n'est **jamais**
+redéclaré dans l'overlay, pour ne pas perdre `--stats/--log/--state/--live-root`,
+même classe de bug que §11).
+
+À ce stade, le service `live` **tourne mais ne trade rien** : aucun marqueur
+d'armement n'existe encore, le superviseur reste `désarmé` (visible sur `/live`,
+maintenant en **lecture seule**).
+
+### 8.5 Armer (one-shot, interactif, sur l'hôte)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.live.yml \
+  --env-file .env.deploy run --rm live \
+  python /app/main.py live-arm --strategy sma --symbol ETH/USD --timeframe 5m \
+  --stop-loss 5 --take-profit 10 --trailing-stop 8
+```
+
+(`/app/main.py` en chemin absolu -- `docker compose run` hérite du `working_dir:
+/data` du service `live`, où `main.py` n'existe pas ; c'est le code applicatif qui
+vit dans `/app`, comme dans le `command:` du service lui-même.)
+
+Récapitulatif affiché (paire, stratégie, plafonds `config.py`), puis exige de
+taper exactement `OUI JE CONFIRME`. Une fois confirmé : le marqueur
+`/data/live/armed.json` est écrit (**aucune** clé, **aucune** phrase dedans — la
+grille est figée, cf. spec §2.2) et la commande **rend la main** (elle ne trade
+jamais elle-même). Le superviseur (déjà en cours d'exécution via `restart:
+unless-stopped`) lit ce marqueur à son prochain cycle (**~2 s**) et (re)lance
+`main.py live --execute` en lui pipant la phrase sur son entrée standard — la 3ᵉ
+barrière de Lot 8 (`main.py::cmd_live`, **inchangé**) reste donc intacte, elle
+est simplement rejouée automatiquement parce qu'un humain a déjà confirmé une
+fois à l'armement.
+
+**Sans TTY, aucun marqueur n'est écrit** (fail-safe volontaire) : lancer cette
+commande via un `up -d` détaché, un cron, ou tout contexte sans terminal
+interactif échoue proprement sur EOF — impossible d'armer par accident.
+
+**Armer en simulation d'abord** (recommandé, aucune phrase exigée, aucun ordre
+possible) :
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.live.yml \
+  --env-file .env.deploy run --rm live \
+  python /app/main.py live-arm --dry --strategy sma --symbol ETH/USD --timeframe 5m
+```
+
+### 8.6 Désarmer / arrêter
+
+Trois façons, du plus doux au plus radical :
+
+1. **Bouton web « Arrêter immédiatement »** (page `/live`, désormais en lecture
+   seule mais ce bouton **reste actif**) : écrit un sentinelle d'arrêt +
+   désarme ; le superviseur termine l'enfant sous ~2 s, **sans vendre**. Ta
+   position ouverte sur Kraken, le cas échéant, **reste** — le bot ne liquide
+   jamais (`arrêter n'est pas liquider`).
+2. **CLI, depuis l'hôte** :
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.live.yml \
+     --env-file .env.deploy run --rm live python /app/main.py live-disarm
+   ```
+   Même effet que le bouton web : le superviseur termine l'enfant sans vendre au
+   prochain cycle.
+3. **Kill de dernière instance** (garantie OS, indépendante de l'application) :
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.live.yml \
+     --env-file .env.deploy stop live
+   ```
+   Arrête le conteneur entier (superviseur + enfant). Au redémarrage
+   (`start`/`up -d`), le superviseur relit l'état persisté et **reconcilie** avec
+   Kraken avant de reprendre (cf. workstream A — `LiveTrader.reconcile()`,
+   spec §1.4) — ce n'est **pas** une liquidation, seulement une pause.
+
+### 8.7 Où sont les données live
+
+Sur le volume `iyc_data`, comme le paper :
+
+| Fichier | Contenu |
+|---|---|
+| `live_state.json` | ancres de risque persistées (`entry_price`, `peak`, `entry_ts`, `entry_cost`, `last_trade_ts`) — **aucune clé, aucun solde** (Kraken reste la vérité pour cash/quantité) |
+| `live/armed.json` | marqueur d'armement — **aucune clé, aucune phrase** |
+| `live/stop_request` | sentinelle d'arrêt (transitoire) |
+| `live/status.json` | statut du superviseur (`en_cours`/`désarmé`/`erreur_cles`/…) — lu par `/live` |
+| `live_trades.log`, `live_stats.csv` | journal + stats, identiques au format local |
+
+Le dashboard (`/live` en conteneur) lit tout ceci via `--live-root /data` (déjà
+présent sur `monitor` dans `docker-compose.yml`/`docker-compose.eunivers.yml`,
+**sans effet** tant que le service `live` n'existe pas).
+
+### 8.8 Ce qui ne bouge PAS (conservation, L3)
+
+- **Sans cet overlay** (`docker-compose.live.yml` non ajouté avec `-f`), rien ne
+  change : `--live-root /data` sur `monitor` est un flag mort (aucun
+  `live/*`/`live_state.json` n'existe jamais sur le volume), `/live` continue
+  d'afficher son mur local habituel.
+- **`cmd_live` inchangé** (`main.py::cmd_live`) : les nouveaux chemins (`live-arm`,
+  superviseur) l'appellent tel quel, phrase pipée sur stdin.
+- **Le flux nonce web local** (Lot 8, `docs/design/LOT8_LIVE_SPEC.md`) reste
+  identique quand `IYC_DISABLE_LIVE_CONTROL` est absent — c'est un flag **distinct**
+  de `IYC_DISABLE_PAPER_CONTROL`, jamais partagé.
+- **Les plafonds** (`MAX_TRADE_VALUE_USD`, `MAX_POSITION_VALUE_USD`,
+  `MIN_TRADE_INTERVAL_SEC`) restent dans `config.py`, donc dans l'image — les
+  changer exige un rebuild (`--build`), jamais une variable d'environnement
+  silencieuse ni un champ du marqueur d'armement.
 
 ## 9. Mettre à jour
 

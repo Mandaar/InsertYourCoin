@@ -38,5 +38,5 @@ def test_cmd_monitor_forwards_host_to_run_monitor(monkeypatch):
     assert captured == {
         "port": 8765, "host": "0.0.0.0",
         "stats_path": "s.csv", "log_path": "l.log", "state_path": "st.json",
-        "allowed_hosts": (),
+        "allowed_hosts": (), "live_root": None,
     }

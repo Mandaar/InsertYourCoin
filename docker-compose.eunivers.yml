@@ -61,6 +61,10 @@ services:
       --stats /data/paper_stats.csv
       --log /data/paper_trades.log
       --state /data/paper_state.json
+      --live-root /data
+    # --live-root /data (Lot 8B) : SANS EFFET tant que le service `live`
+    # (docker-compose.live.yml, overlay optionnel NON active par defaut)
+    # n'existe pas -- meme raisonnement que docker-compose.yml (mode dedie).
     environment:
       # Allowlist Host anti DNS-rebinding (trading/monitor.py::host_allowed) --
       # SWAG ne reecrit PAS le Host (double `proxy_set_header Host` = incident

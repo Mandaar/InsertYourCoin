@@ -66,6 +66,14 @@ services:
       --stats /data/paper_stats.csv
       --log /data/paper_trades.log
       --state /data/paper_state.json
+      --live-root /data
+    # --live-root /data (Lot 8B) : SANS EFFET tant que le service `live`
+    # (docker-compose.live.yml, overlay optionnel NON active par defaut)
+    # n'existe pas -- /live affiche simplement son mur habituel (aucun
+    # fichier live/* sur le volume). Evite la classe de bug deja corrigee
+    # pour --host/--stats/--log/--state (§11 de docs/DEPLOY_DOCKER.md) :
+    # ajoute des l'introduction du parametre plutot qu'apres une 4e
+    # occurrence identique.
     environment:
       # Footgun ferme par construction (docs/DEPLOY_DOCKER.md §7) : le bouton
       # Demarrer/Arreter de la page web /paper (Lot 7) spawnerait un SECOND

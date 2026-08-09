@@ -534,3 +534,153 @@ def test_route_live_journal_lit_live_log_lecture_seule(live_server, monkeypatch)
     _get(base + "/live")  # un 2e GET ne doit RIEN ecrire (lecture seule)
     after = log_path.read_text()
     assert before == after
+
+
+# --------------------------------------------------------------------------- #
+#  Lot 8B -- deploiement conteneurise (IYC_DISABLE_LIVE_CONTROL) : demarrage  #
+#  neutralise, arret CONSERVE (sentinelle+desarmement, PAS terminate_pid     #
+#  cross-namespace), lecture seule via `live_root` DISTINCT de `root`.       #
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def live_container_server(tmp_path, monkeypatch):
+    monkeypatch.setattr("trading.options.OPTIONS_PATH",
+                        lambda: tmp_path / "options.json")
+    monkeypatch.setattr(mon, "project_root", lambda: tmp_path)
+    monkeypatch.setenv("IYC_DISABLE_LIVE_CONTROL", "1")
+    # `live_root` DISTINCT de `root` (tmp_path) -- preuve que la redirection
+    # des chemins live fonctionne reellement, pas par coincidence (root ==
+    # live_root donnerait un FAUX positif).
+    live_root = tmp_path / "livedata"
+    srv = mon.build_monitor_server(port=0,
+                                   stats_path=tmp_path / "s.csv",
+                                   log_path=tmp_path / "l.log",
+                                   state_path=tmp_path / "st.json",
+                                   live_root=live_root)
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    try:
+        yield f"http://127.0.0.1:{srv.server_address[1]}", live_root
+    finally:
+        _teardown_server(srv)
+
+
+def test_route_live_get_container_lecture_seule_aucun_formulaire_start(live_container_server):
+    base, _live_root = live_container_server
+    code, page = _get(base + "/live")
+    assert code == 200
+    assert "action='/live/arm'" not in page
+    assert "action='/live/start'" not in page
+    assert "action='/live/stop'" in page  # arret CONSERVE
+    assert "conteneur" in page.lower()
+
+
+def test_route_live_arm_refuse_en_conteneur_aucun_nonce(live_container_server, monkeypatch):
+    base, _live_root = live_container_server
+    monkeypatch.setattr(mon, "keys_configured", lambda: True)
+    token = _csrf_token(base)
+    code, page = _post(base + "/live/arm", _arm_fields(token))
+    assert code == 200
+    assert "name='nonce'" not in page
+    assert "désactivé" in page.lower()
+
+
+def test_route_live_start_refuse_en_conteneur_reel_et_dry_avant_tout_spawn(
+    live_container_server, monkeypatch,
+):
+    base, _live_root = live_container_server
+    calls = _record_spawn(monkeypatch)
+    token = _csrf_token(base)
+
+    code, _ = _post(base + "/live/start", {
+        "csrf_token": token, "mode": "dry", "strategy": "sma",
+        "symbol": "ETH/USD", "timeframe": "1h",
+    })
+    assert code == 200
+    assert calls == []
+
+    code2, _ = _post(base + "/live/start", {
+        "csrf_token": token, "mode": "reel", "nonce": "nonce-bidon",
+        "phrase": "OUI JE CONFIRME",
+    })
+    assert code2 == 200
+    assert calls == []
+
+
+def test_route_live_stop_conteneur_ecrit_sentinelle_et_desarme_sans_terminate_pid(
+    live_container_server, monkeypatch,
+):
+    base, live_root = live_container_server
+    live_control.write_armed_marker(
+        live_root, {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h"},
+        mode="reel", armed_via="cli-interactive")
+    terminate_calls = []
+    monkeypatch.setattr(lancer, "terminate_pid",
+                        lambda pid, timeout=5.0: terminate_calls.append(pid) or True)
+    token = _csrf_token(base)
+
+    code, page = _post(base + "/live/stop", {"csrf_token": token})
+
+    assert code == 200
+    assert "arrêt demandé" in page.lower()
+    assert terminate_calls == []                 # PAS de terminate_pid cross-namespace
+    assert live_control.stop_requested(live_root) is True
+    assert live_control.read_armed_marker(live_root) is None
+
+
+def test_route_live_position_non_geree_affichee_en_conteneur(live_container_server):
+    base, live_root = live_container_server
+    live_root.mkdir(parents=True, exist_ok=True)
+    (live_root / "live_state.json").write_text(
+        json.dumps({"invested": True, "entry_price": 100.0, "updated_ts": 1000.0}))
+    # AUCUN marqueur d'armement -> position investie mais desarmee = NON GEREE.
+    code, page = _get(base + "/live")
+    assert code == 200
+    assert "NON GÉRÉE" in page
+
+
+def test_route_live_position_geree_pas_de_banniere_quand_arme(live_container_server):
+    base, live_root = live_container_server
+    live_root.mkdir(parents=True, exist_ok=True)
+    (live_root / "live_state.json").write_text(
+        json.dumps({"invested": True, "entry_price": 100.0, "updated_ts": 1000.0}))
+    live_control.write_armed_marker(
+        live_root, {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h"},
+        mode="reel", armed_via="cli-interactive")
+    code, page = _get(base + "/live")
+    assert code == 200
+    assert "NON GÉRÉE" not in page
+
+
+def test_route_live_reads_from_live_root_not_project_root(live_container_server, tmp_path):
+    """Preuve que /live en conteneur lit bien `live_root` (et pas `root`) :
+    un live_trades.log ecrit a la racine du PROJET (tmp_path, jamais consulte
+    en mode conteneur) n'apparait PAS ; le meme fichier sous `live_root`
+    apparait."""
+    base, live_root = live_container_server
+    (tmp_path / "live_trades.log").write_text("[FANTOME] ne doit jamais apparaitre\n")
+    live_root.mkdir(parents=True, exist_ok=True)
+    (live_root / "live_trades.log").write_text("[REEL] doit apparaitre\n")
+    _, page = _get(base + "/live")
+    assert "FANTOME" not in page
+    assert "REEL" in page
+
+
+def test_paper_control_independant_du_flag_live(live_container_server):
+    """IYC_DISABLE_LIVE_CONTROL ne doit RIEN changer a /paper -- flags
+    DISTINCTS, jamais partages (C12, non-regression)."""
+    base, _live_root = live_container_server
+    code, page = _get(base + "/paper")
+    assert code == 200
+    assert "action='/paper'" in page  # formulaire de demarrage toujours present
+
+
+def test_route_live_local_flux_nonce_inchange_sans_flag(live_server):
+    """Non-regression (C12) : SANS IYC_DISABLE_LIVE_CONTROL, /live reste le
+    mur a nonce local -- identique a test_route_live_get_mur, verifie ici
+    dans le meme fichier que les tests conteneur pour une lecture cote a
+    cote de ce qui NE change PAS."""
+    base, _tmp_path = live_server
+    code, page = _get(base + "/live")
+    assert code == 200
+    assert "name='mode_display' value='dry' checked" in page
+    assert "action='/live/arm'" in page

@@ -314,6 +314,115 @@ def spawn_live_detached(cmd, log_path: Path, cwd: Path, stdin_bytes: bytes = Non
     return proc.pid
 
 
+# --------------------------------------------------------------------------- #
+#  Lot 8B (conteneur) -- marqueur d'armement persistant + sentinelle d'arret  #
+#  + statut du superviseur (docs/design/LOT8B_LIVE_CONTENEUR_SPEC.md §2/§3). #
+#  Fonctions PURES vis-a-vis de la decision : elles lisent/ecrivent, mais ne  #
+#  DECIDENT rien -- trading/live_supervisor.py et les routes web (monitor.py)#
+#  orchestrent leur usage. AUCUNE cle, AUCUNE phrase dans ces fichiers (§2.2).#
+# --------------------------------------------------------------------------- #
+def armed_marker_path(root: Path) -> Path:
+    return Path(root) / "live" / "armed.json"
+
+
+def stop_request_path(root: Path) -> Path:
+    return Path(root) / "live" / "stop_request"
+
+
+def live_status_path(root: Path) -> Path:
+    return Path(root) / "live" / "status.json"
+
+
+def read_armed_marker(root: Path) -> dict | None:
+    """Lit live/armed.json. None si absent/illisible -- ET si `mode` n'est ni
+    "reel" ni "dry" (C4 : un marqueur invalide ne vaut jamais armement,
+    fail-safe). Reutilise read_live_sidecar (meme lecture defensive, jamais
+    d'exception)."""
+    data = read_live_sidecar(armed_marker_path(root))
+    if data is None or data.get("mode") not in ("reel", "dry"):
+        return None
+    return data
+
+
+def write_armed_marker(root: Path, params: dict, mode: str, armed_via: str) -> None:
+    """
+    Ecrit live/armed.json -- grille FIGEE (spec §2.2) : AUCUNE cle, AUCUNE
+    phrase. Ecriture ATOMIQUE (tmp + os.replace, meme durcissement que §1.2
+    prescrit pour tout fichier de risque sur un volume potentiellement
+    monte/FUSE). Seul appelant legitime : main.py cmd_live_arm (§2.3) -- ni
+    le web, ni le superviseur, n'ecrivent JAMAIS ce fichier.
+    """
+    if mode not in ("reel", "dry"):
+        raise ValueError(f"mode invalide pour armed.json : {mode!r} (attendu reel/dry)")
+    path = armed_marker_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": 1,
+        "mode": mode,
+        "strategy": params.get("strategy"),
+        "symbol": params.get("symbol"),
+        "timeframe": params.get("timeframe"),
+        "stop_loss": params.get("stop_loss"),
+        "take_profit": params.get("take_profit"),
+        "trailing_stop": params.get("trailing_stop"),
+        "position_sizing": params.get("position_sizing"),
+        "target_vol": params.get("target_vol"),
+        "armed_at": time.time(),
+        "armed_via": armed_via,
+    }
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def remove_armed_marker(root: Path) -> None:
+    try:
+        armed_marker_path(root).unlink()
+    except OSError:
+        pass
+
+
+def write_stop_request(root: Path) -> None:
+    """Ecrit le sentinelle d'arret (§3.2) -- fichier horodate, contenu non
+    interprete (seule l'EXISTENCE compte pour le superviseur)."""
+    path = stop_request_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(str(time.time()), encoding="ascii")
+
+
+def stop_requested(root: Path) -> bool:
+    return stop_request_path(root).exists()
+
+
+def clear_stop_request(root: Path) -> None:
+    try:
+        stop_request_path(root).unlink()
+    except OSError:
+        pass
+
+
+def write_live_status(root: Path, status: str, detail: str = "") -> None:
+    """
+    Ecrit live/status.json -- statut du SUPERVISEUR (en_cours/desarme/
+    erreur_cles/erreur_spawn/arret_demande, §2.4/§5), affiche par /live en
+    conteneur (M9 : "l'operateur voit l'erreur dans les logs ET sur /live").
+    Best-effort (jamais d'exception) : un echec d'ecriture de ce fichier
+    d'AFFICHAGE ne doit jamais faire crasher le superviseur lui-meme.
+    """
+    try:
+        path = live_status_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(
+            {"status": status, "detail": detail, "updated_ts": time.time()},
+            ensure_ascii=True), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def read_live_status(root: Path) -> dict | None:
+    return read_live_sidecar(live_status_path(root))
+
+
 def start_live_process(root: Path, params: dict, execute: bool):
     """
     Orchestre le demarrage du live : construit la commande (build_live_

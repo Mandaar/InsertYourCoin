@@ -792,7 +792,8 @@ def _service_thread(target, args) -> threading.Thread:
 
 def _restart_server_thread(server_ref, root: Path, port: int, host: str,
                            stats_path: Path = None, data_log_path: Path = None,
-                           state_path: Path = None, allowed_hosts=()) -> None:
+                           state_path: Path = None, allowed_hosts=(),
+                           live_root: Path = None) -> None:
     """Arrete l'ancien serveur PUIS demarre un nouveau process detache sur le
     meme port -- ordre choisi pour eviter toute course de bind (le port doit
     etre LIBRE avant que le nouveau tente de s'y lier ; pas de retry-bind).
@@ -820,7 +821,13 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str,
     plus l'hote configure (ex. iyc.eunivers.net), et TOUTE requete via le
     reverse-proxy tomberait en 403 "Host non autorise" jusqu'au prochain
     redemarrage MANUEL du conteneur. Meme classe de bug que host/stats/log/
-    state ci-dessus -- corrigee des l'introduction du parametre (L6)."""
+    state ci-dessus -- corrigee des l'introduction du parametre (L6).
+
+    `live_root` RE-FORWARDE de la meme facon (Lot 8B, deploiement
+    conteneurise du service `live` dedie) : sans ca, un clic sur "Redemarrer
+    le serveur" ferait perdre --live-root (retour silencieux a
+    project_root()) -- MEME classe de bug, corrigee des l'introduction du
+    parametre au lieu d'attendre une 4e occurrence identique (L6)."""
     srv = server_ref[0]
     if srv is not None:
         srv.shutdown()
@@ -841,6 +848,8 @@ def _restart_server_thread(server_ref, root: Path, port: int, host: str,
         cmd += ["--state", str(state_path)]
     for h in (allowed_hosts or ()):
         cmd += ["--allowed-host", str(h)]
+    if live_root is not None:
+        cmd += ["--live-root", str(live_root)]
     # BUG-014 (cause racine MESUREE) : monitor_console.log est tenu en verrou
     # EXCLUSIF par la redirection shell '>>' du monitor courant -> open('ab')
     # levait PermissionError, avale par un except silencieux : le respawn ne
@@ -947,7 +956,7 @@ _REPORT_RE = re.compile(r"^/report/([0-9a-f]{32})/?$")
 # --------------------------------------------------------------------------- #
 def build_monitor_server(port=8765, host="127.0.0.1",
                          stats_path=None, log_path=None, state_path=None,
-                         job_manager=None, allowed_hosts=()):
+                         job_manager=None, allowed_hosts=(), live_root=None):
     """
     Construit le serveur de monitoring et le RETOURNE (sans le demarrer).
     Separe de run_monitor pour etre testable en integration (port=0 = port
@@ -976,6 +985,16 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     stats_path = Path(stats_path) if stats_path else root / "paper_stats.csv"
     log_path = Path(log_path) if log_path else root / "paper_trades.log"
     state_path = Path(state_path) if state_path else root / "paper_state.json"
+    # Lot 8B (deploiement conteneurise du service `live`, argent reel) :
+    # racine des fichiers live (armed.json, live_state.json, live_trades.log,
+    # live_stats.csv). Defaut None -> `root` (project_root(), = /app en
+    # conteneur) : IDENTIQUE au comportement d'avant ce lot -- seul un
+    # `--live-root /data` explicite (docker-compose.live.yml) change quoi que
+    # ce soit, et UNIQUEMENT consulte par les routes /live en mode conteneur
+    # (IYC_DISABLE_LIVE_CONTROL actif, cf. _live_get_container ci-dessous) --
+    # le flux local (nonce, live_control.live_identity(root)) reste sur
+    # `root`, jamais sur `live_root` (C12 : zero regression locale).
+    live_root = Path(live_root) if live_root else root
 
     # Token anti-CSRF genere au demarrage du serveur : un site malveillant ouvert
     # dans le navigateur peut POSTer vers 127.0.0.1, mais ne connait pas ce token.
@@ -1379,7 +1398,41 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 keys_configured(), self._live_check_ok(), state_path.exists(),
             )
 
+        def _live_container_disabled(self):
+            """Lot 8B (deploiement conteneurise du service `live` dedie) :
+            flag DISTINCT de IYC_DISABLE_PAPER_CONTROL (granularite
+            differente, §3.1 : demarrage neutralise, ARRET CONSERVE). Lu a
+            CHAQUE requete (jamais mis en cache), meme convention que
+            paper_page.paper_control_disabled."""
+            return live_page.live_control_disabled(
+                os.environ.get("IYC_DISABLE_LIVE_CONTROL", ""))
+
+        def _live_get_container(self, errors=None):
+            """
+            Variante LECTURE SEULE de GET /live (LOT8B §3.1) : AUCUN appel a
+            live_control.live_identity(root) -- le PID d'un enfant du
+            service `live` est dans un AUTRE conteneur/namespace que ce
+            process monitor, donc denue de sens ici (§3.2). Le statut vient
+            EXCLUSIVEMENT de fichiers sur le volume partage (`live_root`) :
+            le marqueur d'armement, le statut du superviseur, l'etat de
+            risque persiste (workstream A) et les logs/stats du live.
+            """
+            armed = live_control.read_armed_marker(live_root)
+            stop_req = live_control.stop_requested(live_root)
+            live_state = read_state(live_root / "live_state.json")
+            sup_status = live_control.read_live_status(live_root)
+            live_stats = read_last_stats(live_root / "live_stats.csv")
+            live_log = tail_log(live_root / "live_trades.log", 60)
+            now_str = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            view = compute_view(live_state, live_stats, live_log,
+                                config.INITIAL_CAPITAL, now_str)
+            return live_page.render_live_container(
+                armed, live_state, sup_status, stop_req, view, csrf_token,
+                errors=errors)
+
         def _live_get(self):
+            if self._live_container_disabled():
+                return self._live_get_container()
             pid, running, start_ts = live_control.live_identity(root)
             if running:
                 sidecar = live_control.read_live_sidecar(
@@ -1400,6 +1453,14 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             )
 
         def _live_arm_post(self, form):
+            # Lot 8B : refus SERVEUR, AVANT toute lecture de `form` -- un
+            # POST forge n'emet JAMAIS de nonce en deploiement conteneurise
+            # (§3.1, patron exact de _paper_post/monitor.py:1279-1289).
+            if self._live_container_disabled():
+                return self._live_get_container(errors=[
+                    "Armement désactivé en déploiement conteneurisé — arme "
+                    "via `docker compose run --rm live live-arm` (voir "
+                    "DEPLOY_DOCKER.md §8)."])
             # Round-trip 1 du reel (spec §1.3). AVANT tout nonce : re-valide
             # (A) cote serveur, exige les 3 attestations (B) et mode=="reel"
             # EXACTEMENT -- un seul manque -> AUCUN nonce emis (N2).
@@ -1429,6 +1490,15 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             return live_page.render_live_recap(params, nonce, csrf_token)
 
         def _live_start_post(self, form):
+            # Lot 8B : refus SERVEUR, AVANT tout parsing/spawn -- reel ET
+            # dry, en deploiement conteneurise (§3.1). Un spawn ici naitrait
+            # DANS ce conteneur monitor, isole du volume `live` (footgun
+            # identique au paper, DEPLOY_DOCKER.md §7).
+            if self._live_container_disabled():
+                return self._live_get_container(errors=[
+                    "Démarrage désactivé en déploiement conteneurisé — arme "
+                    "via `docker compose run --rm live live-arm` (voir "
+                    "DEPLOY_DOCKER.md §8)."])
             mode = (form.get("mode") or "").strip().lower()
 
             if mode == "dry":
@@ -1554,6 +1624,14 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 return self._live_get()
 
         def _live_stop_post(self, form):
+            # Lot 8B (§3.2) : ARRET CONSERVE en deploiement conteneurise --
+            # PAS terminate_pid (cross-namespace, no-op sur le PID d'un
+            # AUTRE conteneur) : sentinelle + desarmement, releves par le
+            # superviseur a son prochain cycle (~2s).
+            if self._live_container_disabled():
+                live_control.write_stop_request(live_root)
+                live_control.remove_armed_marker(live_root)
+                return live_page.render_live_container_stop_requested()
             pid, running, _start_ts = live_control.live_identity(root)
             if not running or pid is None:
                 # Identite non confirmee (BUG-009) est deja NETTOYEE par
@@ -1910,7 +1988,7 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 _service_thread(_restart_server_thread,
                                 (server_ref, root, bound_port[0], host,
                                  stats_path, log_path, state_path,
-                                 allowed_hosts)).start()
+                                 allowed_hosts, live_root)).start()
                 return
             if not self.path.startswith("/options"):
                 self._send_html(
@@ -2001,10 +2079,11 @@ def build_monitor_server(port=8765, host="127.0.0.1",
 
 
 def run_monitor(port=8765, host="127.0.0.1",
-                stats_path=None, log_path=None, state_path=None, allowed_hosts=()):
+                stats_path=None, log_path=None, state_path=None, allowed_hosts=(),
+                live_root=None):
     """Demarre le serveur de monitoring (bloquant). Cf. build_monitor_server."""
     server = build_monitor_server(port=port, host=host, stats_path=stats_path,
                                   log_path=log_path, state_path=state_path,
-                                  allowed_hosts=allowed_hosts)
+                                  allowed_hosts=allowed_hosts, live_root=live_root)
     print(f"Monitoring sur http://{host}:{server.server_address[1]}  (Ctrl+C pour arreter)")
     server.serve_forever()

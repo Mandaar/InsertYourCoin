@@ -491,6 +491,153 @@ def render_live_running(sidecar, pid, start_ts, csrf_token, view=None) -> str:
     return page_shell("Live - InsertYourCoin", "", body, csrf=csrf_token)
 
 
+# --------------------------------------------------------------------------- #
+#  Lot 8B -- deploiement conteneurise (LOT8B §3.1) : demarrage/armement      #
+#  NEUTRALISES cote rendu (aucun formulaire arm/start, reel ni dry -- seul   #
+#  canal : `docker compose run --rm live live-arm`, §2.3), arret CONSERVE    #
+#  (sentinelle+desarmement, §3.2 -- PAS terminate_pid, cross-namespace).     #
+# --------------------------------------------------------------------------- #
+def live_control_disabled(env_value) -> bool:
+    """
+    Parse IYC_DISABLE_LIVE_CONTROL (Lot 8B, service `live` dedie en
+    conteneur). Fonction PURE, meme convention que
+    paper_page.paper_control_disabled -- MAIS flag DISTINCT (granularite
+    differente, §3.1 : le paper refuse start ET stop, le live conserve
+    stop) -- jamais partage avec IYC_DISABLE_PAPER_CONTROL.
+
+    Absent/vide -> False : comportement LOCAL (flux nonce Lot 8) INCHANGE.
+    "1"/"true"/"yes" (insensible casse, espaces tolerees) -> True.
+    """
+    return (env_value or "").strip().lower() in ("1", "true", "yes")
+
+
+_SUP_STATUS_LABELS = {
+    "en_cours": "En cours",
+    "desarme": "Désarmé",
+    "erreur_cles": "ERREUR — clés API absentes",
+    "erreur_spawn": "ERREUR — échec de démarrage",
+    "arret_demande": "Arrêt demandé",
+    "arrete": "Arrêté",
+}
+
+
+def render_live_container(armed, live_state, sup_status, stop_requested_flag,
+                          view, csrf_token, errors=None) -> str:
+    """
+    Page /live LECTURE SEULE (déploiement conteneurisé, LOT8B §3.1) :
+    `armed` = live_control.read_armed_marker(...) ou None. `live_state` =
+    contenu de live_state.json (workstream A -- persistance/reconcile,
+    peut être None si jamais écrit). `sup_status` =
+    live_control.read_live_status(...) ou None (statut du SUPERVISEUR).
+    `stop_requested_flag` = live_control.stop_requested(...) (bool).
+    """
+    token = _esc(csrf_token)
+
+    errors_html = ""
+    if errors:
+        items = "".join(f"<li>{_esc(e)}</li>" for e in errors)
+        errors_html = f"<div class='errors'>Action refusée :<ul>{items}</ul></div>"
+
+    banner = (
+        "<div class='banner-risk'>ARGENT RÉEL. Pertes possibles jusqu'à la "
+        "totalité du capital. Outil sans garantie.</div>"
+    )
+
+    if armed is None:
+        mode_banner = ("<div class='mode-banner dry'>DÉSARMÉ — le "
+                       "superviseur ne démarre rien</div>")
+    elif armed.get("mode") == "reel":
+        mode_banner = ("<div class='mode-banner reel'>ARMÉ — RÉEL — ordres "
+                       "réels dès que le superviseur tourne</div>")
+    else:
+        mode_banner = ("<div class='mode-banner dry'>ARMÉ — SIMULATION — "
+                       "aucun ordre réel</div>")
+
+    non_geree_html = ""
+    if live_state and live_state.get("invested") and (armed is None or stop_requested_flag):
+        non_geree_html = (
+            "<div class='banner-risk'>POSITION OUVERTE NON GÉRÉE — aucun "
+            "trailing/stop actif (live désarmé). Ré-arme "
+            "(<code>docker compose run --rm live live-arm</code>) ou gère "
+            "la position directement sur Kraken.</div>"
+        )
+
+    disabled_notice = (
+        "<div class='card'><h2>Démarrage</h2>"
+        "<p class='muted'>Démarrage désactivé en déploiement conteneurisé — "
+        "arme via <code>docker compose run --rm live live-arm --strategy "
+        "... --symbol ... --timeframe ...</code> (voir DEPLOY_DOCKER.md "
+        "§8). Le canal web local (nonce) est neutralisé.</p></div>"
+    )
+
+    sup_html = ""
+    if sup_status:
+        label = _SUP_STATUS_LABELS.get(sup_status.get("status"), sup_status.get("status"))
+        sup_html = (
+            "<div class='card'><h2>Superviseur</h2>"
+            f"<p>Statut : <strong>{_esc(label)}</strong></p>"
+            f"<p class='muted'>{_esc(sup_status.get('detail'))}</p></div>"
+        )
+
+    infos = (
+        "<div class='card'><h2>État</h2>"
+        f"<p>Prix : {_esc(view.get('price'))} | Équity : {_esc(view.get('equity'))} | "
+        f"Exposition : {_esc(view.get('exposure'))} | Cycles : {_esc(view.get('n_cycles'))}</p>"
+        "</div>"
+    )
+
+    stop_card = (
+        "<div class='card'>"
+        "<form method='post' action='/live/stop'>"
+        f"<input type='hidden' name='csrf_token' value='{token}'>"
+        "<button class='btn-stop' type='submit'>Arrêter immédiatement</button>"
+        "</form>"
+        "<p class='muted caps-line'>Écrit une demande d'arrêt + désarme -- "
+        "le superviseur termine l'enfant sous quelques secondes, SANS "
+        "vendre. Ta position ouverte sur Kraken reste -- gère-la sur "
+        "Kraken ; le bot ne liquide jamais.</p>"
+        "</div>"
+    )
+
+    journal = (
+        "<div class='card'><h2>Journal</h2>"
+        + _log_html(view.get("log_lines"))
+        + "</div>"
+    )
+
+    body = (
+        f"<style>{_CSS}</style>"
+        "<div class='head'><h1>Live (conteneur — lecture seule)</h1>"
+        "<a class='navlink' href='/'>Accueil</a></div>"
+        + banner
+        + errors_html
+        + mode_banner
+        + non_geree_html
+        + _plafonds_html()
+        + sup_html
+        + disabled_notice
+        + infos
+        + stop_card
+        + journal
+    )
+    return page_shell("Live - InsertYourCoin", "", body, csrf=csrf_token)
+
+
+def render_live_container_stop_requested() -> str:
+    body = (
+        f"<style>{_CSS}</style>"
+        "<div class='head'><h1>Arrêt demandé</h1></div>"
+        "<div class='card'>"
+        "<p>Le service live s'arrête sous quelques secondes (désarmé, "
+        "sentinelle d'arrêt écrite).</p>"
+        "<p class='muted'>Ta position ouverte sur Kraken (le cas échéant) "
+        "n'est PAS liquidée -- gère-la directement sur Kraken si besoin.</p>"
+        "<p><a class='navlink' href='/live'>Retour à /live</a></p>"
+        "</div>"
+    )
+    return page_shell("Live - InsertYourCoin", "", body)
+
+
 def render_live_stopped() -> str:
     body = (
         f"<style>{_CSS}</style>"

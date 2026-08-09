@@ -48,8 +48,11 @@ class FakeExchange:
 
 @pytest.fixture(autouse=True)
 def _redirect_live_log(tmp_path, monkeypatch):
-    """Evite d'ecrire live_trades.log dans le depot pendant les tests."""
+    """Evite d'ecrire live_trades.log / live_state.json dans le depot pendant les
+    tests (E2/L3) -- le state_file par defaut de LiveTrader (Lot 8B) suit le meme
+    patron que LOG_FILE : resolu au call-time contre le module, monkeypatchable."""
     monkeypatch.setattr(live_trader, "LOG_FILE", tmp_path / "live_trades.log")
+    monkeypatch.setattr(live_trader, "STATE_FILE", tmp_path / "live_state.json")
 
 
 def _volatile(n, seed=0):

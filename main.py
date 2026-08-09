@@ -32,6 +32,7 @@ Exemples :
 import argparse
 import os
 import sys
+from pathlib import Path
 
 # Windows : forcer stdout/stderr en UTF-8 -- la console cp1252 ne peut pas encoder
 # certains caracteres des sorties (sigma de Bollinger, fleches du walk-forward) et
@@ -280,6 +281,106 @@ def cmd_live(args):
                timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args)).run()
 
 
+def _live_root(args):
+    """Racine des donnees pour les commandes live conteneur (--root, defaut
+    le repertoire courant -- le service `live` fixe working_dir: /data,
+    docs/design/LOT8B_LIVE_CONTENEUR_SPEC.md §4)."""
+    return Path(args.root) if getattr(args, "root", None) else Path.cwd()
+
+
+def _live_arm_params(args):
+    """
+    Params destines a live/armed.json (trading/live_control.write_armed_
+    marker) -- MEMES UNITES que build_live_command (pourcentages bruts, PAS
+    des fractions) : `args.stop_loss` vaut par ex. 5 pour 5%, identique a ce
+    que parse_live_params (flux web local) produit deja. Ne PAS reutiliser
+    _bt_kwargs ici (il convertit en fractions pour le backtester -- unite
+    differente, cf. LOT8B §2.2 et research_page.parse_risk_fields).
+    """
+    ps = getattr(args, "position_sizing", "none")
+    return {
+        "strategy": args.strategy, "symbol": args.symbol, "timeframe": args.timeframe,
+        "stop_loss": args.stop_loss, "take_profit": args.take_profit,
+        "trailing_stop": getattr(args, "trailing_stop", None),
+        "position_sizing": (None if ps in (None, "none") else ps),
+        "target_vol": getattr(args, "target_vol", None),
+    }
+
+
+def cmd_live_arm(args):
+    """
+    `main.py live-arm` -- armement CLI interactif, one-shot (LOT8B §2.3).
+    Ecrit UNIQUEMENT le marqueur live/armed.json ; ne trade JAMAIS lui-meme
+    (le superviseur `live-run`, deja tournant sous Docker restart:unless-
+    stopped, (re)lance/reprend `main.py live [--execute]`). `cmd_live`
+    (mode local, main.py:259) reste INCHANGE -- ce chemin est SEPARE, pas un
+    refactor de cmd_live.
+    """
+    from trading import live_control
+    from trading.options import keys_configured
+    root = _live_root(args)
+
+    if args.dry:
+        # Marqueur mode=dry : AUCUNE phrase exigee (aucun ordre possible en
+        # dry-run, live_trader.py `_rebalance` ne passe jamais d'ordre reel).
+        params = _live_arm_params(args)
+        live_control.write_armed_marker(root, params, mode="dry",
+                                        armed_via="cli-interactive-dry")
+        print(f"Marqueur DRY ecrit ({live_control.armed_marker_path(root)}).")
+        print("Le superviseur (live-run) demarrera en simulation des le "
+              "prochain cycle (~2s).")
+        return
+
+    if not keys_configured():
+        sys.exit("Cles API manquantes. Renseigne .env (voir .env.example) avant le mode live.")
+
+    print("\n" + "=" * 64)
+    print("  ⚠️  ARMEMENT REEL : le superviseur (live-run) va passer de VRAIS")
+    print("     ordres des que ce marqueur existe, et le RELANCERA")
+    print("     AUTOMATIQUEMENT (Docker restart:unless-stopped inclus) tant")
+    print("     que tu ne le desarmes pas (live-disarm ou bouton web Arreter).")
+    print(f"     Paire          : {args.symbol}")
+    print(f"     Stratégie      : {build_strategy(args.strategy).name}")
+    print(f"     Stop / Objectif: {args.stop_loss or '—'}% / {args.take_profit or '—'}%")
+    if args.trailing_stop:
+        print(f"     Trailing stop  : {args.trailing_stop}%")
+    print(f"     Ordre max      : {config.MAX_TRADE_VALUE_USD} $ | Exposition max : {config.MAX_POSITION_VALUE_USD} $")
+    print("=" * 64)
+    if input('  Tape exactement  OUI JE CONFIRME  pour armer : ').strip() != "OUI JE CONFIRME":
+        sys.exit("Annule. (Aucun marqueur ecrit.)")
+
+    params = _live_arm_params(args)
+    live_control.write_armed_marker(root, params, mode="reel", armed_via="cli-interactive")
+    print(f"Marqueur REEL ecrit ({live_control.armed_marker_path(root)}).")
+    print("Le superviseur (live-run) demarrera/relancera le live des le "
+          "prochain cycle (~2s).")
+
+
+def cmd_live_disarm(args):
+    """`main.py live-disarm` (LOT8B §2.5) : supprime le marqueur. Le
+    superviseur termine l'enfant en cours SANS vendre (arreter n'est pas
+    liquider) et n'en relance aucun tant qu'il n'est pas re-arme."""
+    from trading import live_control
+    root = _live_root(args)
+    live_control.remove_armed_marker(root)
+    print("Marqueur d'armement supprime.")
+    print("Le superviseur (live-run) terminera l'enfant en cours (si un "
+          "vit) sous ~2s -- SANS vendre. La position ouverte sur Kraken, "
+          "le cas echeant, reste : gere-la sur Kraken si besoin.")
+
+
+def cmd_live_run(args):
+    """`main.py live-run` -- command du service `live` (LOT8B §2.4).
+    Bloquant : boucle tant que le conteneur tourne, arret propre sur SIGTERM
+    (Docker `restart: unless-stopped` + `init: true` -> propagation correcte)."""
+    from trading import live_supervisor
+    root = Path(args.root) if getattr(args, "root", None) else None
+    kwargs = {}
+    if getattr(args, "check_interval", None) is not None:
+        kwargs["check_interval"] = args.check_interval
+    sys.exit(live_supervisor.run_supervisor(root=root, **kwargs))
+
+
 def cmd_stats(args):
     from trading.stats import load_stats, summarize, format_summary
     try:
@@ -312,7 +413,8 @@ def cmd_monitor(args):
     from trading.monitor import run_monitor
     run_monitor(port=args.port, host=args.host, stats_path=args.stats,
                 log_path=args.log, state_path=args.state,
-                allowed_hosts=_resolve_allowed_hosts(args.allowed_host))
+                allowed_hosts=_resolve_allowed_hosts(args.allowed_host),
+                live_root=args.live_root)
 
 
 def diagnose_error(exc):
@@ -508,6 +610,27 @@ def build_parser():
                     help="DESACTIVE le dry-run et passe de VRAIS ordres (double confirmation)")
     li.set_defaults(func=cmd_live)
 
+    # --- Lot 8B : live conteneurise (superviseur + armement persistant) ---
+    la = sub.add_parser("live-arm", help="arme le live conteneurise (one-shot, interactif)")
+    common(la, days=False)
+    _risk_args(la); _adv_risk_args(la)
+    la.add_argument("--dry", action="store_true",
+                    help="arme en SIMULATION (aucune phrase exigee, aucun ordre reel possible)")
+    la.add_argument("--root", default=None,
+                    help="racine des donnees (defaut: repertoire courant -- "
+                         "le service `live` fixe working_dir: /data)")
+    la.set_defaults(func=cmd_live_arm)
+
+    ld = sub.add_parser("live-disarm", help="desarme le live conteneurise (supprime le marqueur)")
+    ld.add_argument("--root", default=None)
+    ld.set_defaults(func=cmd_live_disarm)
+
+    lr = sub.add_parser("live-run", help="superviseur du live conteneurise (command du service `live`)")
+    lr.add_argument("--root", default=None)
+    lr.add_argument("--check-interval", type=float, default=None,
+                    help="cadence de surveillance marqueur/sentinelle en secondes (defaut: 2)")
+    lr.set_defaults(func=cmd_live_run)
+
     st = sub.add_parser("stats")
     st.add_argument("--file", default="paper_stats.csv",
                     help="CSV de stats a analyser (defaut: paper_stats.csv)")
@@ -534,6 +657,11 @@ def build_parser():
                          "Se cumule avec la variable d'env IYC_ALLOWED_HOSTS "
                          "(liste separee par virgules). Vide par defaut -> "
                          "comportement inchange.")
+    mo.add_argument("--live-root", default=None,
+                    help="racine des fichiers live (armed.json, live_state.json, "
+                         "live_trades.log, live_stats.csv -- Lot 8B, deploiement "
+                         "conteneurise du service `live`, ex. /data). Absent -> "
+                         "comportement local INCHANGE (repertoire du projet).")
     mo.set_defaults(func=cmd_monitor)
     return p
 
