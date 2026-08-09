@@ -82,6 +82,31 @@ def _esc(s):
     return html.escape("" if s is None else str(s))
 
 
+def paper_control_disabled(env_value) -> bool:
+    """
+    Parse IYC_DISABLE_PAPER_CONTROL (deploiement Docker multi-conteneurs ou
+    paper et monitor sont deux conteneurs SEPARES partageant un volume --
+    docs/DEPLOY_DOCKER.md §7). Fonction PURE, testable sans os.environ.
+
+    Absent/vide -> False : comportement LOCAL (mono-machine, Lot 7)
+    STRICTEMENT INCHANGE. "1"/"true"/"yes" (insensible a la casse, espaces
+    tolerees) -> True : le formulaire Demarrer et le bouton Arreter de /paper
+    sont retires cote rendu, ET tout POST /paper (start OU stop) est refuse
+    cote serveur (trading/monitor.py::_paper_post) AVANT toute decision de
+    spawn/terminate -- un POST forge ne peut rien declencher, le controle
+    n'est pas seulement une absence de bouton en HTML.
+    """
+    return (env_value or "").strip().lower() in ("1", "true", "yes")
+
+
+_DISABLED_NOTICE_HTML = (
+    "<div class='card'><h2>Pilotage</h2>"
+    "<p class='muted'>Pilotage désactivé en déploiement conteneurisé — "
+    "gère le paper via <code>docker compose ... restart/stop/logs paper</code> "
+    "(voir README / DEPLOY_DOCKER.md §7).</p></div>"
+)
+
+
 def parse_paper_params(fields: dict):
     """
     Valide les champs du formulaire POST /paper (action=start). `fields` = dict
@@ -210,13 +235,20 @@ def _stop_form_html(csrf_token) -> str:
 
 
 def render_paper_page(status, csrf_token, errors=None, values=None,
-                      message=None, inactif=False, age_seconds=None) -> str:
+                      message=None, inactif=False, age_seconds=None,
+                      control_disabled=False) -> str:
     """
     Page complete GET/POST /paper (fonction PURE, testable sans serveur).
     `status` = compute_paper_status(...). `errors`/`values` re-affichent le
     formulaire apres un POST invalide (meme convention que research_page).
     `message` = bandeau de confirmation (demarre/arrete). `inactif`/`age_seconds`
     = alerte reprise de trading/monitor.py compute_view (>360s sans cycle).
+
+    `control_disabled` (IYC_DISABLE_PAPER_CONTROL, deploiement Docker
+    multi-conteneurs, cf. paper_control_disabled ci-dessus) : quand True, le
+    formulaire Demarrer et le bouton Arreter sont RETIRES du rendu (statut
+    reste consultable en lecture seule) et remplaces par un encart explicatif.
+    Ne change RIEN d'autre (monitoring, recherche, options, live inchanges).
     """
     errors_html = ""
     if errors:
@@ -234,17 +266,26 @@ def render_paper_page(status, csrf_token, errors=None, values=None,
                 "<div class='alert'>ATTENTION : aucun cycle depuis "
                 f"{age_txt}s (paper inactif ?)</div>"
             )
+        control_html = "" if control_disabled else _stop_form_html(csrf_token)
         status_card = (
             "<div class='card'><h2>Statut</h2>"
             f"<p class='statut-line'>Statut : <strong class='ok'>EN COURS</strong> "
             f"depuis {since}</p>"
             + inactif_html
-            + _stop_form_html(csrf_token)
+            + control_html
             + "<a class='navlink' href='/monitoring'>Voir le monitoring &rarr;</a>"
             "</div>"
-            "<p class='muted honesty'>Démarrer/arrêter ne touche pas à "
+            + (_DISABLED_NOTICE_HTML if control_disabled else "")
+            + "<p class='muted honesty'>Démarrer/arrêter ne touche pas à "
             "l'historique accumulé : paper_stats.csv et paper_trades.log "
             "continuent d'exister, et reprennent au prochain démarrage.</p>"
+        )
+    elif control_disabled:
+        status_card = (
+            "<div class='card'><h2>Statut</h2>"
+            "<p class='statut-line'>Statut : <strong class='no'>ARRÊTÉ</strong></p>"
+            "</div>"
+            + _DISABLED_NOTICE_HTML
         )
     else:
         status_card = (

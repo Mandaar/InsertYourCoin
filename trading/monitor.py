@@ -1262,9 +1262,32 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             return paper_page.render_paper_page(
                 status, csrf_token, errors=errors, values=values,
                 message=message, inactif=inactif, age_seconds=age_seconds,
+                control_disabled=paper_page.paper_control_disabled(
+                    os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")),
             )
 
         def _paper_post(self, form):
+            # Deploiement Docker multi-conteneurs (docs/DEPLOY_DOCKER.md §7) :
+            # refus cote SERVEUR, AVANT toute lecture de `action` -- un POST
+            # forge (start OU stop) ne doit RIEN spawner/tuer quand le flag
+            # est actif, meme si CSRF + host_allowed sont satisfaits (deja
+            # verifies en amont par l'appelant HTTP). Lu a CHAQUE requete
+            # (pas mis en cache au demarrage du serveur) : coherent avec le
+            # reste du module (host_allowed, allowed_hosts) et sans effet sur
+            # le respawn (os.environ est herite par subprocess.Popen, cf.
+            # _restart_server_thread -- aucun forwarding CLI necessaire ici).
+            if paper_page.paper_control_disabled(
+                os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")
+            ):
+                _pid, status, inactif, age_seconds = self._paper_status_view()
+                return paper_page.render_paper_page(
+                    status, csrf_token, inactif=inactif, age_seconds=age_seconds,
+                    control_disabled=True,
+                    errors=["Pilotage désactivé en déploiement conteneurisé — "
+                            "gère le paper via docker compose ... "
+                            "restart/stop/logs paper (voir DEPLOY_DOCKER.md §7)."],
+                )
+
             action = (form.get("action") or "").strip().lower()
             pid, status, inactif, age_seconds = self._paper_status_view()
 

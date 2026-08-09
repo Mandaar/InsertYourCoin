@@ -159,3 +159,54 @@ def test_render_paper_page_re_remplit_formulaire_apres_erreur():
     )
     assert "value='BTC/USD'" in html
     assert "<option value='rsi' selected>" in html
+
+
+# --------------------------------------------------------------------------- #
+#  paper_control_disabled -- parsing pur de IYC_DISABLE_PAPER_CONTROL         #
+#  (deploiement Docker multi-conteneurs, docs/DEPLOY_DOCKER.md §7)            #
+# --------------------------------------------------------------------------- #
+def test_paper_control_disabled_absent_ou_vide_est_false():
+    assert pp.paper_control_disabled(None) is False
+    assert pp.paper_control_disabled("") is False
+    assert pp.paper_control_disabled("   ") is False
+
+
+def test_paper_control_disabled_valeurs_vraies_insensibles_a_la_casse():
+    for val in ("1", "true", "True", "TRUE", "yes", "Yes", "  yes  "):
+        assert pp.paper_control_disabled(val) is True, val
+
+
+def test_paper_control_disabled_valeurs_fausses():
+    for val in ("0", "false", "no", "n-importe-quoi", "2"):
+        assert pp.paper_control_disabled(val) is False, val
+
+
+# --------------------------------------------------------------------------- #
+#  render_paper_page(control_disabled=True) -- formulaire/bouton RETIRES,     #
+#  encart affiche, statut consultable en lecture seule (§7)                   #
+# --------------------------------------------------------------------------- #
+def test_render_paper_page_disabled_arrete_aucun_formulaire_mais_encart():
+    status = pp.compute_paper_status(False, None)
+    html = pp.render_paper_page(status, "T", control_disabled=True)
+    assert "ARRÊTÉ" in html                       # statut reste consultable
+    assert "Démarrer le paper trading" not in html
+    assert "name='strategy'" not in html
+    assert "Pilotage désactivé" in html
+    assert "docker compose" in html
+
+
+def test_render_paper_page_disabled_en_cours_aucun_bouton_arreter_mais_encart():
+    status = pp.compute_paper_status(True, 1750000000.0)
+    html = pp.render_paper_page(status, "T", control_disabled=True)
+    assert "EN COURS" in html                     # statut reste consultable
+    assert "Arrêter</button>" not in html
+    assert "Pilotage désactivé" in html
+
+
+def test_render_paper_page_disabled_false_par_defaut_comportement_lot7_inchange():
+    # Non-regression explicite : sans l'argument, le rendu est identique a
+    # avant l'introduction du flag.
+    status = pp.compute_paper_status(False, None)
+    html = pp.render_paper_page(status, "T")
+    assert "Démarrer le paper trading" in html
+    assert "Pilotage désactivé" not in html

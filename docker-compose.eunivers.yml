@@ -69,6 +69,12 @@ services:
       # 403 "Host non autorise". Cf. docs/DEPLOY_DOCKER.md pour le detail du
       # choix (allowlist app plutot que reecriture nginx).
       - IYC_ALLOWED_HOSTS=${IYC_ALLOWED_HOSTS:-iyc.eunivers.net}
+      # Footgun ferme par construction (docs/DEPLOY_DOCKER.md §7), IDENTIQUE
+      # au mode dedie (docker-compose.yml) : `paper` est deja pilote par
+      # Docker (restart: unless-stopped) sur cette variante aussi -- le
+      # bouton Demarrer/Arreter de /paper spawnerait un second paper isole
+      # du volume, a l'interieur du conteneur monitor.
+      - IYC_DISABLE_PAPER_CONTROL=1
     # AUCUN `ports:` ICI NON PLUS (comme en mode dedie) : ce n'est PAS ce qui
     # rend le service joignable par SWAG -- c'est le reseau externe `proxy`
     # partage ci-dessous, sur lequel Docker resout les conteneurs PAR NOM.

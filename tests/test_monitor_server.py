@@ -1581,6 +1581,111 @@ def test_route_paper_ne_construit_jamais_une_commande_live(
     assert "--target-vol" in spawned[0]
 
 
+# --------------------------------------------------------------------------- #
+#  IYC_DISABLE_PAPER_CONTROL -- deploiement Docker multi-conteneurs (paper et #
+#  monitor = 2 conteneurs SEPARES partageant un volume, docs/DEPLOY_DOCKER.md #
+#  §7) : le bouton /paper spawnerait un SECOND paper isole du volume, a       #
+#  l'interieur du conteneur monitor. Ferme cote SERVEUR (pas seulement en     #
+#  HTML) -- un POST forge ne doit RIEN spawner/tuer quand le flag est actif.  #
+# --------------------------------------------------------------------------- #
+def test_route_paper_get_flag_actif_retire_formulaire_et_affiche_encart(
+    server_obj, monkeypatch,
+):
+    url, srv = server_obj
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "ARRÊTÉ" in page                       # statut reste consultable
+    assert "Démarrer le paper trading" not in page
+    assert "name='strategy'" not in page
+    assert "Pilotage désactivé" in page
+    assert "docker compose" in page
+
+
+def test_route_paper_post_start_flag_actif_ne_spawne_pas(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+
+    def boom(*a, **k):
+        raise AssertionError("le spawn ne doit PAS etre appele, flag actif")
+    monkeypatch.setattr(mon, "_spawn_paper_detached", boom)
+
+    token = _csrf_token(url)
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "sma",
+    })
+    assert code == 200
+    assert "Pilotage désactivé" in page
+    # aucun run/paper.pid ne doit avoir ete ecrit (aucun spawn n'a eu lieu) --
+    # server_obj force mon.project_root() -> tmp_path.
+    assert not (tmp_path / "run" / "paper.pid").exists()
+
+
+def test_route_paper_post_stop_flag_actif_n_appelle_pas_terminate_pid(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+    # Prepare un paper "en cours" (identite confirmee) pour s'assurer que le
+    # refus intervient AVANT toute lecture de status/pid -- pas seulement
+    # parce qu'il n'y avait "rien a arreter".
+    pid_path = tmp_path / "run" / "paper.pid"
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    pid_path.write_text("424242:1700000000.0", encoding="ascii")
+    monkeypatch.setattr(lancer, "is_our_process",
+                        lambda pid, name, ts=None: True)
+
+    def boom(*a, **k):
+        raise AssertionError("terminate_pid ne doit PAS etre appele, flag actif")
+    monkeypatch.setattr(lancer, "terminate_pid", boom)
+
+    token = _csrf_token(url)
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _post(url + "/paper", {"csrf_token": token, "action": "stop"})
+    assert code == 200
+    assert "Pilotage désactivé" in page
+    assert pid_path.exists()  # jamais retire (aucun stop n'a eu lieu)
+
+
+def test_route_paper_flag_absent_comportement_lot7_strictement_inchange(
+    server_obj, monkeypatch,
+):
+    # Non-regression explicite (M9/L3) : sans la variable d'environnement, le
+    # formulaire et le bouton restent presents -- comportement local inchange.
+    url, srv = server_obj
+    monkeypatch.delenv("IYC_DISABLE_PAPER_CONTROL", raising=False)
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "Démarrer le paper trading" in page
+    assert "Pilotage désactivé" not in page
+
+    spawned = []
+    monkeypatch.setattr(
+        mon, "_spawn_paper_detached",
+        lambda cmd, log_path, cwd: spawned.append(cmd) or 999999,
+    )
+    token = _csrf_token(url)
+    code, page = _post(url + "/paper", {
+        "csrf_token": token, "action": "start", "strategy": "sma",
+    })
+    assert code == 200
+    assert spawned, "le paper aurait du etre spawn (flag absent)"
+
+
+def test_paper_control_disabled_parsing_variantes(monkeypatch):
+    # Complement du test pur (test_paper_page.py) : verifie la meme fonction
+    # via le point d'entree reellement utilise par _paper_get/_paper_post
+    # (os.environ.get), pas seulement en argument direct.
+    import trading.paper_page as pp
+
+    monkeypatch.delenv("IYC_DISABLE_PAPER_CONTROL", raising=False)
+    assert pp.paper_control_disabled(os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")) is False
+
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "YES")
+    assert pp.paper_control_disabled(os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")) is True
+
+
 def test_spawn_paper_detached_survit_a_un_log_verrouille(tmp_path, monkeypatch):
     # Meme recette que _spawn_detached_monitor (BUG-014) : repli DEVNULL si
     # le log dedie logs/paper_ui.log est inaccessible en ecriture.

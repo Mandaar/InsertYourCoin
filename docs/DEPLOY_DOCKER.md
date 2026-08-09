@@ -59,9 +59,10 @@ coûte :
   aux redémarrages/mises à jour, paper trading supervisé automatiquement par Docker
   (`restart: unless-stopped`), zéro clé API exposée.
 - **Abandonné (documenté §7)** : le bouton **« Démarrer/Arrêter le paper »** de la
-  page web `/paper` ne doit **pas** être utilisé dans ce déploiement (il spawnerait un
-  second paper trading, isolé du volume persistant, à l'intérieur du conteneur
-  `monitor`). Le paper trading se pilote **uniquement** via `docker compose`.
+  page web `/paper` est **désactivé par construction** dans ce déploiement (il
+  aurait spawné un second paper trading, isolé du volume persistant, à l'intérieur
+  du conteneur `monitor`). Le paper trading se pilote **uniquement** via
+  `docker compose`.
 - **Coût** : un peu de discipline sur les commandes (`--env-file .env.deploy` à
   chaque fois, §2) et sur les 2 secrets à gérer soi-même (mot de passe, TLS).
 
@@ -206,19 +207,36 @@ docker run --rm \
   alpine sh -c "cd /data && tar xzf /backup/iyc_data_20260809.tar.gz"
 ```
 
-## 7. Ce qu'il ne faut PAS faire dans ce déploiement
+## 7. Ce qu'il ne faut PAS faire dans ce déploiement (bloqué par construction)
 
-- **Ne clique pas sur « Démarrer le paper » / « Arrêter le paper » depuis la page web
-  `/paper`.** Cette fonctionnalité (`trading/monitor.py`, Lot 7) a été conçue pour
-  l'usage **mono-machine** de `lancer.py` : elle spawnerait un *second* process
-  `main.py paper` **à l'intérieur du conteneur `monitor`**, écrivant dans
-  `/app/paper_state.json` (répertoire de code, éphémère, PAS le volume `/data`) au
-  lieu du volume persistant — deux paper trading distincts, deux historiques
-  divergents, et celui de la page web disparaît au premier redémarrage du conteneur.
-  Le paper trading de ce déploiement est **exclusivement** celui du service
-  `paper` de `docker-compose.yml`, supervisé par Docker (`restart: unless-stopped`).
-  Pilotage : `docker compose restart paper`, `docker compose logs paper`,
-  `docker compose stop paper` — jamais le bouton web.
+- **Le bouton « Démarrer le paper » / « Arrêter le paper » de la page web `/paper`
+  est désactivé dans ce déploiement — pas seulement déconseillé.** Cette
+  fonctionnalité (`trading/monitor.py`, Lot 7) a été conçue pour l'usage
+  **mono-machine** de `lancer.py` : utilisée telle quelle en conteneurs, elle
+  aurait spawné un *second* process `main.py paper` **à l'intérieur du conteneur
+  `monitor`**, écrivant dans `/app/paper_state.json` (répertoire de code, éphémère,
+  PAS le volume `/data`) au lieu du volume persistant — deux paper trading
+  distincts, deux historiques divergents, et celui de la page web disparaissant au
+  premier redémarrage du conteneur.
+
+  **Fermé par construction** (variable d'environnement `IYC_DISABLE_PAPER_CONTROL=1`,
+  positionnée sur le service `monitor` dans `docker-compose.yml` **et**
+  `docker-compose.eunivers.yml` — pas sur `paper`, qui ne sert pas `/paper`) :
+  - **`GET /paper`** reste consultable (statut en lecture seule), mais le formulaire
+    Démarrer et le bouton Arrêter sont **retirés du rendu**, remplacés par un encart
+    « Pilotage désactivé en déploiement conteneurisé — gère le paper via
+    `docker compose ... restart/stop/logs paper` ».
+  - **`POST /paper`** (actions `start` **et** `stop`) est **refusé côté serveur**
+    (`trading/monitor.py::_paper_post`, vérifié en tout premier, avant toute lecture
+    de `action`) : un formulaire forgé ne peut **rien** spawner ni tuer, même avec un
+    jeton CSRF valide — le contrôle n'est pas une simple absence de bouton en HTML.
+  - `trading/paper_page.py::paper_control_disabled()` (fonction pure) parse le flag :
+    absent/vide → `False`, comportement **local (mono-machine) strictement
+    inchangé** ; `1`/`true`/`yes` (insensible à la casse) → `True`.
+  - Le paper trading de ce déploiement reste **exclusivement** celui du service
+    `paper` de `docker-compose.yml`, supervisé par Docker (`restart: unless-stopped`).
+    Pilotage : `docker compose restart paper`, `docker compose logs paper`,
+    `docker compose stop paper`.
 - **Le bouton « Redémarrer le serveur » / « Arrêter le serveur »** (page Options)
   contrôle uniquement le conteneur `monitor` lui-même — celui-ci utilise
   correctement `--host 0.0.0.0` et les chemins `/data/...` même après un clic sur

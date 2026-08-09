@@ -66,6 +66,15 @@ services:
       --stats /data/paper_stats.csv
       --log /data/paper_trades.log
       --state /data/paper_state.json
+    environment:
+      # Footgun ferme par construction (docs/DEPLOY_DOCKER.md §7) : le bouton
+      # Demarrer/Arreter de la page web /paper (Lot 7) spawnerait un SECOND
+      # paper A L'INTERIEUR du conteneur monitor, isole du volume iyc_data --
+      # deux historiques divergents, celui de la page web perdu au premier
+      # redemarrage. Ici, `paper` est deja pilote par Docker
+      # (restart: unless-stopped) : le bouton doit rester desactive. Le
+      # service `paper` n'a pas besoin de ce flag (il ne sert pas /paper).
+      - IYC_DISABLE_PAPER_CONTROL=1
     volumes:
       - iyc_data:/data
     networks:
