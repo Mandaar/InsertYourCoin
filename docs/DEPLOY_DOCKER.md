@@ -399,6 +399,19 @@ verra jamais (`networks: proxy: external: true` dans le compose — vérifie
 qui route `iyc.eunivers.net` vers `iyc-monitor:8765`, avec Basic Auth + TLS + règle
 anti-indexation ; pointer le DNS de `iyc.eunivers.net` vers ce serveur.
 
+> ⚠️ **Gotcha DNS/ACME — vérifié en production (2026-08-09).** Avant d'ajouter le
+> sous-domaine à SWAG (`SUBDOMAINS`), **s'assurer qu'aucun enregistrement AAAA
+> (IPv6) « parking » ne traîne** sur le nouveau sous-domaine. Vécu réel : IONOS
+> servait un AAAA de parking sur `iyc.eunivers.net` au moment de la validation
+> Let's Encrypt → ACME préfère l'IPv6 → challenge routé vers le parking IONOS →
+> `Invalid response … 204`, et SWAG a **révoqué le certificat AVANT de re-valider**
+> → panne cert **totale pour TOUS les sous-domaines** (~15 min). Préconditions :
+> vérifier la zone autoritaire (`dig AAAA iyc.eunivers.net` doit être vide, ou
+> pointer le vrai serveur) **avant** de toucher `SUBDOMAINS`, et **vérifier le
+> certificat réellement servi après émission** (nginx peut garder en mémoire le
+> placeholder auto-signé → `reload`). Incident 100 % côté infra/DNS, **sans rapport
+> avec le code** — noté ici car il conditionne un déploiement SWAG réussi.
+
 ### 13.3 Le point Host — pourquoi une allowlist côté app plutôt qu'une réécriture nginx
 
 `host_allowed()` (`trading/monitor.py`) n'acceptait, avant ce patch, que
