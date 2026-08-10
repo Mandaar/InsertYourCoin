@@ -15,44 +15,52 @@ import html
 from .stats import WEEKDAY_NAMES, honesty_note
 from .webui import page_shell
 
+# Tokens consommes depuis trading/webui.py THEME_CSS (3 themes) -- valeurs
+# alignees sur l'ecran Labo de stats du design source (cf.
+# docs/design/from_claude_design/rendered/stats_labo__theme-*). Le panneau
+# "Frais" est volontairement mis en evidence (spec §4.11 -- fees-grad/warn-big,
+# meme traitement que le design : c'est le premier obstacle avant la strategie).
 _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
-  letter-spacing: .5px; }
-.muted { color: #8b97a6; }
-.navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
+h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; margin: 0 0 4px;
+  letter-spacing: -.01em; color: var(--txt); }
+h2 { font-size: 12px; margin: 0 0 10px; color: var(--txt); text-transform: uppercase;
+  letter-spacing: .14em; font-weight: 600; }
+.muted { color: var(--muted); }
+.navlink { color: var(--blue); text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
-.card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px; }
 .empty { text-align: center; padding: 40px 16px; }
 .filepick { display: flex; gap: 8px; align-items: center; margin-bottom: 14px;
-  font-size: 13px; color: #9fb0c3; flex-wrap: wrap; }
-.filepick select { background: #0e1116; color: #d7dee8; border: 1px solid #2a333f;
-  border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, Consolas, monospace; }
-.filepick button { background: #1f6feb; color: #fff; border: none; border-radius: 6px;
-  padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  font-size: 13px; color: var(--muted2); flex-wrap: wrap; }
+.filepick select { background: var(--bg-deep); color: var(--txt); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; font-family: var(--mono); }
+.filepick button { background: var(--accent-fill); color: var(--on-accent); border: none;
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px; margin-bottom: 14px; }
-.card.stat { margin-bottom: 0; }
-.card .label { font-size: 11px; color: #7f8c9c; text-transform: uppercase;
-  letter-spacing: .5px; margin-bottom: 6px; }
-.card .value { font-size: 20px; font-weight: 600; }
-.card.pos .value { color: #46c46f; }
-.card.neg .value { color: #e5534b; }
-.card.fees { border-color: #f0b429; }
-.card.fees .value { color: #f0b429; }
-.card.fees .label { color: #ffd98a; }
+.card.stat { margin-bottom: 0; background: var(--panel-grad); border-color: var(--line-gold);
+  box-shadow: var(--shadow); }
+.card .label { font-size: 11px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .14em; margin-bottom: 6px; }
+.card .value { font-family: var(--mono); font-size: 22px; font-weight: 600;
+  font-variant-numeric: tabular-nums; }
+.card.pos .value { color: var(--up); }
+.card.neg .value { color: var(--down); }
+.card.fees { border-color: var(--fees-line, var(--warn-fill)); background: var(--fees-grad); }
+.card.fees .value { color: var(--warn-big, var(--warn-fill)); }
+.card.fees .label { color: var(--warn-big, var(--warn-fill)); font-weight: 700; }
 .bars { display: flex; flex-direction: column; gap: 6px; }
 .barrow { display: grid; grid-template-columns: 70px 1fr 90px; align-items: center;
   gap: 8px; font-size: 12px; }
-.barlabel { color: #9fb0c3; }
-.bartrack { background: #0e1116; border: 1px solid #232b36; border-radius: 5px;
+.barlabel { color: var(--muted2); }
+.bartrack { background: var(--bg-deep); border: 1px solid var(--line); border-radius: 5px;
   height: 12px; overflow: hidden; }
-.barfill { display: block; height: 100%; background: #d6aa5a; }
-.barval { color: #8b97a6; text-align: right; font-family: ui-monospace, Consolas, monospace; }
-.honesty { font-size: 12px; color: #9fb0c3; line-height: 1.6; white-space: pre-wrap; }
+.barfill { display: block; height: 100%; background: var(--gold); }
+.barval { color: var(--muted2); text-align: right; font-family: var(--mono); }
+.honesty { font-size: 12px; color: var(--muted2); line-height: 1.6; white-space: pre-wrap; }
 """
 
 

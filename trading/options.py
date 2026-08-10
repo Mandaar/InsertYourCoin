@@ -17,7 +17,13 @@ from pathlib import Path
 
 # Niveaux de logs valides pour le paper trading (voir paper_trader._Trader._trace).
 LOG_LEVELS = ("leger", "moyen", "complet")
-DEFAULT_OPTIONS = {"log_level": "moyen"}
+
+# Themes visuels valides (design Claude Design, cf. docs/design/from_claude_design/) :
+# "dark" = Ambre (defaut, continuite avec le theme historique de l'app),
+# "violet" = Nuit, "light" = Clair. Meme patron de validation que LOG_LEVELS.
+THEME_IDS = ("dark", "violet", "light")
+
+DEFAULT_OPTIONS = {"log_level": "moyen", "theme": "dark"}
 
 # Cles ecrites/relues dans le .env (jamais leur VALEUR exposee).
 _ENV_KEY_NAMES = ("KRAKEN_API_KEY", "KRAKEN_API_SECRET")
@@ -57,6 +63,10 @@ def read_options(path=None) -> dict:
     # Garde-fou : un log_level invalide retombe sur le defaut (jamais d'exception).
     if opts.get("log_level") not in LOG_LEVELS:
         opts["log_level"] = DEFAULT_OPTIONS["log_level"]
+    # Idem pour le theme : une valeur inconnue (fichier corrompu/edite a la main,
+    # ancienne version sans ce champ) retombe silencieusement sur "dark" (Ambre).
+    if opts.get("theme") not in THEME_IDS:
+        opts["theme"] = DEFAULT_OPTIONS["theme"]
     return opts
 
 
@@ -70,6 +80,9 @@ def write_options(opts, path=None) -> None:
     level = opts.get("log_level", DEFAULT_OPTIONS["log_level"])
     if level not in LOG_LEVELS:
         raise ValueError(f"log_level invalide : {level!r} (attendu : {LOG_LEVELS})")
+    theme = opts.get("theme", DEFAULT_OPTIONS["theme"])
+    if theme not in THEME_IDS:
+        raise ValueError(f"theme invalide : {theme!r} (attendu : {THEME_IDS})")
     p = Path(path) if path else OPTIONS_PATH()
     p.write_text(json.dumps(opts, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 

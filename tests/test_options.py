@@ -39,14 +39,18 @@ class FakeExchange:
 #  read_options / write_options                                                #
 # --------------------------------------------------------------------------- #
 def test_read_options_default_when_missing(tmp_path):
+    # Reskin design (theme visuel) : DEFAULT_OPTIONS porte desormais aussi
+    # "theme" (defaut "dark" = Ambre, continuite avec le theme historique).
+    # Champ ADDITIF valide par trading/options.py THEME_IDS -- ce test verifie
+    # l'egalite EXACTE des options par defaut, donc suit le nouveau contrat.
     out = read_options(tmp_path / "nope.json")
-    assert out == {"log_level": "moyen"}
+    assert out == {"log_level": "moyen", "theme": "dark"}
 
 
 def test_read_options_default_when_corrupt(tmp_path):
     p = tmp_path / "options.json"
     p.write_text("{ pas du json", encoding="utf-8")
-    assert read_options(p) == {"log_level": "moyen"}
+    assert read_options(p) == {"log_level": "moyen", "theme": "dark"}
 
 
 def test_read_options_invalid_level_falls_back(tmp_path):
@@ -74,6 +78,30 @@ def test_write_options_all_valid_levels(tmp_path):
         p = tmp_path / f"opt_{lvl}.json"
         write_options({"log_level": lvl}, p)
         assert read_options(p)["log_level"] == lvl
+
+
+# --------------------------------------------------------------------------- #
+#  theme (reskin design Claude Design -- Nuit/Ambre/Clair)                    #
+# --------------------------------------------------------------------------- #
+def test_read_options_invalid_theme_falls_back(tmp_path):
+    p = tmp_path / "options.json"
+    p.write_text(json.dumps({"theme": "rose-bonbon"}), encoding="utf-8")
+    assert read_options(p)["theme"] == "dark"
+
+
+def test_write_then_read_theme_roundtrip(tmp_path):
+    from trading.options import THEME_IDS
+    for theme in THEME_IDS:
+        p = tmp_path / f"opt_{theme}.json"
+        write_options({"log_level": "moyen", "theme": theme}, p)
+        assert read_options(p)["theme"] == theme
+
+
+def test_write_options_rejects_invalid_theme(tmp_path):
+    p = tmp_path / "options.json"
+    with pytest.raises(ValueError):
+        write_options({"log_level": "moyen", "theme": "arc-en-ciel"}, p)
+    assert not p.exists()
 
 
 def test_options_path_is_under_project_root():

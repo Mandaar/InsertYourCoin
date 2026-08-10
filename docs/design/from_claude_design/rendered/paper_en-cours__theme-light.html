@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - paper_en-cours (light)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--accent-ink:#0f766e;--on-accent:#ffffff;--accent-text:#0b5f59;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(15,118,110,.28));--logo-ink:#333333;--pill-fill:linear-gradient(120deg,#0e7490,#0f766e);--warn-fill:#dfa316;--warn-big:#dfa316;--accent-fill:linear-gradient(120deg,#0e7490,#0f766e);--warn:#c08c0c;--on-danger:#ffffff;--glow:0 1.25rem 2.75rem -2rem rgba(15,30,45,.45);--accent2:#0e7490;--accent2-soft:rgba(14,116,144,.10);--bg:#f2f5f7;--code:#eaeff3;--panel:#ffffff;--panel-grad:linear-gradient(180deg,#ffffff,#f5f9fa);--line:#dde4ea;--line-accent:rgba(15,118,110,.35);--txt:#0f1720;--muted:#55606d;--accent:#0b5f59;--accent-bright:#0f766e;--accent-soft:rgba(15,118,110,.10);--up:#116b3e;--down:#c1121f;--down-soft:rgba(193,18,31,.08);--up-soft:rgba(17,107,62,.10);--blue:#0d6ea8;--nav-bg:rgba(255,255,255,.92);--fees-grad:linear-gradient(180deg,rgba(223,163,22,.16),#ffffff);--fees-line:rgba(223,163,22,.48);--shadow:0 1.25rem 2.75rem -2rem rgba(15,30,45,.4);--track:rgba(15,23,32,.03);background:radial-gradient(68.75rem 35rem at 82% -12%, rgba(15,118,110,.10), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(52,211,153,.10), transparent 60%),#f2f5f7;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:none"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:none"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:0 0 0 3px #0f766e33"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+      <section data-screen-label="Paper">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Argent fictif · aucune exposition réelle</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Paper trading</h1>
+        </div>
+
+        <article style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));box-shadow:var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8));padding:1.5rem 1.625rem;margin-bottom:1.375rem;display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap">
+          <div style="flex:1 1 15rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Statut</div>
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.375rem;line-height:1;color:var(--accent2,#e879f9)">EN COURS</div>
+            <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">depuis 38 h 12 min · ETH/USD · 1h · cycle 947</div>
+          </div>
+          <button type="button" style="min-height:2.75rem;padding:0 1.375rem;border-radius:0.625rem;border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.10));color:var(--down,#e5534b);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Arrêter le paper</button>
+        </article>
+
+        <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Réglages de la prochaine session <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <form style="display:grid;gap:0.875rem">
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accentText,#c4b5fd)">Marché</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Ce que le bot surveille et à quel rythme il décide.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-strat" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Stratégie</label>
+                    <input id="p-strat" name="p-strat" defaultValue="Croisement de moyennes" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty"></span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-sym" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Symbole</label>
+                    <input id="p-sym" name="p-sym" defaultValue="ETH/USD" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">un seul actif par session de paper</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-tf" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Timeframe</label>
+                    <input id="p-tf" name="p-tf" defaultValue="1h" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">un cycle par bougie — plus court = plus de frais</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accentText,#c4b5fd)">Risque</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Ces trois seuils décident quand on sort. Ils ne se règlent pas au hasard : chaque valeur par défaut vient des backtests, pas d'une intuition.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-stop" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Stop (%)</label>
+                    <input id="p-stop" name="p-stop" defaultValue="5" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">sortie sèche si la position perd 5 % — au-delà, une reprise devient improbable</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-obj" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Objectif (%)</label>
+                    <input id="p-obj" name="p-obj" defaultValue="20" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">prise de bénéfice automatique</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-trail" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Trailing (%)</label>
+                    <input id="p-trail" name="p-trail" defaultValue="8" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">suit le plus haut atteint et sort au repli de 8 %</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accentText,#c4b5fd)">Taille de position</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Combien de capital est engagé à chaque entrée.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-size" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Sizing</label>
+                    <input id="p-size" name="p-size" defaultValue="Volatilité cible" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">fixe · volatilité cible · fraction fixe</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="p-vol" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Volatilité cible (%)</label>
+                    <input id="p-vol" name="p-vol" defaultValue="15" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">annualisée — plus le marché bouge, plus la position rétrécit</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <button type="button" style="min-height:2.75rem;padding:0 1.625rem;border-radius:0.625rem;border:none;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));color:var(--onAccent,#12101f);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Démarrer le paper</button>
+            <span style="color:var(--muted,#7f8c9c);font-size:0.78125rem">Le premier cycle apparaît dans le monitoring en moins d'une minute.</span>
+          </div>
+        </form>
+
+        <div style="margin-top:1.375rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));border-radius:0.75rem;padding:1.125rem 1.25rem">
+          <p style="margin:0;color:var(--txt,#d7dee8);max-width:80ch;text-wrap:pretty">L'historique des cycles précédents est conservé : démarrer une nouvelle session n'efface rien, et le Labo de stats continue de lire l'ensemble des fichiers accumulés.</p>
+        </div>
+      </section>
+    
+
+    
+
+    
+
+  </main>
+</div>
+</body>
+</html>

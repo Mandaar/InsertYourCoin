@@ -1,0 +1,294 @@
+{
+  "generated": "2026-08-10T01:52:02.911Z",
+  "count": 48,
+  "items": [
+    {
+      "file": "accueil_etat-ok__theme-violet.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ok",
+      "theme": "violet"
+    },
+    {
+      "file": "accueil_etat-ssl-echec__theme-violet.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ssl-echec",
+      "theme": "violet"
+    },
+    {
+      "file": "accueil_etat-rien-ne-tourne__theme-violet.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-rien-ne-tourne",
+      "theme": "violet"
+    },
+    {
+      "file": "monitoring_direct__theme-violet.html",
+      "screen": "monitoring",
+      "etat": "monitoring_direct",
+      "theme": "violet"
+    },
+    {
+      "file": "monitoring_inactif-360s__theme-violet.html",
+      "screen": "monitoring",
+      "etat": "monitoring_inactif-360s",
+      "theme": "violet"
+    },
+    {
+      "file": "monitoring_vide-jamais-lance__theme-violet.html",
+      "screen": "monitoring",
+      "etat": "monitoring_vide-jamais-lance",
+      "theme": "violet"
+    },
+    {
+      "file": "walkforward_calcul-en-cours__theme-violet.html",
+      "screen": "wf",
+      "etat": "walkforward_calcul-en-cours",
+      "theme": "violet"
+    },
+    {
+      "file": "walkforward_verdict-rouge__theme-violet.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-rouge",
+      "theme": "violet"
+    },
+    {
+      "file": "walkforward_verdict-ambre__theme-violet.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-ambre",
+      "theme": "violet"
+    },
+    {
+      "file": "walkforward_verdict-vert__theme-violet.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-vert",
+      "theme": "violet"
+    },
+    {
+      "file": "stats_labo__theme-violet.html",
+      "screen": "stats",
+      "etat": "stats_labo",
+      "theme": "violet"
+    },
+    {
+      "file": "diagnostic_ok__theme-violet.html",
+      "screen": "check",
+      "etat": "diagnostic_ok",
+      "theme": "violet"
+    },
+    {
+      "file": "diagnostic_ssl-echec__theme-violet.html",
+      "screen": "check",
+      "etat": "diagnostic_ssl-echec",
+      "theme": "violet"
+    },
+    {
+      "file": "paper_en-cours__theme-violet.html",
+      "screen": "paper",
+      "etat": "paper_en-cours",
+      "theme": "violet"
+    },
+    {
+      "file": "options__theme-violet.html",
+      "screen": "options",
+      "etat": "options",
+      "theme": "violet"
+    },
+    {
+      "file": "aide__theme-violet.html",
+      "screen": "help",
+      "etat": "aide",
+      "theme": "violet"
+    },
+    {
+      "file": "accueil_etat-ok__theme-dark.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ok",
+      "theme": "dark"
+    },
+    {
+      "file": "accueil_etat-ssl-echec__theme-dark.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ssl-echec",
+      "theme": "dark"
+    },
+    {
+      "file": "accueil_etat-rien-ne-tourne__theme-dark.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-rien-ne-tourne",
+      "theme": "dark"
+    },
+    {
+      "file": "monitoring_direct__theme-dark.html",
+      "screen": "monitoring",
+      "etat": "monitoring_direct",
+      "theme": "dark"
+    },
+    {
+      "file": "monitoring_inactif-360s__theme-dark.html",
+      "screen": "monitoring",
+      "etat": "monitoring_inactif-360s",
+      "theme": "dark"
+    },
+    {
+      "file": "monitoring_vide-jamais-lance__theme-dark.html",
+      "screen": "monitoring",
+      "etat": "monitoring_vide-jamais-lance",
+      "theme": "dark"
+    },
+    {
+      "file": "walkforward_calcul-en-cours__theme-dark.html",
+      "screen": "wf",
+      "etat": "walkforward_calcul-en-cours",
+      "theme": "dark"
+    },
+    {
+      "file": "walkforward_verdict-rouge__theme-dark.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-rouge",
+      "theme": "dark"
+    },
+    {
+      "file": "walkforward_verdict-ambre__theme-dark.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-ambre",
+      "theme": "dark"
+    },
+    {
+      "file": "walkforward_verdict-vert__theme-dark.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-vert",
+      "theme": "dark"
+    },
+    {
+      "file": "stats_labo__theme-dark.html",
+      "screen": "stats",
+      "etat": "stats_labo",
+      "theme": "dark"
+    },
+    {
+      "file": "diagnostic_ok__theme-dark.html",
+      "screen": "check",
+      "etat": "diagnostic_ok",
+      "theme": "dark"
+    },
+    {
+      "file": "diagnostic_ssl-echec__theme-dark.html",
+      "screen": "check",
+      "etat": "diagnostic_ssl-echec",
+      "theme": "dark"
+    },
+    {
+      "file": "paper_en-cours__theme-dark.html",
+      "screen": "paper",
+      "etat": "paper_en-cours",
+      "theme": "dark"
+    },
+    {
+      "file": "options__theme-dark.html",
+      "screen": "options",
+      "etat": "options",
+      "theme": "dark"
+    },
+    {
+      "file": "aide__theme-dark.html",
+      "screen": "help",
+      "etat": "aide",
+      "theme": "dark"
+    },
+    {
+      "file": "accueil_etat-ok__theme-light.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ok",
+      "theme": "light"
+    },
+    {
+      "file": "accueil_etat-ssl-echec__theme-light.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-ssl-echec",
+      "theme": "light"
+    },
+    {
+      "file": "accueil_etat-rien-ne-tourne__theme-light.html",
+      "screen": "accueil",
+      "etat": "accueil_etat-rien-ne-tourne",
+      "theme": "light"
+    },
+    {
+      "file": "monitoring_direct__theme-light.html",
+      "screen": "monitoring",
+      "etat": "monitoring_direct",
+      "theme": "light"
+    },
+    {
+      "file": "monitoring_inactif-360s__theme-light.html",
+      "screen": "monitoring",
+      "etat": "monitoring_inactif-360s",
+      "theme": "light"
+    },
+    {
+      "file": "monitoring_vide-jamais-lance__theme-light.html",
+      "screen": "monitoring",
+      "etat": "monitoring_vide-jamais-lance",
+      "theme": "light"
+    },
+    {
+      "file": "walkforward_calcul-en-cours__theme-light.html",
+      "screen": "wf",
+      "etat": "walkforward_calcul-en-cours",
+      "theme": "light"
+    },
+    {
+      "file": "walkforward_verdict-rouge__theme-light.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-rouge",
+      "theme": "light"
+    },
+    {
+      "file": "walkforward_verdict-ambre__theme-light.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-ambre",
+      "theme": "light"
+    },
+    {
+      "file": "walkforward_verdict-vert__theme-light.html",
+      "screen": "wf",
+      "etat": "walkforward_verdict-vert",
+      "theme": "light"
+    },
+    {
+      "file": "stats_labo__theme-light.html",
+      "screen": "stats",
+      "etat": "stats_labo",
+      "theme": "light"
+    },
+    {
+      "file": "diagnostic_ok__theme-light.html",
+      "screen": "check",
+      "etat": "diagnostic_ok",
+      "theme": "light"
+    },
+    {
+      "file": "diagnostic_ssl-echec__theme-light.html",
+      "screen": "check",
+      "etat": "diagnostic_ssl-echec",
+      "theme": "light"
+    },
+    {
+      "file": "paper_en-cours__theme-light.html",
+      "screen": "paper",
+      "etat": "paper_en-cours",
+      "theme": "light"
+    },
+    {
+      "file": "options__theme-light.html",
+      "screen": "options",
+      "etat": "options",
+      "theme": "light"
+    },
+    {
+      "file": "aide__theme-light.html",
+      "screen": "help",
+      "etat": "aide",
+      "theme": "light"
+    }
+  ]
+}

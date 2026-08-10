@@ -31,6 +31,11 @@ Conception :
                          + demarre/arrete le paper trading DEPUIS l'UI (process
                          detache, PID suivi dans run/paper.pid, meme garde-fou
                          paper-only que lancer.py -- assert_paper_only).
+    POST /theme      -> reskin design (Claude Design) : switch de theme visuel
+                         (Nuit/Ambre/Clair) persiste dans options.json, CSRF
+                         requis, Post/Redirect/Get vers la page d'origine
+                         (Referer, jamais un chemin fourni tel quel par le
+                         client -- trading/monitor.py _safe_next_path).
   Le script JS cote client fait un fetch('/fragment') toutes les 7s et injecte
   le resultat dans <div id="content"> -- jamais de rechargement de page entiere.
 """
@@ -53,6 +58,7 @@ import config
 import lancer
 from .options import (
     read_options, write_options, update_env_file, keys_configured, LOG_LEVELS,
+    THEME_IDS,
 )
 from .webui import page_shell, serve_static
 from .home_page import render_home_page
@@ -283,6 +289,27 @@ def _esc(s):
     return html.escape("" if s is None else str(s))
 
 
+def _safe_next_path(referer):
+    """Chemin LOCAL sur pour la redirection post-switch-theme (POST /theme,
+    trading/webui.py _theme_switch_html). `referer` = en-tete HTTP Referer
+    (absent/vide/malformee -> '/'). Anti open-redirect : n'accepte qu'un
+    chemin qui commence par UN SEUL '/' (jamais un schema http(s):// ni un
+    chemin protocole-relatif '//evil.example') -- meme esprit de garde que
+    serve_static (trading/webui.py) sur les traversees de chemin."""
+    if not referer:
+        return "/"
+    try:
+        parts = urllib.parse.urlsplit(referer)
+    except ValueError:
+        return "/"
+    path = parts.path or "/"
+    if not path.startswith("/") or path.startswith("//"):
+        return "/"
+    if parts.query:
+        path += "?" + parts.query
+    return path
+
+
 def _error_page(title, message) -> str:
     """
     Page d'erreur HTTP habillee (theme commun `page_shell`) -- remplace les
@@ -410,41 +437,50 @@ def build_html(view) -> str:
     return _page(render_fragment(view))
 
 
+# Tokens consommes depuis trading/webui.py THEME_CSS (3 themes) -- valeurs
+# alignees sur l'ecran Monitoring du design source (cf.
+# docs/design/from_claude_design/rendered/monitoring_*).
 _CSS = """
 .iyc-page { padding: 16px; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
-  letter-spacing: .5px; }
-.muted { color: #8b97a6; }
+h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; margin: 0 0 4px;
+  letter-spacing: -.01em; color: var(--txt); }
+h2 { font-size: 12px; margin: 0 0 10px; color: var(--txt); text-transform: uppercase;
+  letter-spacing: .14em; font-weight: 600; }
+.muted { color: var(--muted); }
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
-.head .maj { color: #8b97a6; font-size: 12px; }
+.head .maj { color: var(--muted); font-size: 12px; font-family: var(--mono); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px; margin-bottom: 14px; }
-.card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px; }
-.card.stat { margin-bottom: 0; }
-.card .label { font-size: 11px; color: #7f8c9c; text-transform: uppercase;
-  letter-spacing: .5px; margin-bottom: 6px; }
-.card .value { font-size: 20px; font-weight: 600; }
-.card.pos .value { color: #46c46f; }
-.card.neg .value { color: #e5534b; }
-.card.invested .value { color: #f0b429; }
-.card.cash .value { color: #6cb6ff; }
-.alert { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
+.card.stat { margin-bottom: 0; background: var(--panel-grad); border-color: var(--line-gold);
+  box-shadow: var(--shadow); }
+.card .label { font-size: 11px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .14em; margin-bottom: 6px; }
+.card .value { font-family: var(--mono); font-size: 22px; font-weight: 600;
+  font-variant-numeric: tabular-nums; }
+.card.pos .value { color: var(--up); }
+.card.neg .value { color: var(--down); }
+.card.invested .value { color: var(--gold-bright); }
+.card.cash .value { color: var(--blue); }
+.alert { background: #3a1d12; border: 1px solid var(--down); color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600; }
 .empty { text-align: center; padding: 40px 16px; }
-table.trades { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.trades { width: 100%; border-collapse: collapse; font-size: 13px;
+  font-family: var(--mono); }
 table.trades th, table.trades td { text-align: left; padding: 6px 10px;
-  border-bottom: 1px solid #232b36; }
-table.trades th { color: #7f8c9c; font-weight: 500; }
+  border-bottom: 1px solid var(--line); }
+table.trades th { color: var(--muted); font-weight: 500; font-size: 10.5px;
+  letter-spacing: .1em; text-transform: uppercase; }
 table.trades td.right, table.trades th.right { text-align: right; }
-.buy { color: #46c46f; font-weight: 600; }
-.sell { color: #e5534b; font-weight: 600; }
-.log { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px;
+.buy { color: var(--up); font-weight: 600; }
+.sell { color: var(--down); font-weight: 600; }
+.log { font-family: var(--mono); font-size: 12px;
   line-height: 1.5; max-height: 320px; overflow-y: auto; white-space: pre-wrap;
-  word-break: break-word; }
-.log .logerr { color: #ff7b72; }
+  word-break: break-word; background: var(--bg-deep); border-radius: 8px;
+  padding: 10px 12px; }
+.log .logerr { color: var(--down); }
 """
 
 
@@ -490,32 +526,32 @@ def _page(fragment):
 _WITHDRAW_URL = "https://www.kraken.com/u/funding/withdraw"
 
 _OPTIONS_CSS = _CSS + """
-.navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
+.navlink { color: var(--blue); text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
 form.opt { margin: 0; }
 .radio-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 4px; }
 .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .field { margin: 12px 0; }
-.field label.flabel { display: block; font-size: 12px; color: #9fb0c3;
+.field label.flabel { display: block; font-size: 12px; color: var(--muted2);
   margin-bottom: 4px; }
 .field input[type=password] { width: 100%; max-width: 460px; padding: 8px 10px;
-  background: #0e1116; color: #d7dee8; border: 1px solid #2a333f; border-radius: 6px;
-  font-family: ui-monospace, Consolas, monospace; }
+  background: var(--bg-deep); color: var(--txt); border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--mono); }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
-.btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 10px 18px; font-size: 14px; cursor: pointer; }
-.btn:hover { background: #2a7bff; }
-.btn-stop { background: #3a1d12; color: #ffb4ad; border: 1px solid #e5534b;
+.btn { background: var(--accent-fill); color: var(--on-accent); border: none; border-radius: 7px;
+  padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn:hover { filter: brightness(1.08); }
+.btn-stop { background: #3a1d12; color: #ffb4ad; border: 1px solid var(--down);
   border-radius: 7px; padding: 9px 18px; font-size: 14px; cursor: pointer; }
 .btn-stop:hover { background: #4a2417; }
 .server-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.help { font-size: 12px; color: #7f8c9c; margin: 6px 0; line-height: 1.5; }
-.ok { color: #46c46f; font-weight: 600; }
-.no { color: #e5534b; font-weight: 600; }
-.saved { background: #12331d; border: 1px solid #46c46f; color: #9ff0b8;
+.help { font-size: 12px; color: var(--muted); margin: 6px 0; line-height: 1.5; }
+.ok { color: var(--up); font-weight: 600; }
+.no { color: var(--down); font-weight: 600; }
+.saved { background: #12331d; border: 1px solid var(--up); color: #9ff0b8;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600; }
-.warn { color: #f0b429; }
-a.wallet { color: #6cb6ff; }
+.warn { color: var(--warn-fill); }
+a.wallet { color: var(--blue); }
 """
 
 
@@ -999,6 +1035,14 @@ def build_monitor_server(port=8765, host="127.0.0.1",
     # Token anti-CSRF genere au demarrage du serveur : un site malveillant ouvert
     # dans le navigateur peut POSTer vers 127.0.0.1, mais ne connait pas ce token.
     csrf_token = secrets.token_hex(32)
+    # Reskin design (switch de theme, cf. trading/webui.py page_shell) : le nav
+    # persistant a besoin de CE token sur TOUTE page, y compris celles dont la
+    # fonction de rendu ne recoit pas encore de csrf_token en parametre
+    # (home_page/check_page/help_page/stats_page/...). Meme jeton PARTAGE que
+    # tous les autres formulaires (un seul csrf_token par serveur, deja le cas
+    # avant ce changement) -- expose via `config` pour que page_shell puisse le
+    # lire sans que 15 fichiers de rendu changent de signature.
+    config._RUNTIME_CSRF_TOKEN = csrf_token
     # Cles "session seulement" (case decochee) : gardees EN MEMOIRE du process
     # monitor, JAMAIS ecrites sur disque. Utilisables pour un futur test de liaison.
     _session_keys = {}
@@ -1813,10 +1857,34 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 self._send_html(_error_page("Erreur monitoring", str(exc)))
 
         def do_POST(self):
+            # /theme (reskin design, switch de theme -- nav persistante),
             # /job/<id>/cancel (Lot 3), /research/backtest (Lot 4),
             # /research/{compare,optimize,portfolio} (Lot 5),
             # /research/walkforward (Lot 6), /paper (Lot 7) et /options
             # acceptent un POST ; tout le reste -> 404.
+            if self.path.startswith("/theme"):
+                if not self._host_ok():
+                    return
+                form = self._read_post_form()
+                if not csrf_valid(form.get("csrf_token"), csrf_token):
+                    self._send_html(
+                        _error_page("403 - Jeton CSRF invalide",
+                                    "Ce formulaire a expiré ou provient d'une autre "
+                                    "page. Recharge la page et réessaie."),
+                        code=403,
+                    )
+                    return
+                requested = form.get("theme")
+                if requested in THEME_IDS:
+                    opts = read_options()
+                    opts["theme"] = requested
+                    write_options(opts)
+                # Post/Redirect/Get -> retour sur la page d'origine (jamais un
+                # re-POST au refresh, meme patron que /options ci-dessous).
+                self.send_response(303)
+                self.send_header("Location", _safe_next_path(self.headers.get("Referer")))
+                self.end_headers()
+                return
             if self.path.startswith("/job/"):
                 m = _JOB_CANCEL_RE.match(self.path.split("?", 1)[0])
                 if m:

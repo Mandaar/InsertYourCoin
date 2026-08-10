@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</helmet>
+<div style="{{ rootStyle }}">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="8">
+        <button type="button" onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        <sc-for list="{{ themeBtns }}" as="b" hint-placeholder-count="3">
+          <button type="button" onClick="{{ b.go }}" style="{{ b.style }}"><i style="{{ b.dotStyle }}"></i>{{ b.label }}</button>
+        </sc-for>
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    <sc-if value="{{ isAccueil }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="Accueil">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.625rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Session locale · poste de travail</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;letter-spacing:-.01em;line-height:1.1;color:var(--txt,#d7dee8)">État du poste</h1>
+            <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c);max-width:56ch;text-wrap:pretty">Rien ne se lance tout seul. Cette page dit ce qui tourne, ce qui est prêt, et ce qui manque.</p>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            <sc-for list="{{ accStates }}" as="s" hint-placeholder-count="3">
+              <button type="button" onClick="{{ s.go }}" style="{{ s.style }}">{{ s.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <article style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));box-shadow:var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8));padding:1.5rem 1.625rem;margin-bottom:1.125rem;position:relative;overflow:hidden">
+          <i style="position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,var(--accent2,#e879f9),var(--accent,#a78bfa),transparent)"></i>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;font-weight:400;color:var(--txt,#d7dee8)">Paper trading</h2>
+            <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6875rem;color:var(--muted,#7f8c9c)">{{ paper.since }}</span>
+          </div>
+          <sc-if value="{{ paper.running }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(11.875rem,1fr));gap:1.625rem;align-items:end">
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Statut</div>
+                <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.375rem;line-height:1;color:var(--accent2,#ff7a5c)">INVESTI</div>
+                <div style="margin-top:0.5rem;color:var(--muted,#7f8c9c);font-size:0.75rem">ETH/USD · 1h · croisement de moyennes</div>
+              </div>
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Equity</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.125rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">10 042.31 $</div>
+                <div style="margin-top:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--up,#46c46f)">+42.31 $ (+0.42 %)</div>
+              </div>
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">38 dernières heures</div>
+                <svg viewBox="0 0 200 54" preserveAspectRatio="none" style="width:100%;height:3.75rem;display:block;overflow:visible">
+                  <defs>
+                    <linearGradient id="miniArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" style="stop-color:var(--accent,#a78bfa);stop-opacity:.38"></stop>
+                      <stop offset="100%" style="stop-color:var(--accent,#a78bfa);stop-opacity:0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <path d="{{ equity.miniArea }}" fill="url(#miniArea)"></path>
+                  <path d="{{ equity.miniLine }}" fill="none" stroke="var(--accentBright,#c4b5fd)" stroke-width="1.75" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                </svg>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ paper.stopped }}">
+            <div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
+              <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.125rem;color:var(--muted,#7f8c9c)">Aucun paper en cours</div>
+              <p style="margin:0;color:var(--muted,#7f8c9c);max-width:44ch">Rien ne tourne. L'historique des cycles précédents est conservé et reste lisible dans le Labo de stats.</p>
+            </div>
+          </sc-if>
+          <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line,#232b36);display:flex;gap:1.25rem;flex-wrap:wrap">
+            <a href="#">Voir le monitoring →</a>
+            <a href="#" style="color:var(--muted,#7f8c9c)">Configurer le paper</a>
+          </div>
+        </article>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18.75rem,1fr));gap:1rem;margin-bottom:1.125rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Diagnostic</h3>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+              <sc-for list="{{ diag }}" as="d" hint-placeholder-count="2">
+                <div style="{{ d.style }}">{{ d.text }}</div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ diagFail }}">
+              <div style="margin-top:0.875rem;border-left:3px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.08));padding:0.75rem 0.875rem;border-radius:0 0.5rem 0.5rem 0">
+                <div style="font-weight:600;margin-bottom:0.375rem;color:var(--txt,#d7dee8)">Cause probable</div>
+                <p style="margin:0 0 0.625rem;color:var(--txt,#d7dee8)">Un antivirus intercepte le certificat de Kraken : la connexion est déchiffrée puis re-signée par un certificat absent du magasin vérifié.</p>
+                <div style="font-weight:600;margin-bottom:0.375rem;color:var(--txt,#d7dee8)">Geste à faire</div>
+                <p style="margin:0;color:var(--txt,#d7dee8)">Exclure <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace">api.kraken.com</span> de l'analyse HTTPS, puis relancer le diagnostic.</p>
+              </div>
+            </sc-if>
+            <div style="margin-top:0.875rem"><a href="#">Lancer le diagnostic</a></div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Recherche · dernier verdict</h3>
+            <sc-if value="{{ hasResearch }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="display:flex;align-items:center;gap:0.625rem;margin-bottom:0.5rem">
+                  <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.125rem;color:var(--down,#e5534b)">✗</span>
+                  <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;color:var(--down,#e5534b)">Pas d'edge fiable</span>
+                </div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Walk-forward · 0 / 4 actifs OOS positifs</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">ETH, BTC, SOL, ADA · 2026-08-09 11:47</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noResearch }}">
+              <div>
+                <p style="margin:0 0 0.75rem;color:var(--muted,#7f8c9c)">Aucune analyse enregistrée. L'ordre de travail honnête :</p>
+                <ol style="margin:0;padding-left:1.125rem;color:var(--txt,#d7dee8);display:grid;gap:0.375rem">
+                  <li>Backtest — une idée, in-sample, jamais une preuve.</li>
+                  <li>Walk-forward — le juge, hors-échantillon.</li>
+                  <li>Paper — des semaines en argent fictif.</li>
+                  <li>Live — sous conditions, et jamais par défaut.</li>
+                </ol>
+              </div>
+            </sc-if>
+            <div style="margin-top:0.875rem"><a href="#">Nouvelle analyse</a></div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem;display:flex;flex-direction:column">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Réglages</h3>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:{{ keys.color }}">{{ keys.text }}</div>
+            <sc-if value="{{ noKeys }}">
+              <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c)">Sans clés, le diagnostic et le live restent hors de portée. Le paper et la recherche fonctionnent sans.</p>
+            </sc-if>
+            <div style="margin-top:0.875rem;display:flex;gap:1.125rem">
+              <a href="#">Options</a>
+              <a href="#">Aide</a>
+            </div>
+            <div style="margin-top:auto;padding-top:1.125rem">
+              <a href="#" style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-decoration:underline">passer en live</a>
+            </div>
+          </article>
+        </div>
+
+        <aside style="border:1px solid var(--feesLine,rgba(240,180,41,.36));background:var(--feesGrad,linear-gradient(180deg,rgba(240,180,41,.12),#171c24));border-radius:0.75rem;padding:1rem 1.25rem;display:flex;gap:0.875rem;align-items:flex-start">
+          <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--warnFill,#f0b429)">⚠</span>
+          <p style="margin:0;color:var(--txt,#d7dee8);text-wrap:pretty">Avertissement : outil de recherche. Aucun gain promis. Le live engage de l'argent réel — il est verrouillé par défaut.</p>
+        </aside>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isMonitoring }}">
+      <section data-screen-label="Monitoring">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Paper trading · en direct</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Monitoring</h1>
+            <p style="margin:0.625rem 0 0;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">Dernière maj : 2026-08-09 14:03:12 · auto-refresh 7 s</p>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            <sc-for list="{{ monStates }}" as="s" hint-placeholder-count="3">
+              <button type="button" onClick="{{ s.go }}" style="{{ s.style }}">{{ s.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ monInactive }}">
+          <div style="border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.12));border-radius:0.75rem;padding:1rem 1.25rem;margin-bottom:1.125rem;display:flex;gap:0.875rem;align-items:flex-start">
+            <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.125rem;color:var(--down,#e5534b)">✗</span>
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:var(--down,#e5534b);margin-bottom:0.25rem">ATTENTION : aucun cycle depuis 412 s</div>
+              <p style="margin:0;color:var(--txt,#d7dee8)">Le paper est probablement inactif. Les chiffres ci-dessous sont figés depuis 14:03:12.</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ monEmpty }}">
+          <div style="border:1px solid var(--line,#232b36);background:var(--panel,#171c24);border-radius:0.875rem;padding:3rem 1.875rem;text-align:center">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.625rem;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">En attente de données du paper…</div>
+            <p style="margin:0 auto;max-width:52ch;color:var(--muted,#7f8c9c)">Aucun cycle n'a encore été écrit. Démarre le paper trading depuis la page Paper ; le premier cycle apparaît ici en moins d'une minute.</p>
+            <div style="margin-top:1.125rem"><a href="#">Configurer et démarrer le paper</a></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ monData }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+              <article style="{{ statutPanel }}">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Statut</div>
+                <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.5rem;line-height:1;color:{{ statutColor }}">{{ statutText }}</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">{{ statutSub }}</div>
+              </article>
+              <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem;box-shadow:var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8))">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Equity</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">10 042.31</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">départ 10 000.00 $</div>
+              </article>
+              <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem;box-shadow:var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8))">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">P&amp;L</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--up,#46c46f);font-variant-numeric:tabular-nums">+42.31</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--up,#46c46f)">+0.42 % · frais 21.40 $ déduits</div>
+              </article>
+            </div>
+
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.875rem;padding:1.25rem 1.375rem 1.125rem;margin-bottom:0.875rem">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+                <div>
+                  <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c)">Equity · 38 dernières heures</div>
+                  <div style="margin-top:0.375rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;color:var(--muted,#7f8c9c)">min {{ equity.loLabel }} · max {{ equity.hiLabel }}</div>
+                </div>
+                <div style="display:flex;gap:1rem;font-size:0.7188rem;color:var(--muted,#7f8c9c);flex-wrap:wrap">
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:2px;background:var(--accentBright,#c4b5fd);display:inline-block;border-radius:2px"></i>stratégie</span>
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:0;border-top:2px dashed var(--muted,#7f8c9c);display:inline-block"></i>Buy &amp; Hold</span>
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:0;border-top:1px dotted var(--txt,#d7dee8);display:inline-block"></i>capital de départ</span>
+                </div>
+              </div>
+              <div style="margin-left:5.5rem">
+                <div style="position:relative">
+                  <div style="{{ equity.hiStyle }}">{{ equity.hiLabel }}</div>
+                  <div style="{{ equity.startStyle }}">{{ equity.startLabel }}</div>
+                  <sc-if value="{{ equity.showLo }}">
+                    <div style="{{ equity.loStyle }}">{{ equity.loLabel }}</div>
+                  </sc-if>
+                  <svg viewBox="56 0 688 140" preserveAspectRatio="none" style="width:100%;height:12.5rem;display:block;overflow:visible">
+                    <defs>
+                      <linearGradient id="eqArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" style="stop-color:var(--accentBright,#c4b5fd);stop-opacity:.34"></stop>
+                        <stop offset="60%" style="stop-color:var(--accent,#a78bfa);stop-opacity:.10"></stop>
+                        <stop offset="100%" style="stop-color:var(--accent,#a78bfa);stop-opacity:0"></stop>
+                      </linearGradient>
+                      <linearGradient id="eqStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" style="stop-color:var(--accent,#a78bfa)"></stop>
+                        <stop offset="100%" style="stop-color:var(--accentBright,#c4b5fd)"></stop>
+                      </linearGradient>
+                    </defs>
+                    <line x1="56" y1="12" x2="744" y2="12" stroke="var(--line,#232b36)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="65" x2="744" y2="65" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="118" x2="744" y2="118" stroke="var(--line,#232b36)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="{{ equity.startY }}" x2="744" y2="{{ equity.startY }}" stroke="var(--txt,#d7dee8)" stroke-width="1" stroke-dasharray="1 4" opacity="0.5" vector-effect="non-scaling-stroke"></line>
+                    <path d="{{ equity.areaPath }}" fill="url(#eqArea)"></path>
+                    <path d="{{ equity.bhLine }}" fill="none" stroke="var(--muted,#7f8c9c)" stroke-width="1.5" stroke-dasharray="6 5" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                    <path d="{{ equity.linePath }}" fill="none" stroke="url(#eqStroke)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.16" vector-effect="non-scaling-stroke"></path>
+                    <path d="{{ equity.linePath }}" fill="none" stroke="url(#eqStroke)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                    <circle cx="{{ equity.dotX }}" cy="{{ equity.dotY }}" r="4" fill="var(--accentBright,#c4b5fd)" style="animation:iyc-pulse 2.6s ease-out infinite"></circle>
+                    <circle cx="{{ equity.dotX }}" cy="{{ equity.dotY }}" r="3" fill="var(--accentBright,#c4b5fd)" stroke="var(--panel,#171c24)" stroke-width="1.5" vector-effect="non-scaling-stroke"></circle>
+                  </svg>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">
+                  <span>il y a 38 h</span>
+                  <span>maintenant</span>
+                </div>
+              </div>
+              <p style="margin:0.875rem 0 0;font-size:0.75rem;color:var(--muted,#7f8c9c);max-width:76ch">Buy &amp; Hold reste tracé : sur cette fenêtre, la stratégie fait <span style="color:var(--txt,#d7dee8)">+0.42 %</span> contre <span style="color:var(--txt,#d7dee8)">+1.10 %</span> pour l'achat simple. Le tracé n'est jamais recadré pour aplatir une perte.</p>
+            </article>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.375rem,1fr));gap:0.625rem;margin-bottom:1.5rem">
+              <sc-for list="{{ kpiSecondary }}" as="k" hint-placeholder-count="4">
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+                  <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">{{ k.label }}</div>
+                  <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:{{ k.color }}">{{ k.value }}</div>
+                  <div style="margin-top:0.5rem;height:3px;border-radius:2px;background:var(--line,#232b36);overflow:hidden">
+                    <i style="{{ k.barStyle }}"></i>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+
+            <h2 style="margin:0 0 0.75rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.25rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Derniers ordres <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden;margin-bottom:1.375rem">
+              <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Heure</th>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Sens</th>
+                    <th style="text-align:right;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Prix</th>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Motif</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ orders }}" as="o" hint-placeholder-count="6">
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">{{ o.time }}</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="{{ o.chip }}">{{ o.side }}</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">{{ o.price }}</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">{{ o.reason }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+
+            <h2 style="margin:0 0 0.75rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.25rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Journal <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:0.875rem 1rem;max-height:13.125rem;overflow:auto">
+              <sc-for list="{{ journal }}" as="l" hint-placeholder-count="8">
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:{{ l.color }}">{{ l.text }}</div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isWf }}">
+      <section data-screen-label="Walk-forward">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.375rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Recherche · validation hors-échantillon</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.125rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Walk-forward</h1>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            <sc-for list="{{ wfStates }}" as="s" hint-placeholder-count="4">
+              <button type="button" onClick="{{ s.go }}" style="{{ s.style }}">{{ s.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.625rem;border-bottom:1px solid var(--line,#232b36);padding-bottom:2px;flex-wrap:wrap">
+          <sc-for list="{{ subnav }}" as="s" hint-placeholder-count="5">
+            <span style="{{ s.style }}">{{ s.label }}</span>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ wfRunning }}">
+          <div style="border:1px solid var(--line,#232b36);background:var(--panel,#171c24);border-radius:0.875rem;padding:2.75rem 1.875rem;text-align:center;margin-bottom:1.375rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.75rem;margin-bottom:0.75rem;color:var(--txt,#d7dee8)">Calcul en cours…</div>
+            <p style="margin:0 auto 1.25rem;max-width:52ch;color:var(--muted,#7f8c9c)">4 actifs × 4 fenêtres, optimisation puis test hors-échantillon. C'est le calcul le plus long de l'application : plusieurs minutes.</p>
+            <div style="max-width:26.25rem;margin:0 auto;height:0.3125rem;border-radius:3px;background:var(--line,#232b36);overflow:hidden">
+              <i style="display:block;width:38%;height:100%;background:var(--accentFill,linear-gradient(135deg,#c4b5fd,#a78bfa))"></i>
+            </div>
+            <div style="margin-top:0.875rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">fenêtre 2 / 4 · BTC/USD · écoulé 3 min 12 s</div>
+            <div style="margin-top:1.25rem"><button type="button" style="min-height:2.75rem;padding:0 1.375rem;border-radius:0.625rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-size:0.875rem;cursor:pointer">Annuler le calcul</button></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ wfDone }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <section style="{{ verdict.panel }}">
+              <div style="font-size:0.6875rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:1.125rem">Verdict hors-échantillon</div>
+              <div style="display:flex;align-items:flex-start;gap:1.5rem;flex-wrap:wrap">
+                <span style="{{ verdict.iconStyle }}">{{ verdict.icon }}</span>
+                <div style="flex:1;min-width:17.5rem">
+                  <h2 style="{{ verdict.titleStyle }}">{{ verdict.label }}</h2>
+                  <p style="margin:1.125rem 0 0;font-size:1.0625rem;color:var(--txt,#d7dee8);max-width:60ch;text-wrap:pretty">{{ verdict.detail }}</p>
+                  <div style="margin-top:1.125rem;display:flex;gap:0.625rem;flex-wrap:wrap;align-items:center">
+                    <sc-for list="{{ verdict.dots }}" as="d" hint-placeholder-count="4">
+                      <span style="{{ d.style }}">{{ d.label }}</span>
+                    </sc-for>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--muted,#7f8c9c);margin-left:0.375rem">{{ verdict.count }}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(16.25rem,1fr));gap:0.875rem;margin:1rem 0 1.625rem">
+              <article style="background:var(--panel,#171c24);border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Holdout sacré</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--accent,#a78bfa)">NON consommé</div>
+                <div style="margin:0.75rem 0 0.5rem;display:flex;height:0.5rem;border-radius:0.3125rem;overflow:hidden;border:1px solid var(--line,#232b36)">
+                  <i style="flex:4;background:var(--line,#232b36)"></i>
+                  <i style="flex:1;background:var(--accentFill,linear-gradient(135deg,#c4b5fd,#a78bfa))"></i>
+                </div>
+                <p style="margin:0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">20 % des données les plus récentes, jamais touchées. Une seule utilisation possible, en toute fin.</p>
+              </article>
+              <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Paramètres</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--txt,#d7dee8)">FIGÉS · fast=50, slow=200</div>
+                <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Aucune recherche de paramètres : impossible de fabriquer un bon résultat par tâtonnement.</p>
+              </article>
+              <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Découpage</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--txt,#d7dee8)">4 fenêtres · train-frac 0.5</div>
+                <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Métrique de sélection : sharpe. Source : Binance. Timeframe 1d, 720 jours.</p>
+              </article>
+            </div>
+
+            <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Par actif <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="display:grid;gap:0.875rem;margin-bottom:1.875rem">
+              <sc-for list="{{ assets }}" as="a" hint-placeholder-count="4">
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:1.125rem;flex-wrap:wrap;padding:1rem 1.25rem;border-bottom:1px solid var(--line,#232b36)">
+                    <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;color:var(--txt,#d7dee8)">{{ a.name }}</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.9375rem;color:{{ a.color }}">{{ a.summary }}</span>
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:1.375rem">
+                      <sc-for list="{{ a.bars }}" as="b" hint-placeholder-count="4">
+                        <i style="{{ b.style }}"></i>
+                      </sc-for>
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">{{ a.meta }}</span>
+                  </div>
+                  <sc-if value="{{ a.loaded }}" hint-placeholder-val="{{ true }}">
+                    <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                      <thead>
+                        <tr>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Fenêtre OOS</th>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Paramètres retenus</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Sharpe</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Rendement</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">DD max</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <sc-for list="{{ a.windows }}" as="w" hint-placeholder-count="4">
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">{{ w.period }}</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">{{ w.params }}</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">{{ w.sharpe }}</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:{{ w.color }}">{{ w.ret }}</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">{{ w.dd }}</td>
+                          </tr>
+                        </sc-for>
+                      </tbody>
+                    </table>
+                  </sc-if>
+                  <sc-if value="{{ a.missing }}">
+                    <p style="margin:0;padding:1rem 1.25rem;color:var(--muted,#7f8c9c)">Actif non chargé — données indisponibles sur la source choisie. Il est exclu du décompte du verdict.</p>
+                  </sc-if>
+                </article>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)">Relancer une validation <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <form style="display:grid;gap:0.875rem">
+          <sc-for list="{{ formBlocks }}" as="b" hint-placeholder-count="4">
+            <fieldset style="{{ b.style }}">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa)">{{ b.legend }}</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">{{ b.note }}</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                <sc-for list="{{ b.fields }}" as="f" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="{{ f.id }}" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">{{ f.label }}</label>
+                    <input id="{{ f.id }}" name="{{ f.id }}" defaultValue="{{ f.value }}" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">{{ f.help }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </fieldset>
+          </sc-for>
+
+          <fieldset style="border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.08));border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem">
+            <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--down,#e5534b)">Validation finale</legend>
+            <div style="display:flex;gap:0.75rem;align-items:flex-start">
+              <input id="wf-final" name="final" type="checkbox" style="width:1.25rem;height:1.25rem;margin-top:2px;accent-color:var(--down,#e5534b)" />
+              <label for="wf-final" style="max-width:70ch">
+                <span style="font-weight:700;color:var(--down,#e5534b)">VALIDATION FINALE — 1 seule fois par stratégie.</span>
+                <span style="display:block;margin-top:0.375rem;color:var(--txt,#d7dee8)">Consomme le holdout sacré. Une fois consommé, plus aucune donnée n'est vierge pour cette stratégie : tout résultat ultérieur est contaminé. À ne cocher que lorsque tout le reste est déjà décidé.</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <button type="button" style="min-height:2.75rem;padding:0 1.625rem;border-radius:0.625rem;border:none;background:var(--accentFill,linear-gradient(135deg,#c4b5fd,#a78bfa));color:var(--onAccent,#1a140a);font-weight:600;font-size:0.875rem;cursor:pointer;box-shadow:0 0.625rem 1.5rem -0.875rem rgba(240,180,41,.7)">Lancer le walk-forward</button>
+            <span style="color:var(--muted,#7f8c9c);font-size:0.7813rem">Calcul long — plusieurs minutes. La page reste ouverte.</span>
+          </div>
+        </form>
+
+        <details style="margin-top:1.5rem;border:1px solid var(--line,#232b36);border-radius:0.75rem;background:var(--panel,#171c24);padding:0.875rem 1.125rem">
+          <summary style="cursor:pointer;font-size:0.875rem;color:var(--txt,#d7dee8)">Pourquoi le walk-forward est le juge</summary>
+          <p style="margin:0.75rem 0 0;color:var(--txt,#d7dee8);max-width:78ch;text-wrap:pretty">Un backtest est réglé sur les données qu'il traverse : il sait déjà ce qui s'est passé. Le walk-forward règle la stratégie sur une fenêtre, puis la teste sur la fenêtre suivante qu'il n'a jamais vue, et recommence. Ce qui reste après ce traitement est la seule chose qui ressemble à un edge — et le plus souvent, il ne reste rien.</p>
+        </details>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isStats }}">
+      <section data-screen-label="Stats">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Statistiques descriptives</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Labo de stats</h1>
+          <p style="margin:0.625rem 0 0;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">paper_eth_1h.csv · période 2026-07-01 08:12:00 → 2026-08-09 14:03:12 · 947 cycles</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15.625rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+          <article style="background:var(--feesGrad,linear-gradient(180deg,rgba(240,180,41,.12),#171c24));border:1px solid var(--feesLine,rgba(240,180,41,.36));border-radius:0.875rem;padding:1.375rem 1.5rem;position:relative;overflow:hidden">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--warnBig,#f0b429);margin-bottom:0.625rem;font-weight:700">Frais · part du |pnl| + frais</div>
+            <div style="display:flex;align-items:center;gap:1.125rem">
+              <div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--warnBig,#f0b429);font-variant-numeric:tabular-nums">~45 %</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--txt,#d7dee8)">974.77 $ payés en frais</div>
+              </div>
+              <svg viewBox="0 0 84 84" style="width:4.875rem;height:4.875rem;flex:0 0 auto;margin-left:auto">
+                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--line,#232b36)" stroke-width="10"></circle>
+                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--warnFill,#f0b429)" stroke-width="10" stroke-linecap="round" stroke-dasharray="{{ gauges.fees }}" transform="rotate(-90 42 42)"></circle>
+              </svg>
+            </div>
+            <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Près de la moitié de l'amplitude du résultat part en frais. C'est le premier obstacle, avant toute question de stratégie.</p>
+          </article>
+          <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Drawdown max</div>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--down,#e5534b);font-variant-numeric:tabular-nums">−3.10 %</div>
+            <div style="margin:0.875rem 0 0;height:0.375rem;border-radius:0.25rem;background:var(--line,#232b36);overflow:hidden">
+              <i style="display:block;width:31%;height:100%;background:linear-gradient(90deg,var(--down,#e5534b),rgba(229,83,75,.45))"></i>
+            </div>
+            <p style="margin:0.625rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Pire recul depuis un sommet d'equity, le 2026-07-23.</p>
+          </article>
+          <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Rendement</div>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--up,#46c46f);font-variant-numeric:tabular-nums">+0.42 %</div>
+            <div style="margin:0.875rem 0 0;height:0.375rem;border-radius:0.25rem;background:var(--line,#232b36);overflow:hidden">
+              <i style="display:block;width:8%;height:100%;background:linear-gradient(90deg,var(--up,#46c46f),rgba(70,196,111,.45))"></i>
+            </div>
+            <p style="margin:0.625rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Sur 39 jours, 18 trades. Trop peu pour conclure quoi que ce soit.</p>
+          </article>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.375rem,1fr));gap:0.625rem;margin-bottom:1.625rem">
+          <sc-for list="{{ statsSecondary }}" as="k" hint-placeholder-count="5">
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">{{ k.label }}</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">{{ k.value }}</div>
+            </article>
+          </sc-for>
+        </div>
+
+        <h2 style="margin:0 0 0.375rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Résultat par heure <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Le nombre de cycles par heure est constant — un bot passe partout. Ce qui varie, c'est le résultat net des trades. Les créneaux sans trade sont marqués d'un tiret.</p>
+        <div style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.875rem;padding:1.375rem 1.375rem 1rem;margin-bottom:1.625rem">
+          <div style="margin-left:3.5rem">
+            <div style="position:relative">
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:0;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">+15 $</div>
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:50%;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">0</div>
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:100%;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">−15 $</div>
+              <svg viewBox="14 15 700 120" preserveAspectRatio="none" style="width:100%;height:11.875rem;display:block">
+                <defs>
+                  <linearGradient id="barUp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:var(--up,#46c46f);stop-opacity:1"></stop>
+                    <stop offset="100%" style="stop-color:var(--up,#46c46f);stop-opacity:.35"></stop>
+                  </linearGradient>
+                  <linearGradient id="barDown" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:var(--down,#e5534b);stop-opacity:.35"></stop>
+                    <stop offset="100%" style="stop-color:var(--down,#e5534b);stop-opacity:1"></stop>
+                  </linearGradient>
+                </defs>
+                <line x1="14" y1="15" x2="714" y2="15" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="45" x2="714" y2="45" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="105" x2="714" y2="105" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="135" x2="714" y2="135" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <sc-for list="{{ hourBars }}" as="b" hint-placeholder-count="24">
+                  <rect x="{{ b.tx }}" y="16" width="{{ b.tw }}" height="118" fill="{{ b.track }}"></rect>
+                </sc-for>
+                <line x1="14" y1="75" x2="714" y2="75" stroke="var(--muted,#7f8c9c)" stroke-width="1" opacity=".7" vector-effect="non-scaling-stroke"></line>
+                <sc-for list="{{ hourBars }}" as="b" hint-placeholder-count="24">
+                  <rect x="{{ b.ex }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}" rx="1.5"></rect>
+                </sc-for>
+              </svg>
+            </div>
+            <div style="display:flex;margin-top:0.5rem">
+              <sc-for list="{{ hourBars }}" as="b" hint-placeholder-count="24">
+                <div style="{{ b.labelStyle }}">{{ b.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;gap:1.25rem;margin-top:1rem;padding-top:0.875rem;border-top:1px solid var(--line,#232b36);font-size:0.75rem;color:var(--muted,#7f8c9c);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:0.6875rem;background:var(--up,#46c46f);border-radius:2px;display:inline-block"></i>P&amp;L net positif</span>
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:0.6875rem;background:var(--down,#e5534b);border-radius:2px;display:inline-block"></i>P&amp;L net négatif</span>
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:3px;background:var(--muted,#7f8c9c);border-radius:2px;display:inline-block"></i>aucun trade — 9 h sur 24, la prudence s'impose</span>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));border-radius:0.75rem;padding:1.25rem 1.5rem">
+          <div style="font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa);margin-bottom:0.75rem">Honnêteté</div>
+          <div style="display:grid;gap:0.625rem;max-width:80ch">
+            <p style="margin:0;color:var(--txt,#d7dee8)">Ces statistiques sont DESCRIPTIVES : elles décrivent ce qui s'est passé, elles ne prouvent rien sur l'avenir.</p>
+            <p style="margin:0;color:var(--txt,#d7dee8)">Les frais (0.26 % par ordre) pèsent lourd sur les petites unités de temps : plus on trade souvent, plus il faut d'edge pour simplement rentrer dans ses frais.</p>
+            <p style="margin:0;color:var(--txt,#d7dee8)">Un faible nombre de trades rend tout ratio instable. En dessous de 30 trades, ne conclus rien.</p>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isCheck }}">
+      <section data-screen-label="Diagnostic">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Vérification · versions et connexion</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Diagnostic</h1>
+          <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c);max-width:56ch;text-wrap:pretty">Équivalent de <span style="font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace">main.py check</span> : ce qui est installé, et si la connexion à Kraken passe réellement.</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Installation</h2>
+            <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.78125rem">
+              <tbody>
+                <sc-for list="{{ versions }}" as="v" hint-placeholder-count="6">
+                  <tr>
+                    <td style="padding:0.4375rem 0;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">{{ v.k }}</td>
+                    <td style="padding:0.4375rem 0;border-top:1px solid var(--line,#232b36);text-align:right;color:var(--txt,#d7dee8)">{{ v.v }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Connexion Kraken</h2>
+            <form style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem">
+              <div style="display:flex;flex-direction:column;gap:0.375rem;flex:1 1 10rem">
+                <label for="check-pair" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Paire à tester</label>
+                <input id="check-pair" name="pair" defaultValue="ETH/USD" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:0.8125rem" />
+              </div>
+              <button type="button" style="min-height:2.75rem;padding:0 1.375rem;border-radius:0.625rem;border:none;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));color:var(--onAccent,#12101f);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Lancer le diagnostic</button>
+            </form>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.78125rem">
+              <sc-for list="{{ diag }}" as="d" hint-placeholder-count="2">
+                <div style="{{ d.style }}">{{ d.text }}</div>
+              </sc-for>
+            </div>
+            <p style="margin:0.875rem 0 0;color:var(--muted,#7f8c9c);font-size:0.78125rem">Rien n'est mis en cache : chaque diagnostic refait un vrai appel réseau.</p>
+          </article>
+        </div>
+
+        <article style="border-left:3px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.08));border-radius:0 0.75rem 0.75rem 0;padding:1.125rem 1.25rem">
+          <h2 style="margin:0 0 0.75rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;color:var(--txt,#d7dee8)">Si le certificat est refusé</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1.25rem">
+            <div>
+              <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Cause</div>
+              <p style="margin:0;color:var(--txt,#d7dee8)">Un antivirus intercepte la connexion TLS : il la déchiffre puis la re-signe avec un certificat absent du magasin vérifié par le système.</p>
+            </div>
+            <div>
+              <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Geste à faire</div>
+              <p style="margin:0;color:var(--txt,#d7dee8)">Exclure <span style="font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace">api.kraken.com</span> de l'analyse HTTPS de l'antivirus, puis relancer le diagnostic. Ne jamais désactiver la vérification SSL dans l'application.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isPaper }}">
+      <section data-screen-label="Paper">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Argent fictif · aucune exposition réelle</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Paper trading</h1>
+        </div>
+
+        <article style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));box-shadow:var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8));padding:1.5rem 1.625rem;margin-bottom:1.375rem;display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap">
+          <div style="flex:1 1 15rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Statut</div>
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.375rem;line-height:1;color:var(--accent2,#e879f9)">EN COURS</div>
+            <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">depuis 38 h 12 min · ETH/USD · 1h · cycle 947</div>
+          </div>
+          <button type="button" style="min-height:2.75rem;padding:0 1.375rem;border-radius:0.625rem;border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.10));color:var(--down,#e5534b);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Arrêter le paper</button>
+        </article>
+
+        <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Réglages de la prochaine session <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <form style="display:grid;gap:0.875rem">
+          <sc-for list="{{ paperBlocks }}" as="b" hint-placeholder-count="3">
+            <fieldset style="{{ b.style }}">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accentText,#c4b5fd)">{{ b.legend }}</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">{{ b.note }}</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                <sc-for list="{{ b.fields }}" as="f" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="{{ f.id }}" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">{{ f.label }}</label>
+                    <input id="{{ f.id }}" name="{{ f.id }}" defaultValue="{{ f.value }}" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">{{ f.help }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </fieldset>
+          </sc-for>
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <button type="button" style="min-height:2.75rem;padding:0 1.625rem;border-radius:0.625rem;border:none;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));color:var(--onAccent,#12101f);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Démarrer le paper</button>
+            <span style="color:var(--muted,#7f8c9c);font-size:0.78125rem">Le premier cycle apparaît dans le monitoring en moins d'une minute.</span>
+          </div>
+        </form>
+
+        <div style="margin-top:1.375rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));border-radius:0.75rem;padding:1.125rem 1.25rem">
+          <p style="margin:0;color:var(--txt,#d7dee8);max-width:80ch;text-wrap:pretty">L'historique des cycles précédents est conservé : démarrer une nouvelle session n'efface rien, et le Labo de stats continue de lire l'ensemble des fichiers accumulés.</p>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isOptions }}">
+      <section data-screen-label="Options">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Réglages du poste</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Options</h1>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(21rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Préférence · niveau de logs</h2>
+            <div style="display:flex;flex-direction:column;gap:0.375rem;max-width:16rem">
+              <label for="opt-log" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Niveau</label>
+              <input id="opt-log" name="log" defaultValue="INFO" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:0.8125rem" />
+              <span style="font-size:0.75rem;color:var(--muted,#7f8c9c)">DEBUG · INFO · WARNING · ERROR — DEBUG écrit beaucoup et remplit le journal vite.</span>
+            </div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--feesLine,rgba(240,180,41,.36));border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--warnFill,#f0b429);flex:0 0 auto"></i>Secret · liaison Kraken</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+              <div style="display:flex;flex-direction:column;gap:0.375rem">
+                <label for="opt-key" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Clé API</label>
+                <input id="opt-key" name="key" type="password" placeholder="non affichée" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:0.8125rem" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0.375rem">
+                <label for="opt-sec" style="font-size:0.78125rem;color:var(--txt,#d7dee8)">Secret API</label>
+                <input id="opt-sec" name="secret" type="password" placeholder="non affiché" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:0.8125rem" />
+              </div>
+            </div>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:0.78125rem;color:var(--muted,#7f8c9c);margin-bottom:0.875rem">Clés configurées : OUI — la valeur n'est jamais réaffichée.</div>
+            <div style="border:1px solid var(--feesLine,rgba(240,180,41,.36));background:var(--feesGrad,linear-gradient(180deg,rgba(240,180,41,.12),#171c24));border-radius:0.625rem;padding:0.875rem 1rem;display:flex;gap:0.75rem;align-items:flex-start">
+              <span style="font-family:ui-monospace,'SF Mono',Consolas,Menlo,monospace;font-size:1.0625rem;color:var(--warnFill,#f0b429)">⚠</span>
+              <p style="margin:0;color:var(--txt,#d7dee8);text-wrap:pretty"><span style="font-weight:700">Ne cocher JAMAIS « Withdraw Funds »</span> sur la clé Kraken. Une clé sans droit de retrait ne peut pas vider le compte, même compromise. C'est la consigne la plus importante de cette page.</p>
+            </div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Lien externe · wallet</h2>
+            <p style="margin:0 0 0.875rem;color:var(--muted,#7f8c9c);max-width:60ch">L'application ne gère aucun wallet et ne détient aucune clé privée. Le lien ci-dessous ouvre simplement ton wallet dans le navigateur.</p>
+            <a href="#">Ouvrir le wallet →</a>
+          </article>
+
+          <article style="background:var(--downSoft,rgba(229,83,75,.10));border:1px solid var(--down,#e5534b);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--down,#e5534b);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--down,#e5534b);flex:0 0 auto"></i>Action système · serveur web</h2>
+            <p style="margin:0 0 0.875rem;color:var(--txt,#d7dee8);max-width:60ch">Arrêter le serveur ferme cette interface. Un paper en cours continue de tourner : seule la page disparaît.</p>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+              <button type="button" style="min-height:2.75rem;padding:0 1.25rem;border-radius:0.625rem;border:1px solid var(--down,#e5534b);background:transparent;color:var(--down,#e5534b);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Redémarrer le serveur</button>
+              <button type="button" style="min-height:2.75rem;padding:0 1.25rem;border-radius:0.625rem;border:none;background:var(--down,#e5534b);color:var(--onDanger,#fff);font-weight:600;font-size:0.875rem;cursor:pointer;font-family:inherit">Arrêter le serveur</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ isHelp }}">
+      <section data-screen-label="Aide">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Mode d'emploi</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Aide</h1>
+          <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c);max-width:60ch;text-wrap:pretty">L'ordre de travail compte plus que les réglages. Sauter une étape, c'est se convaincre trop tôt.</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:0.875rem;margin-bottom:1.375rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">1</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Backtest</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Une idée, mesurée sur le passé. In-sample : jamais une preuve, seulement un filtre pour jeter ce qui ne marche pas du tout.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">2</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Walk-forward</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Le juge. Hors-échantillon, paramètres figés, holdout sacré. Sa réponse est le plus souvent non — c'est normal, et c'est utile.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">3</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Paper</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Des semaines en argent fictif, en conditions réelles de latence et de frais. C'est long exprès.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--muted,#7f8c9c);margin-bottom:0.75rem">4</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Live</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Sous conditions, jamais par défaut, avec du capital qu'on peut perdre. Verrouillé tant que les trois étapes précédentes ne sont pas franchies.</p>
+          </article>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:0.875rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.75rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>SSL et antivirus</h2>
+            <p style="margin:0 0 0.75rem;color:var(--muted,#7f8c9c)">La panne la plus fréquente sur cette machine : l'antivirus intercepte le certificat de Kraken et la connexion est refusée. La marche à suivre est détaillée sur la page Diagnostic.</p>
+            <a href="#">Voir le diagnostic →</a>
+          </article>
+          <article style="background:var(--downSoft,rgba(229,83,75,.10));border:1px solid var(--down,#e5534b);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.75rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--down,#e5534b);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--down,#e5534b);flex:0 0 auto"></i>Risque</h2>
+            <p style="margin:0;color:var(--txt,#d7dee8);text-wrap:pretty">Le trading algorithmique perd de l'argent la plupart du temps. Cet outil sert à le constater honnêtement, pas à l'éviter. N'engage jamais un capital dont tu as besoin.</p>
+          </article>
+        </div>
+      </section>
+    </sc-if>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;violet&quot;,&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;violet&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;verdict&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;rouge&quot;,&quot;ambre&quot;,&quot;vert&quot;],&quot;default&quot;:&quot;rouge&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Walk-forward&quot;},&quot;etatMonitoring&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;direct&quot;,&quot;inactif&quot;,&quot;vide&quot;],&quot;default&quot;:&quot;direct&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Monitoring&quot;}}">
+const MONO = "ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace";
+const SERIF = "'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif";
+
+const THEMES = {
+  violet: {
+    '--bg': '#0b0a14', '--code': '#08070f', '--panel': '#141223',
+    '--panelGrad': 'linear-gradient(180deg,#1a1734,#141223)',
+    '--line': '#2a2545', '--lineAccent': 'rgba(167,139,250,.34)',
+    '--txt': '#e7e4f6', '--muted': '#9a94b8',
+    '--accent': '#a78bfa', '--accentBright': '#c4b5fd', '--accentSoft': 'rgba(167,139,250,.12)',
+    '--accentInk': '#a78bfa', '--onAccent': '#12101f', '--accentText': '#c4b5fd',
+    '--logoGlow': 'drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45))', '--logoInk': '#e7e4f6',
+    '--pillFill': 'linear-gradient(120deg,#e879f9,#a78bfa)', '--warnFill': '#fbbf24', '--warnBig': '#fbbf24',
+    '--accentFill': 'linear-gradient(120deg,#e879f9,#a78bfa)',
+    '--warn': '#fbbf24', '--onDanger': '#ffffff', '--accent2': '#e879f9', '--accent2Soft': 'rgba(232,121,249,.14)',
+    '--up': '#34d399', '--down': '#f04438', '--downSoft': 'rgba(240,68,56,.12)',
+    '--upSoft': 'rgba(52,211,153,.12)', '--blue': '#67e8f9',
+    '--navBg': 'rgba(9,8,18,.90)',
+    '--feesGrad': 'linear-gradient(180deg,rgba(251,191,36,.13),#141223)',
+    '--feesLine': 'rgba(251,191,36,.38)',
+    '--shadow': '0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.75)',
+    '--glow': '0 0 0 1px rgba(167,139,250,.18), 0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.8)',
+    '--track': 'rgba(255,255,255,.03)',
+    background: 'radial-gradient(56.25rem 31.25rem at 80% -12%, rgba(167,139,250,.18), transparent 62%),radial-gradient(45rem 26.25rem at -6% 112%, rgba(52,211,153,.09), transparent 60%),#0b0a14'
+  },
+  dark: {
+    '--accentInk': '#d6aa5a', '--onAccent': '#1a140a', '--accentText': '#f0b429',
+    '--logoGlow': 'drop-shadow(0 0.375rem 0.875rem rgba(214,170,90,.35))', '--logoInk': '#f3ece0',
+    '--pillFill': 'linear-gradient(120deg,#e08a3c,#d6aa5a)', '--warnFill': '#f0b429', '--warnBig': '#f0b429',
+    '--accentFill': 'linear-gradient(120deg,#e08a3c,#d6aa5a)',
+    '--warn': '#f0b429', '--onDanger': '#ffffff', '--glow': '0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85)',
+    '--accent2': '#e08a3c', '--accent2Soft': 'rgba(224,138,60,.14)',
+    '--bg': '#0e1116', '--code': '#0a0c10', '--panel': '#171c24',
+    '--panelGrad': 'linear-gradient(180deg,#1b212b,#171c24)',
+    '--line': '#232b36', '--lineAccent': 'rgba(224,138,60,.34)',
+    '--txt': '#d7dee8', '--muted': '#7f8c9c',
+    '--accent': '#d6aa5a', '--accentBright': '#f0b429', '--accentSoft': 'rgba(214,170,90,.12)',
+    '--up': '#46c46f', '--down': '#e5534b', '--downSoft': 'rgba(229,83,75,.10)',
+    '--upSoft': 'rgba(70,196,111,.12)', '--blue': '#6cb6ff',
+    '--navBg': 'rgba(11,13,17,.94)',
+    '--feesGrad': 'linear-gradient(180deg,rgba(240,180,41,.13),#171c24)',
+    '--feesLine': 'rgba(240,180,41,.38)',
+    '--shadow': '0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85)',
+    '--track': 'rgba(255,255,255,.022)',
+    background: 'radial-gradient(68.75rem 35rem at 82% -12%, rgba(214,170,90,.07), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(70,196,111,.045), transparent 60%),#0e1116'
+  },
+  light: {
+    '--accentInk': '#0f766e', '--onAccent': '#ffffff', '--accentText': '#0b5f59',
+    '--logoGlow': 'drop-shadow(0 0.375rem 0.875rem rgba(15,118,110,.28))', '--logoInk': '#333333',
+    '--pillFill': 'linear-gradient(120deg,#0e7490,#0f766e)', '--warnFill': '#dfa316', '--warnBig': '#dfa316',
+    '--accentFill': 'linear-gradient(120deg,#0e7490,#0f766e)',
+    '--warn': '#c08c0c', '--onDanger': '#ffffff', '--glow': '0 1.25rem 2.75rem -2rem rgba(15,30,45,.45)',
+    '--accent2': '#0e7490', '--accent2Soft': 'rgba(14,116,144,.10)',
+    '--bg': '#f2f5f7', '--code': '#eaeff3', '--panel': '#ffffff',
+    '--panelGrad': 'linear-gradient(180deg,#ffffff,#f5f9fa)',
+    '--line': '#dde4ea', '--lineAccent': 'rgba(15,118,110,.35)',
+    '--txt': '#0f1720', '--muted': '#55606d',
+    '--accent': '#0b5f59', '--accentBright': '#0f766e', '--accentSoft': 'rgba(15,118,110,.10)',
+    '--up': '#116b3e', '--down': '#c1121f', '--downSoft': 'rgba(193,18,31,.08)',
+    '--upSoft': 'rgba(17,107,62,.10)', '--blue': '#0d6ea8',
+    '--navBg': 'rgba(255,255,255,.92)',
+    '--feesGrad': 'linear-gradient(180deg,rgba(223,163,22,.16),#ffffff)',
+    '--feesLine': 'rgba(223,163,22,.48)',
+    '--shadow': '0 1.25rem 2.75rem -2rem rgba(15,30,45,.4)',
+    '--track': 'rgba(15,23,32,.03)',
+    background: 'radial-gradient(68.75rem 35rem at 82% -12%, rgba(15,118,110,.10), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(52,211,153,.10), transparent 60%),#f2f5f7'
+  }
+};
+
+const VERDICTS = {
+  rouge: { icon: '✗', label: "Pas d'edge fiable", tone: 'var(--down,#e5534b)', soft: 'var(--downSoft,rgba(229,83,75,.10))', pos: 0,
+    detail: "Aucun actif ne dégage de performance hors-échantillon. La stratégie ne survit pas au test. Il n'y a rien à corriger ici : il n'y a pas d'edge.",
+    count: '0 / 4 actifs OOS positifs · holdout non consommé' },
+  ambre: { icon: '~', label: 'Fragile / mitigé', tone: 'var(--accentBright,#c4b5fd)', soft: 'var(--accentSoft,rgba(167,139,250,.12))', pos: 2,
+    detail: "Deux actifs sur quatre passent, avec des fenêtres très inégales. Un résultat de ce niveau ne justifie pas d'engager du capital : il justifie au mieux des semaines de paper.",
+    count: '2 / 4 actifs OOS positifs · dispersion élevée' },
+  vert: { icon: '✓', label: 'Edge plausible', tone: 'var(--up,#46c46f)', soft: 'var(--upSoft,rgba(70,196,111,.12))', pos: 3,
+    detail: "Trois actifs sur quatre restent positifs hors-échantillon, avec des paramètres figés. Plausible ne veut pas dire prouvé : la suite est le paper trading, pas le live.",
+    count: '3 / 4 actifs OOS positifs · holdout non consommé' }
+};
+
+const TABS = [['accueil', 'Accueil'], ['check', 'Diagnostic'], ['paper', 'Paper'], ['monitoring', 'Monitoring'],
+  ['stats', 'Stats'], ['options', 'Options'], ['help', 'Aide'], ['wf', 'Recherche']];
+
+const smooth = (pts) => {
+  let d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + ',' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
+         ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + ',' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) +
+         ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+  }
+  return d;
+};
+
+class Component extends DCLogic {
+  state = { screen: 'accueil', theme: null, verdict: null, mon: null, acc: 'ok', wfPhase: 'done' };
+
+  btn(active) {
+    return { cursor: 'pointer', minHeight: '2rem', padding: '0 0.75rem', borderRadius: '0.5rem', fontSize: '0.7813rem',
+      border: '1px solid ' + (active ? 'var(--accentInk,#a78bfa)' : 'var(--line,#232b36)'),
+      background: active ? 'var(--accentFill,#a78bfa)' : 'transparent',
+      color: active ? 'var(--onAccent,#12101f)' : 'var(--txt,#d7dee8)', fontWeight: active ? 600 : 400,
+      whiteSpace: 'nowrap', fontFamily: 'inherit' };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const themeName = s.theme || this.props.theme || 'violet';
+    const T = THEMES[themeName];
+    const verdict = VERDICTS[s.verdict || this.props.verdict || 'rouge'];
+    const mon = s.mon || this.props.etatMonitoring || 'direct';
+    const acc = s.acc;
+
+    const rootStyle = Object.assign({}, T, {
+      minHeight: '100vh', color: 'var(--txt)', fontFamily: "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
+      fontSize: '0.875rem', lineHeight: 1.5
+    });
+
+    const eq = [], bh = [];
+    let v = 10000, b = 10000;
+    for (let i = 0; i < 39; i++) {
+      v += Math.sin(i / 2.7) * 9 + Math.cos(i / 5.3) * 6 + (i % 7 === 0 ? -7 : 3);
+      b += Math.sin(i / 3.4) * 13 + 2.4;
+      eq.push(v); bh.push(b);
+    }
+    const all = eq.concat(bh);
+    const lo = Math.min.apply(null, all) - 10, hi = Math.max.apply(null, all) + 10;
+    const fmt = (n) => { const p = n.toFixed(2).split('.'); return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + '.' + p[1]; };
+    const proj = (arr, x0, w, top, h) => arr.map((val, i) => [x0 + (i / (arr.length - 1)) * w, top + (1 - (val - lo) / (hi - lo)) * h]);
+
+    const bigPts = proj(eq, 56, 688, 12, 106);
+    const bigLine = smooth(bigPts);
+    const miniPts = proj(eq, 0, 200, 4, 44);
+    const yStart = 12 + (1 - (10000 - lo) / (hi - lo)) * 106;
+    const axLab = (y) => ({ position: 'absolute', right: '100%', marginRight: '0.625rem', top: (y / 140 * 100).toFixed(2) + '%',
+      transform: 'translateY(-50%)', fontFamily: MONO, fontSize: '0.6563rem', color: 'var(--muted,#7f8c9c)', whiteSpace: 'nowrap' });
+
+    const equity = {
+      linePath: bigLine,
+      areaPath: bigLine + ' L744,118 L56,118 Z',
+      bhLine: smooth(proj(bh, 56, 688, 12, 106)),
+      startY: yStart.toFixed(1),
+      dotX: bigPts[bigPts.length - 1][0].toFixed(1), dotY: bigPts[bigPts.length - 1][1].toFixed(1),
+      hiLabel: fmt(Math.max.apply(null, eq)), loLabel: fmt(Math.min.apply(null, eq)), startLabel: '10 000.00',
+      hiStyle: axLab(12), loStyle: axLab(118), startStyle: axLab(yStart), showLo: Math.abs(yStart - 118) > 14,
+      miniLine: smooth(miniPts), miniArea: smooth(miniPts) + ' L200,50 L0,50 Z'
+    };
+
+    const pnls = [0, 0, -4.2, 0, 0, 3.1, 8.4, 12.7, -6.1, 4.4, 0, -11.8, 2.2, 0, 6.9, -3.4, 14.1, -8.8, 5.2, 0, 0, -2.1, 0, 1.4];
+    const slot = 700 / 24, barW = 16;
+    const hourBars = pnls.map((p, i) => {
+      const cx = 14 + i * slot + slot / 2;
+      const hpx = Math.abs(p) / 15 * 60;
+      const empty = p === 0;
+      return {
+        label: String(i).padStart(2, '0'),
+        labelStyle: { flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: '0.6563rem', color: 'var(--muted,#7f8c9c)' },
+        tx: (cx - slot / 2 + 1).toFixed(1), tw: (slot - 2).toFixed(1), track: 'var(--track,rgba(255,255,255,.02))',
+        w: empty ? 10 : barW,
+        ex: (cx - (empty ? 5 : barW / 2)).toFixed(1),
+        y: (p >= 0 ? 75 - hpx : 75).toFixed(1),
+        h: Math.max(empty ? 3 : 2, hpx).toFixed(1),
+        fill: empty ? 'var(--muted,#7f8c9c)' : (p > 0 ? 'url(#barUp)' : 'url(#barDown)')
+      };
+    });
+
+    const chip = (up) => ({ fontFamily: MONO, fontSize: '0.7188rem', padding: '3px 0.5625rem', borderRadius: '62.4375rem',
+      background: up ? 'var(--upSoft,rgba(70,196,111,.12))' : 'var(--downSoft,rgba(229,83,75,.10))',
+      color: up ? 'var(--up,#46c46f)' : 'var(--down,#e5534b)',
+      border: '1px solid ' + (up ? 'var(--up,#46c46f)' : 'var(--down,#e5534b)') });
+
+    const orders = [
+      ['13:00:04', 'BUY', '3 108.20', 'signal — croisement haussier'],
+      ['11:00:02', 'SELL', '3 141.75', 'objectif +20 % atteint'],
+      ['06:00:03', 'BUY', '3 062.40', 'signal — croisement haussier'],
+      ['03:00:01', 'SELL', '3 044.10', 'stop −5 %'],
+      ['01:00:05', 'BUY', '3 090.00', 'signal — croisement haussier'],
+      ['22:00:02', 'SELL', '3 077.65', 'trailing 8 %']
+    ].map(([time, side, price, reason]) => ({ time, side, price, reason, chip: chip(side === 'BUY') }));
+
+    const journal = [
+      '2026-08-09 14:03:12  cycle 947  prix=3120.50  equity=10042.31  pos=LONG',
+      '2026-08-09 14:02:05  cycle 946  prix=3118.90  equity=10040.77  pos=LONG',
+      '2026-08-09 14:01:01  avertissement: latence API 1.8s',
+      '2026-08-09 13:59:58  erreur: echec de lecture du ticker, nouvelle tentative dans 5s',
+      '2026-08-09 13:59:02  cycle 945  prix=3115.10  equity=10036.02  pos=LONG',
+      '2026-08-09 13:58:00  cycle 944  prix=3116.44  equity=10037.30  pos=LONG',
+      '2026-08-09 13:57:01  cycle 943  prix=3114.02  equity=10034.98  pos=LONG',
+      '2026-08-09 13:56:00  cycle 942  prix=3112.77  equity=10033.61  pos=LONG'
+    ].map(t => ({ text: t, color: /erreur|echec/i.test(t) ? 'var(--down,#e5534b)' : (/avertissement/i.test(t) ? 'var(--warn,#f0b429)' : 'var(--muted,#7f8c9c)') }));
+
+    const num = (v) => { const n = parseFloat(String(v).replace(/[−–—]/g, '-').replace(/[^\d.\-]/g, '')); return isNaN(n) ? 0 : n; };
+    const wbar = (v) => { const r = num(v);
+      return { display: 'block', width: '0.4375rem', borderRadius: '2px',
+        height: (Math.max(3, Math.abs(r) * 2.6) / 16).toFixed(3) + 'rem',
+        background: r > 0 ? 'var(--up,#46c46f)' : 'var(--down,#e5534b)' }; };
+
+    const mkAsset = (name, summary, meta, color, rows) => ({
+      name, summary, meta, color, loaded: rows.length > 0, missing: rows.length === 0,
+      bars: rows.map(r => ({ style: wbar(r[3]) })),
+      windows: rows.map(([period, params, sharpe, ret, dd]) => ({ period, params, sharpe, ret, dd,
+        color: ret.trim().charAt(0) === '+' ? 'var(--up,#46c46f)' : 'var(--down,#e5534b)' }))
+    });
+
+    const assets = [
+      mkAsset('ETH/USD', 'OOS cumulé −7.4 %', '25 % de fenêtres profitables · PSR 0.11 · DSR 0.02', 'var(--down,#e5534b)',
+        [['2025-02 → 2025-08', 'fast=50, slow=200', '−0.42', '−4.10 %', '−12.8 %'], ['2025-08 → 2026-02', 'fast=50, slow=200', '0.18', '+1.90 %', '−9.4 %'], ['2026-02 → 2026-05', 'fast=50, slow=200', '−0.61', '−3.20 %', '−14.1 %'], ['2026-05 → 2026-08', 'fast=50, slow=200', '−0.28', '−2.00 %', '−10.2 %']]),
+      mkAsset('BTC/USD', 'OOS cumulé −3.1 %', '25 % de fenêtres profitables · PSR 0.19 · DSR 0.04', 'var(--down,#e5534b)',
+        [['2025-02 → 2025-08', 'fast=50, slow=200', '0.31', '+2.40 %', '−7.7 %'], ['2025-08 → 2026-02', 'fast=50, slow=200', '−0.22', '−1.80 %', '−8.9 %'], ['2026-02 → 2026-05', 'fast=50, slow=200', '−0.35', '−2.10 %', '−11.0 %'], ['2026-05 → 2026-08', 'fast=50, slow=200', '−0.19', '−1.60 %', '−6.4 %']]),
+      mkAsset('SOL/USD', 'OOS cumulé −18.9 %', '0 % de fenêtres profitables · PSR 0.03 · DSR 0.00', 'var(--down,#e5534b)',
+        [['2025-02 → 2025-08', 'fast=50, slow=200', '−0.88', '−7.30 %', '−22.4 %'], ['2025-08 → 2026-02', 'fast=50, slow=200', '−0.51', '−4.10 %', '−18.0 %'], ['2026-02 → 2026-05', 'fast=50, slow=200', '−0.74', '−5.20 %', '−19.7 %'], ['2026-05 → 2026-08', 'fast=50, slow=200', '−0.40', '−2.30 %', '−13.6 %']]),
+      mkAsset('ADA/USD', 'non chargé', 'données indisponibles sur Binance', 'var(--muted,#7f8c9c)', [])
+    ];
+
+    const fs = { border: '1px solid var(--line,#232b36)', borderRadius: '0.75rem', padding: '1.125rem 1.25rem 1.25rem', background: 'var(--panel,#171c24)' };
+    const formBlocks = [
+      { legend: 'Quoi tester', note: "La stratégie et les marchés sur lesquels on la juge. Plusieurs actifs valent mieux qu'un : un edge qui n'existe que sur un seul actif est le plus souvent un hasard.", style: fs,
+        fields: [
+          { id: 'strategie', label: 'Stratégie', value: 'Croisement de moyennes', help: '' },
+          { id: 'symboles', label: 'Symboles', value: 'ETH/USD, BTC/USD, SOL/USD, ADA/USD', help: 'séparés par des virgules' },
+          { id: 'timeframe', label: 'Timeframe', value: '1d', help: 'plus la bougie est courte, plus les frais pèsent' },
+          { id: 'jours', label: "Jours d'historique", value: '720', help: '' },
+          { id: 'source', label: 'Source de données', value: 'Binance', help: 'Binance recommandé : historique plus profond que Kraken' }
+        ] },
+      { legend: 'Comment découper', note: "Chaque fenêtre se règle sur son début, puis se teste sur sa fin — la partie que la stratégie n'a jamais vue.", style: fs,
+        fields: [
+          { id: 'fenetres', label: 'Nombre de fenêtres', value: '4', help: '' },
+          { id: 'trainfrac', label: 'Train-frac', value: '0.5', help: 'part de chaque fenêtre utilisée pour régler avant de tester. 0.5 = moitié réglage, moitié test.' },
+          { id: 'metrique', label: 'Métrique de sélection', value: 'sharpe', help: 'sharpe · sortino · calmar · total_return · profit_factor' },
+          { id: 'params', label: 'Paramètres FIGÉS', value: 'fast=50,slow=200', help: 'on impose les réglages au lieu de les chercher : cela empêche de fabriquer un bon résultat par tâtonnement. Recommandé.' }
+        ] },
+      { legend: 'Le segment sacré', note: "Une portion récente des données est mise de côté et n'est jamais touchée par les fenêtres. Elle ne sert qu'UNE fois, en toute fin, pour trancher.",
+        style: { border: '1px solid var(--lineAccent,rgba(167,139,250,.34))', borderRadius: '0.75rem', padding: '1.125rem 1.25rem 1.25rem', background: 'var(--accentSoft,rgba(167,139,250,.12))' },
+        fields: [{ id: 'holdout', label: 'Holdout sacré (%)', value: '20', help: '20 % des données les plus récentes, réservées. Le mettre à 0 revient à renoncer à la seule garantie anti-data-mining.' }] },
+      { legend: 'Le risque', note: 'Appliqué identiquement à toutes les fenêtres.', style: fs,
+        fields: [
+          { id: 'stop', label: 'Stop (%)', value: '5', help: 'perte maximale acceptée sur une position avant sortie' },
+          { id: 'objectif', label: 'Objectif (%)', value: '20', help: 'sortie automatique au gain visé' },
+          { id: 'trailing', label: 'Trailing (%)', value: '8', help: 'suit le plus haut atteint et sort au repli' }
+        ] }
+    ];
+
+    const monInactif = mon === 'inactif';
+    const kpi = [
+      { label: 'Prix', value: '3 120.50', color: 'var(--txt,#d7dee8)', pct: 62, tone: 'var(--accent,#a78bfa)' },
+      { label: 'Drawdown', value: '−3.10 %', color: 'var(--down,#e5534b)', pct: 31, tone: 'var(--down,#e5534b)' },
+      { label: 'Exposition', value: '100 %', color: 'var(--txt,#d7dee8)', pct: 100, tone: 'var(--accent,#a78bfa)' },
+      { label: 'Cycles', value: '947', color: 'var(--txt,#d7dee8)', pct: 78, tone: 'var(--muted,#7f8c9c)' }
+    ].map(k => ({ label: k.label, value: k.value, color: k.color,
+      barStyle: { display: 'block', width: k.pct + '%', height: '100%', background: k.tone, borderRadius: '2px' } }));
+
+    return {
+      rootStyle,
+      tabs: TABS.map(([id, label]) => {
+        const active = s.screen === id;
+        return { label,
+          style: { cursor: 'pointer', height: '2.125rem', padding: '0 0.6875rem', borderRadius: '0.5rem', fontSize: '0.8125rem',
+            border: '1px solid ' + (active ? 'var(--lineAccent,rgba(167,139,250,.34))' : 'transparent'),
+            background: active ? 'var(--accentSoft,rgba(167,139,250,.12))' : 'transparent',
+            color: active ? 'var(--accentText,#c4b5fd)' : 'var(--txt,#d7dee8)',
+            fontWeight: active ? 600 : 400, boxShadow: active ? 'inset 0 -2px 0 var(--accent2,#e879f9)' : 'none',
+            fontFamily: 'inherit', whiteSpace: 'nowrap' },
+          go: () => this.setState({ screen: id }) };
+      }),
+      themeBtns: [['violet', 'Nuit', '#a78bfa'], ['dark', 'Ambre', '#d6aa5a'], ['light', 'Clair', '#0f766e']].map(([id, label, dot]) => ({
+        label, dot,
+        dotStyle: { width: '0.5rem', height: '0.5rem', borderRadius: '62.4375rem', background: dot, display: 'inline-block',
+          boxShadow: themeName === id ? '0 0 0 3px ' + dot + '33' : 'none' },
+        style: { cursor: 'pointer', border: 'none', padding: '0.375rem 0.6875rem', fontSize: '0.7188rem', fontFamily: 'inherit',
+          display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+          background: themeName === id ? 'var(--accentFill,#a78bfa)' : 'transparent',
+          fontWeight: themeName === id ? 600 : 400,
+          color: themeName === id ? 'var(--onAccent,#12101f)' : 'var(--txt,#d7dee8)' },
+        go: () => this.setState({ theme: id })
+      })),
+      subnav: ['Backtest', 'Comparer', 'Optimiser', 'Portefeuille', 'Walk-forward'].map(l => ({
+        label: l,
+        style: l === 'Walk-forward'
+          ? { padding: '0.5625rem 0.875rem', fontSize: '0.8438rem', color: 'var(--accent,#a78bfa)', borderBottom: '2px solid var(--accent,#a78bfa)', marginBottom: '-2px' }
+          : { padding: '0.5625rem 0.875rem', fontSize: '0.8438rem', color: 'var(--muted,#7f8c9c)', borderBottom: '2px solid transparent', marginBottom: '-2px' }
+      })),
+
+      isAccueil: s.screen === 'accueil', isMonitoring: s.screen === 'monitoring',
+      isWf: s.screen === 'wf', isStats: s.screen === 'stats',
+      isCheck: s.screen === 'check', isPaper: s.screen === 'paper',
+      isOptions: s.screen === 'options', isHelp: s.screen === 'help',
+      versions: [
+        ['Python', '3.12.4'], ['pandas', '2.2.2'], ['numpy', '1.26.4'],
+        ['requests', '2.32.3'], ['truststore', '0.9.1'], ['Chart.js (vendorisé)', '4.4.3']
+      ].map(([k, v]) => ({ k, v })),
+      paperBlocks: [
+        { legend: 'Marché', note: "Ce que le bot surveille et à quel rythme il décide.", style: fs,
+          fields: [
+            { id: 'p-strat', label: 'Stratégie', value: 'Croisement de moyennes', help: '' },
+            { id: 'p-sym', label: 'Symbole', value: 'ETH/USD', help: 'un seul actif par session de paper' },
+            { id: 'p-tf', label: 'Timeframe', value: '1h', help: 'un cycle par bougie — plus court = plus de frais' }
+          ] },
+        { legend: 'Risque', note: "Ces trois seuils décident quand on sort. Ils ne se règlent pas au hasard : chaque valeur par défaut vient des backtests, pas d'une intuition.", style: fs,
+          fields: [
+            { id: 'p-stop', label: 'Stop (%)', value: '5', help: 'sortie sèche si la position perd 5 % — au-delà, une reprise devient improbable' },
+            { id: 'p-obj', label: 'Objectif (%)', value: '20', help: 'prise de bénéfice automatique' },
+            { id: 'p-trail', label: 'Trailing (%)', value: '8', help: 'suit le plus haut atteint et sort au repli de 8 %' }
+          ] },
+        { legend: 'Taille de position', note: "Combien de capital est engagé à chaque entrée.", style: fs,
+          fields: [
+            { id: 'p-size', label: 'Sizing', value: 'Volatilité cible', help: 'fixe · volatilité cible · fraction fixe' },
+            { id: 'p-vol', label: 'Volatilité cible (%)', value: '15', help: 'annualisée — plus le marché bouge, plus la position rétrécit' }
+          ] }
+      ],
+
+      accStates: [['ok', 'Tout va bien'], ['ssl', 'Diagnostic en échec'], ['rien', 'Rien ne tourne']].map(([id, label]) => ({
+        label, style: this.btn(acc === id), go: () => this.setState({ acc: id }) })),
+      monStates: [['direct', 'En direct'], ['inactif', 'Inactif > 360 s'], ['vide', 'Jamais lancé']].map(([id, label]) => ({
+        label, style: this.btn(mon === id), go: () => this.setState({ mon: id }) })),
+      wfStates: [['rouge', 'Verdict rouge'], ['ambre', 'Ambre'], ['vert', 'Vert'], ['running', 'Calcul en cours']].map(([id, label]) => ({
+        label,
+        style: this.btn(id === 'running' ? s.wfPhase === 'running' : (s.wfPhase === 'done' && (s.verdict || this.props.verdict || 'rouge') === id)),
+        go: () => id === 'running' ? this.setState({ wfPhase: 'running' }) : this.setState({ wfPhase: 'done', verdict: id }) })),
+
+      paper: { running: acc !== 'rien', stopped: acc === 'rien', since: acc === 'rien' ? 'arrêté depuis 4 j' : 'en cours depuis 38 h 12 min' },
+      diag: acc === 'ssl'
+        ? [{ text: '[ÉCHEC] Connexion Kraken — certificat non vérifié', style: { color: 'var(--down,#e5534b)' } },
+           { text: '[ÉCHEC] truststore : chaîne SSL interceptée', style: { color: 'var(--down,#e5534b)' } }]
+        : [{ text: '[OK] Connexion Kraken (ETH/USD = 3 120.50, vérifié à 14:02)', style: { color: 'var(--up,#46c46f)' } },
+           { text: "[OK] truststore actif (SSL de l'OS)", style: { color: 'var(--up,#46c46f)' } }],
+      diagFail: acc === 'ssl',
+      hasResearch: acc !== 'rien', noResearch: acc === 'rien',
+      keys: acc === 'ssl' ? { text: 'Clés Kraken configurées : NON', color: 'var(--accentBright,#c4b5fd)' } : { text: 'Clés Kraken configurées : OUI', color: 'var(--muted,#7f8c9c)' },
+      noKeys: acc === 'ssl',
+
+      monData: mon !== 'vide', monInactive: monInactif, monEmpty: mon === 'vide',
+      statutText: monInactif ? 'FIGÉ' : 'INVESTI',
+      statutColor: monInactif ? 'var(--down,#e5534b)' : 'var(--accent2,#ff7a5c)',
+      statutSub: monInactif ? 'dernier cycle il y a 412 s' : 'ETH/USD · 1h · cycle 947',
+      statutPanel: { background: monInactif ? 'var(--downSoft,rgba(229,83,75,.10))' : 'var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24))',
+        border: '1px solid ' + (monInactif ? 'var(--down,#e5534b)' : 'var(--lineAccent,rgba(167,139,250,.34))'),
+        borderRadius: '0.875rem', padding: '1.375rem 1.5rem', boxShadow: 'var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85))' },
+
+      equity, hourBars, orders, journal, assets, formBlocks, kpiSecondary: kpi,
+      gauges: { fees: (45 / 100 * 213.6).toFixed(1) + ' 213.6' },
+      statsSecondary: [
+        { label: 'Cycles', value: '947' }, { label: 'Trades', value: '18 · 9A / 9V' },
+        { label: 'Réussite', value: '44 %' }, { label: 'PnL total', value: '+42.31' },
+        { label: 'Exposition moy.', value: '37 %' }
+      ],
+      wfRunning: s.wfPhase === 'running', wfDone: s.wfPhase === 'done',
+      verdict: Object.assign({}, verdict, {
+        panel: { border: '1px solid ' + verdict.tone, background: verdict.soft, borderRadius: '1.125rem', padding: '2.375rem 2.5rem',
+          boxShadow: 'var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85))', position: 'relative', overflow: 'hidden' },
+        iconStyle: { fontFamily: MONO, fontSize: '3.5rem', lineHeight: .9, color: verdict.tone },
+        titleStyle: { margin: 0, fontFamily: SERIF, fontSize: '4rem', lineHeight: 1, fontWeight: 400,
+          letterSpacing: '-.015em', color: verdict.tone, textWrap: 'balance' },
+        dots: ['ETH', 'BTC', 'SOL', 'ADA'].map((n, i) => ({
+          label: n,
+          style: { fontFamily: MONO, fontSize: '0.7188rem', padding: '0.25rem 0.625rem', borderRadius: '62.4375rem',
+            border: '1px solid ' + (i < verdict.pos ? 'var(--up,#46c46f)' : 'var(--line,#232b36)'),
+            color: i < verdict.pos ? 'var(--up,#46c46f)' : 'var(--muted,#7f8c9c)',
+            background: i < verdict.pos ? 'var(--upSoft,rgba(70,196,111,.12))' : 'transparent' }
+        }))
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - monitoring_inactif-360s (light)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--accent-ink:#0f766e;--on-accent:#ffffff;--accent-text:#0b5f59;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(15,118,110,.28));--logo-ink:#333333;--pill-fill:linear-gradient(120deg,#0e7490,#0f766e);--warn-fill:#dfa316;--warn-big:#dfa316;--accent-fill:linear-gradient(120deg,#0e7490,#0f766e);--warn:#c08c0c;--on-danger:#ffffff;--glow:0 1.25rem 2.75rem -2rem rgba(15,30,45,.45);--accent2:#0e7490;--accent2-soft:rgba(14,116,144,.10);--bg:#f2f5f7;--code:#eaeff3;--panel:#ffffff;--panel-grad:linear-gradient(180deg,#ffffff,#f5f9fa);--line:#dde4ea;--line-accent:rgba(15,118,110,.35);--txt:#0f1720;--muted:#55606d;--accent:#0b5f59;--accent-bright:#0f766e;--accent-soft:rgba(15,118,110,.10);--up:#116b3e;--down:#c1121f;--down-soft:rgba(193,18,31,.08);--up-soft:rgba(17,107,62,.10);--blue:#0d6ea8;--nav-bg:rgba(255,255,255,.92);--fees-grad:linear-gradient(180deg,rgba(223,163,22,.16),#ffffff);--fees-line:rgba(223,163,22,.48);--shadow:0 1.25rem 2.75rem -2rem rgba(15,30,45,.4);--track:rgba(15,23,32,.03);background:radial-gradient(68.75rem 35rem at 82% -12%, rgba(15,118,110,.10), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(52,211,153,.10), transparent 60%),#f2f5f7;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:none"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:none"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:0 0 0 3px #0f766e33"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+
+    
+      <section data-screen-label="Monitoring">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Paper trading · en direct</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Monitoring</h1>
+            <p style="margin:0.625rem 0 0;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">Dernière maj : 2026-08-09 14:03:12 · auto-refresh 7 s</p>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">En direct</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--accentInk,#a78bfa);background:var(--accentFill,#a78bfa);color:var(--onAccent,#12101f);font-weight:600;white-space:nowrap;font-family:inherit">Inactif > 360 s</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Jamais lancé</button>
+            
+          </div>
+        </div>
+
+        
+          <div style="border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.12));border-radius:0.75rem;padding:1rem 1.25rem;margin-bottom:1.125rem;display:flex;gap:0.875rem;align-items:flex-start">
+            <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.125rem;color:var(--down,#e5534b)">✗</span>
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:var(--down,#e5534b);margin-bottom:0.25rem">ATTENTION : aucun cycle depuis 412 s</div>
+              <p style="margin:0;color:var(--txt,#d7dee8)">Le paper est probablement inactif. Les chiffres ci-dessous sont figés depuis 14:03:12.</p>
+            </div>
+          </div>
+        
+
+        
+
+        
+          <div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+              <article style="background:var(--downSoft,rgba(229,83,75,.10));border:1px solid var(--down,#e5534b);border-radius:0.875rem;padding:1.375rem 1.5rem;box-shadow:var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85))">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Statut</div>
+                <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.5rem;line-height:1;color:var(--down,#e5534b)">FIGÉ</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">dernier cycle il y a 412 s</div>
+              </article>
+              <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem;box-shadow:var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8))">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Equity</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">10 042.31</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">départ 10 000.00 $</div>
+              </article>
+              <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem;box-shadow:var(--shadow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8))">
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">P&amp;L</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--up,#46c46f);font-variant-numeric:tabular-nums">+42.31</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--up,#46c46f)">+0.42 % · frais 21.40 $ déduits</div>
+              </article>
+            </div>
+
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.875rem;padding:1.25rem 1.375rem 1.125rem;margin-bottom:0.875rem">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+                <div>
+                  <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c)">Equity · 38 dernières heures</div>
+                  <div style="margin-top:0.375rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;color:var(--muted,#7f8c9c)">min 9 999.00 · max 10 113.46</div>
+                </div>
+                <div style="display:flex;gap:1rem;font-size:0.7188rem;color:var(--muted,#7f8c9c);flex-wrap:wrap">
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:2px;background:var(--accentBright,#c4b5fd);display:inline-block;border-radius:2px"></i>stratégie</span>
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:0;border-top:2px dashed var(--muted,#7f8c9c);display:inline-block"></i>Buy &amp; Hold</span>
+                  <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:1rem;height:0;border-top:1px dotted var(--txt,#d7dee8);display:inline-block"></i>capital de départ</span>
+                </div>
+              </div>
+              <div style="margin-left:5.5rem">
+                <div style="position:relative">
+                  <div style="position:absolute;right:100%;margin-right:0.625rem;top:8.57%;transform:translateY(-50%);font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c);white-space:nowrap">10 113.46</div>
+                  <div style="position:absolute;right:100%;margin-right:0.625rem;top:79.86%;transform:translateY(-50%);font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c);white-space:nowrap">10 000.00</div>
+                  
+                  <svg viewBox="56 0 688 140" preserveAspectRatio="none" style="width:100%;height:12.5rem;display:block;overflow:visible">
+                    <defs>
+                      <linearGradient id="eqArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" style="stop-color:var(--accentBright,#c4b5fd);stop-opacity:.34"></stop>
+                        <stop offset="60%" style="stop-color:var(--accent,#a78bfa);stop-opacity:.10"></stop>
+                        <stop offset="100%" style="stop-color:var(--accent,#a78bfa);stop-opacity:0"></stop>
+                      </linearGradient>
+                      <linearGradient id="eqStroke" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" style="stop-color:var(--accent,#a78bfa)"></stop>
+                        <stop offset="100%" style="stop-color:var(--accentBright,#c4b5fd)"></stop>
+                      </linearGradient>
+                    </defs>
+                    <line x1="56" y1="12" x2="744" y2="12" stroke="var(--line,#232b36)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="65" x2="744" y2="65" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="118" x2="744" y2="118" stroke="var(--line,#232b36)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                    <line x1="56" y1="111.8" x2="744" y2="111.8" stroke="var(--txt,#d7dee8)" stroke-width="1" stroke-dasharray="1 4" opacity="0.5" vector-effect="non-scaling-stroke"></line>
+                    <path d="M56.0,112.4 C59.0,111.2 68.1,108.0 74.1,105.5 C80.1,103.0 86.2,100.1 92.2,97.3 C98.2,94.4 104.3,91.2 110.3,88.2 C116.4,85.1 122.4,81.9 128.4,79.0 C134.5,76.0 140.5,73.0 146.5,70.4 C152.6,67.8 158.6,64.4 164.6,63.2 C170.7,62.1 176.7,64.1 182.7,63.7 C188.8,63.3 194.8,61.4 200.8,60.9 C206.9,60.4 212.9,60.3 218.9,60.6 C225.0,60.9 231.0,61.7 237.1,62.7 C243.1,63.7 249.1,65.1 255.2,66.7 C261.2,68.3 267.2,70.2 273.3,72.1 C279.3,73.9 285.3,75.1 291.4,78.0 C297.4,80.9 303.4,86.7 309.5,89.5 C315.5,92.2 321.5,93.0 327.6,94.4 C333.6,95.7 339.6,97.0 345.7,97.8 C351.7,98.6 357.8,99.2 363.8,99.4 C369.8,99.6 375.9,99.5 381.9,99.1 C387.9,98.7 394.0,97.9 400.0,97.0 C406.0,96.0 412.1,93.8 418.1,93.4 C424.1,93.1 430.2,95.2 436.2,94.6 C442.2,94.0 448.3,91.4 454.3,89.9 C460.4,88.4 466.4,86.8 472.4,85.4 C478.5,84.1 484.5,82.8 490.5,81.8 C496.6,80.7 502.6,79.9 508.6,79.2 C514.7,78.6 520.7,78.2 526.7,77.9 C532.8,77.7 538.8,76.7 544.8,77.7 C550.9,78.7 556.9,82.8 562.9,84.0 C569.0,85.2 575.0,84.6 581.1,84.9 C587.1,85.1 593.1,85.4 599.2,85.5 C605.2,85.5 611.2,85.5 617.3,85.2 C623.3,84.9 629.3,84.4 635.4,83.5 C641.4,82.7 647.4,81.6 653.5,80.2 C659.5,78.8 665.5,76.1 671.6,75.0 C677.6,73.9 683.6,75.3 689.7,73.8 C695.7,72.2 701.8,68.5 707.8,65.6 C713.8,62.8 719.9,59.7 725.9,56.7 C731.9,53.8 741.0,49.3 744.0,47.8 L744,118 L56,118 Z" fill="url(#eqArea)"></path>
+                    <path d="M56.0,110.4 C59.0,109.9 68.1,108.5 74.1,107.0 C80.1,105.5 86.2,103.6 92.2,101.5 C98.2,99.5 104.3,97.1 110.3,94.5 C116.4,92.0 122.4,89.2 128.4,86.4 C134.5,83.6 140.5,80.6 146.5,77.8 C152.6,74.9 158.6,72.0 164.6,69.2 C170.7,66.5 176.7,63.8 182.7,61.4 C188.8,59.0 194.8,56.8 200.8,54.9 C206.9,53.0 212.9,51.3 218.9,50.0 C225.0,48.7 231.0,47.8 237.1,47.2 C243.1,46.6 249.1,46.4 255.2,46.5 C261.2,46.7 267.2,47.2 273.3,48.0 C279.3,48.7 285.3,49.9 291.4,51.2 C297.4,52.6 303.4,54.2 309.5,55.9 C315.5,57.7 321.5,59.7 327.6,61.6 C333.6,63.5 339.6,65.6 345.7,67.6 C351.7,69.5 357.8,71.5 363.8,73.2 C369.8,75.0 375.9,76.7 381.9,78.0 C387.9,79.4 394.0,80.5 400.0,81.4 C406.0,82.2 412.1,82.7 418.1,82.9 C424.1,83.0 430.2,82.8 436.2,82.3 C442.2,81.7 448.3,80.8 454.3,79.6 C460.4,78.3 466.4,76.7 472.4,74.8 C478.5,72.9 484.5,70.7 490.5,68.3 C496.6,66.0 502.6,63.3 508.6,60.6 C514.7,57.8 520.7,54.9 526.7,52.0 C532.8,49.2 538.8,46.2 544.8,43.4 C550.9,40.6 556.9,37.8 562.9,35.2 C569.0,32.7 575.0,30.2 581.1,28.2 C587.1,26.1 593.1,24.2 599.2,22.7 C605.2,21.1 611.2,19.9 617.3,19.1 C623.3,18.2 629.3,17.8 635.4,17.6 C641.4,17.5 647.4,17.8 653.5,18.3 C659.5,18.9 665.5,19.8 671.6,21.0 C677.6,22.1 683.6,23.6 689.7,25.2 C695.7,26.8 701.8,28.7 707.8,30.6 C713.8,32.5 719.9,34.5 725.9,36.5 C731.9,38.5 741.0,41.4 744.0,42.4" fill="none" stroke="var(--muted,#7f8c9c)" stroke-width="1.5" stroke-dasharray="6 5" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                    <path d="M56.0,112.4 C59.0,111.2 68.1,108.0 74.1,105.5 C80.1,103.0 86.2,100.1 92.2,97.3 C98.2,94.4 104.3,91.2 110.3,88.2 C116.4,85.1 122.4,81.9 128.4,79.0 C134.5,76.0 140.5,73.0 146.5,70.4 C152.6,67.8 158.6,64.4 164.6,63.2 C170.7,62.1 176.7,64.1 182.7,63.7 C188.8,63.3 194.8,61.4 200.8,60.9 C206.9,60.4 212.9,60.3 218.9,60.6 C225.0,60.9 231.0,61.7 237.1,62.7 C243.1,63.7 249.1,65.1 255.2,66.7 C261.2,68.3 267.2,70.2 273.3,72.1 C279.3,73.9 285.3,75.1 291.4,78.0 C297.4,80.9 303.4,86.7 309.5,89.5 C315.5,92.2 321.5,93.0 327.6,94.4 C333.6,95.7 339.6,97.0 345.7,97.8 C351.7,98.6 357.8,99.2 363.8,99.4 C369.8,99.6 375.9,99.5 381.9,99.1 C387.9,98.7 394.0,97.9 400.0,97.0 C406.0,96.0 412.1,93.8 418.1,93.4 C424.1,93.1 430.2,95.2 436.2,94.6 C442.2,94.0 448.3,91.4 454.3,89.9 C460.4,88.4 466.4,86.8 472.4,85.4 C478.5,84.1 484.5,82.8 490.5,81.8 C496.6,80.7 502.6,79.9 508.6,79.2 C514.7,78.6 520.7,78.2 526.7,77.9 C532.8,77.7 538.8,76.7 544.8,77.7 C550.9,78.7 556.9,82.8 562.9,84.0 C569.0,85.2 575.0,84.6 581.1,84.9 C587.1,85.1 593.1,85.4 599.2,85.5 C605.2,85.5 611.2,85.5 617.3,85.2 C623.3,84.9 629.3,84.4 635.4,83.5 C641.4,82.7 647.4,81.6 653.5,80.2 C659.5,78.8 665.5,76.1 671.6,75.0 C677.6,73.9 683.6,75.3 689.7,73.8 C695.7,72.2 701.8,68.5 707.8,65.6 C713.8,62.8 719.9,59.7 725.9,56.7 C731.9,53.8 741.0,49.3 744.0,47.8" fill="none" stroke="url(#eqStroke)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.16" vector-effect="non-scaling-stroke"></path>
+                    <path d="M56.0,112.4 C59.0,111.2 68.1,108.0 74.1,105.5 C80.1,103.0 86.2,100.1 92.2,97.3 C98.2,94.4 104.3,91.2 110.3,88.2 C116.4,85.1 122.4,81.9 128.4,79.0 C134.5,76.0 140.5,73.0 146.5,70.4 C152.6,67.8 158.6,64.4 164.6,63.2 C170.7,62.1 176.7,64.1 182.7,63.7 C188.8,63.3 194.8,61.4 200.8,60.9 C206.9,60.4 212.9,60.3 218.9,60.6 C225.0,60.9 231.0,61.7 237.1,62.7 C243.1,63.7 249.1,65.1 255.2,66.7 C261.2,68.3 267.2,70.2 273.3,72.1 C279.3,73.9 285.3,75.1 291.4,78.0 C297.4,80.9 303.4,86.7 309.5,89.5 C315.5,92.2 321.5,93.0 327.6,94.4 C333.6,95.7 339.6,97.0 345.7,97.8 C351.7,98.6 357.8,99.2 363.8,99.4 C369.8,99.6 375.9,99.5 381.9,99.1 C387.9,98.7 394.0,97.9 400.0,97.0 C406.0,96.0 412.1,93.8 418.1,93.4 C424.1,93.1 430.2,95.2 436.2,94.6 C442.2,94.0 448.3,91.4 454.3,89.9 C460.4,88.4 466.4,86.8 472.4,85.4 C478.5,84.1 484.5,82.8 490.5,81.8 C496.6,80.7 502.6,79.9 508.6,79.2 C514.7,78.6 520.7,78.2 526.7,77.9 C532.8,77.7 538.8,76.7 544.8,77.7 C550.9,78.7 556.9,82.8 562.9,84.0 C569.0,85.2 575.0,84.6 581.1,84.9 C587.1,85.1 593.1,85.4 599.2,85.5 C605.2,85.5 611.2,85.5 617.3,85.2 C623.3,84.9 629.3,84.4 635.4,83.5 C641.4,82.7 647.4,81.6 653.5,80.2 C659.5,78.8 665.5,76.1 671.6,75.0 C677.6,73.9 683.6,75.3 689.7,73.8 C695.7,72.2 701.8,68.5 707.8,65.6 C713.8,62.8 719.9,59.7 725.9,56.7 C731.9,53.8 741.0,49.3 744.0,47.8" fill="none" stroke="url(#eqStroke)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+                    <circle cx="744.0" cy="47.8" r="4" fill="var(--accentBright,#c4b5fd)" style="animation:iyc-pulse 2.6s ease-out infinite"></circle>
+                    <circle cx="744.0" cy="47.8" r="3" fill="var(--accentBright,#c4b5fd)" stroke="var(--panel,#171c24)" stroke-width="1.5" vector-effect="non-scaling-stroke"></circle>
+                  </svg>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">
+                  <span>il y a 38 h</span>
+                  <span>maintenant</span>
+                </div>
+              </div>
+              <p style="margin:0.875rem 0 0;font-size:0.75rem;color:var(--muted,#7f8c9c);max-width:76ch">Buy &amp; Hold reste tracé : sur cette fenêtre, la stratégie fait <span style="color:var(--txt,#d7dee8)">+0.42 %</span> contre <span style="color:var(--txt,#d7dee8)">+1.10 %</span> pour l'achat simple. Le tracé n'est jamais recadré pour aplatir une perte.</p>
+            </article>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.375rem,1fr));gap:0.625rem;margin-bottom:1.5rem">
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+                  <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Prix</div>
+                  <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 120.50</div>
+                  <div style="margin-top:0.5rem;height:3px;border-radius:2px;background:var(--line,#232b36);overflow:hidden">
+                    <i style="display:block;width:62%;height:100%;background:var(--accent,#a78bfa);border-radius:2px"></i>
+                  </div>
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+                  <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Drawdown</div>
+                  <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−3.10 %</div>
+                  <div style="margin-top:0.5rem;height:3px;border-radius:2px;background:var(--line,#232b36);overflow:hidden">
+                    <i style="display:block;width:31%;height:100%;background:var(--down,#e5534b);border-radius:2px"></i>
+                  </div>
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+                  <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Exposition</div>
+                  <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">100 %</div>
+                  <div style="margin-top:0.5rem;height:3px;border-radius:2px;background:var(--line,#232b36);overflow:hidden">
+                    <i style="display:block;width:100%;height:100%;background:var(--accent,#a78bfa);border-radius:2px"></i>
+                  </div>
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+                  <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Cycles</div>
+                  <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">947</div>
+                  <div style="margin-top:0.5rem;height:3px;border-radius:2px;background:var(--line,#232b36);overflow:hidden">
+                    <i style="display:block;width:78%;height:100%;background:var(--muted,#7f8c9c);border-radius:2px"></i>
+                  </div>
+                </article>
+              
+            </div>
+
+            <h2 style="margin:0 0 0.75rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.25rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Derniers ordres <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden;margin-bottom:1.375rem">
+              <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Heure</th>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Sens</th>
+                    <th style="text-align:right;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Prix</th>
+                    <th style="text-align:left;padding:0.6875rem 1rem;color:var(--muted,#7f8c9c);font-weight:600;font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line,#232b36)">Motif</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">13:00:04</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--upSoft,rgba(70,196,111,.12));color:var(--up,#46c46f);border:1px solid var(--up,#46c46f)">BUY</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 108.20</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">signal — croisement haussier</td>
+                    </tr>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">11:00:02</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--downSoft,rgba(229,83,75,.10));color:var(--down,#e5534b);border:1px solid var(--down,#e5534b)">SELL</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 141.75</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">objectif +20 % atteint</td>
+                    </tr>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">06:00:03</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--upSoft,rgba(70,196,111,.12));color:var(--up,#46c46f);border:1px solid var(--up,#46c46f)">BUY</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 062.40</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">signal — croisement haussier</td>
+                    </tr>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">03:00:01</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--downSoft,rgba(229,83,75,.10));color:var(--down,#e5534b);border:1px solid var(--down,#e5534b)">SELL</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 044.10</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">stop −5 %</td>
+                    </tr>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">01:00:05</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--upSoft,rgba(70,196,111,.12));color:var(--up,#46c46f);border:1px solid var(--up,#46c46f)">BUY</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 090.00</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">signal — croisement haussier</td>
+                    </tr>
+                  
+                    <tr>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">22:00:02</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36)"><span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:3px 0.5625rem;border-radius:62.4375rem;background:var(--downSoft,rgba(229,83,75,.10));color:var(--down,#e5534b);border:1px solid var(--down,#e5534b)">SELL</span></td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">3 077.65</td>
+                      <td style="padding:0.625rem 1rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">trailing 8 %</td>
+                    </tr>
+                  
+                </tbody>
+              </table>
+            </div>
+
+            <h2 style="margin:0 0 0.75rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.25rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Journal <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:0.875rem 1rem;max-height:13.125rem;overflow:auto">
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 14:03:12  cycle 947  prix=3120.50  equity=10042.31  pos=LONG</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 14:02:05  cycle 946  prix=3118.90  equity=10040.77  pos=LONG</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--warn,#f0b429)">2026-08-09 14:01:01  avertissement: latence API 1.8s</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--down,#e5534b)">2026-08-09 13:59:58  erreur: echec de lecture du ticker, nouvelle tentative dans 5s</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 13:59:02  cycle 945  prix=3115.10  equity=10036.02  pos=LONG</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 13:58:00  cycle 944  prix=3116.44  equity=10037.30  pos=LONG</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 13:57:01  cycle 943  prix=3114.02  equity=10034.98  pos=LONG</div>
+              
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;line-height:1.7;color:var(--muted,#7f8c9c)">2026-08-09 13:56:00  cycle 942  prix=3112.77  equity=10033.61  pos=LONG</div>
+              
+            </div>
+          </div>
+        
+      </section>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+  </main>
+</div>
+</body>
+</html>

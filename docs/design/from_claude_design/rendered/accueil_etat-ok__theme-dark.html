@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - accueil_etat-ok (dark)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--accent-ink:#d6aa5a;--on-accent:#1a140a;--accent-text:#f0b429;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(214,170,90,.35));--logo-ink:#f3ece0;--pill-fill:linear-gradient(120deg,#e08a3c,#d6aa5a);--warn-fill:#f0b429;--warn-big:#f0b429;--accent-fill:linear-gradient(120deg,#e08a3c,#d6aa5a);--warn:#f0b429;--on-danger:#ffffff;--glow:0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85);--accent2:#e08a3c;--accent2-soft:rgba(224,138,60,.14);--bg:#0e1116;--code:#0a0c10;--panel:#171c24;--panel-grad:linear-gradient(180deg,#1b212b,#171c24);--line:#232b36;--line-accent:rgba(224,138,60,.34);--txt:#d7dee8;--muted:#7f8c9c;--accent:#d6aa5a;--accent-bright:#f0b429;--accent-soft:rgba(214,170,90,.12);--up:#46c46f;--down:#e5534b;--down-soft:rgba(229,83,75,.10);--up-soft:rgba(70,196,111,.12);--blue:#6cb6ff;--nav-bg:rgba(11,13,17,.94);--fees-grad:linear-gradient(180deg,rgba(240,180,41,.13),#171c24);--fees-line:rgba(240,180,41,.38);--shadow:0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85);--track:rgba(255,255,255,.022);background:radial-gradient(68.75rem 35rem at 82% -12%, rgba(214,170,90,.07), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(70,196,111,.045), transparent 60%),#0e1116;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:none"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:0 0 0 3px #d6aa5a33"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:none"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+      <section data-screen-label="Accueil">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.625rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Session locale · poste de travail</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;letter-spacing:-.01em;line-height:1.1;color:var(--txt,#d7dee8)">État du poste</h1>
+            <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c);max-width:56ch;text-wrap:pretty">Rien ne se lance tout seul. Cette page dit ce qui tourne, ce qui est prêt, et ce qui manque.</p>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--accentInk,#a78bfa);background:var(--accentFill,#a78bfa);color:var(--onAccent,#12101f);font-weight:600;white-space:nowrap;font-family:inherit">Tout va bien</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Diagnostic en échec</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Rien ne tourne</button>
+            
+          </div>
+        </div>
+
+        <article style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));box-shadow:var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.8));padding:1.5rem 1.625rem;margin-bottom:1.125rem;position:relative;overflow:hidden">
+          <i style="position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,var(--accent2,#e879f9),var(--accent,#a78bfa),transparent)"></i>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+            <h2 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;font-weight:400;color:var(--txt,#d7dee8)">Paper trading</h2>
+            <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6875rem;color:var(--muted,#7f8c9c)">en cours depuis 38 h 12 min</span>
+          </div>
+          
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(11.875rem,1fr));gap:1.625rem;align-items:end">
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Statut</div>
+                <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.375rem;line-height:1;color:var(--accent2,#ff7a5c)">INVESTI</div>
+                <div style="margin-top:0.5rem;color:var(--muted,#7f8c9c);font-size:0.75rem">ETH/USD · 1h · croisement de moyennes</div>
+              </div>
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Equity</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.125rem;line-height:1;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">10 042.31 $</div>
+                <div style="margin-top:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--up,#46c46f)">+42.31 $ (+0.42 %)</div>
+              </div>
+              <div>
+                <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">38 dernières heures</div>
+                <svg viewBox="0 0 200 54" preserveAspectRatio="none" style="width:100%;height:3.75rem;display:block;overflow:visible">
+                  <defs>
+                    <linearGradient id="miniArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" style="stop-color:var(--accent,#a78bfa);stop-opacity:.38"></stop>
+                      <stop offset="100%" style="stop-color:var(--accent,#a78bfa);stop-opacity:0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <path d="M0.0,45.7 C0.9,45.2 3.5,43.9 5.3,42.8 C7.0,41.8 8.8,40.6 10.5,39.4 C12.3,38.2 14.0,36.9 15.8,35.6 C17.5,34.3 19.3,33.0 21.1,31.8 C22.8,30.6 24.6,29.3 26.3,28.2 C28.1,27.2 29.8,25.7 31.6,25.3 C33.3,24.8 35.1,25.6 36.8,25.5 C38.6,25.3 40.4,24.5 42.1,24.3 C43.9,24.1 45.6,24.1 47.4,24.2 C49.1,24.3 50.9,24.6 52.6,25.0 C54.4,25.5 56.1,26.1 57.9,26.7 C59.6,27.4 61.4,28.1 63.2,28.9 C64.9,29.7 66.7,30.2 68.4,31.4 C70.2,32.6 71.9,35.0 73.7,36.1 C75.4,37.3 77.2,37.6 78.9,38.2 C80.7,38.8 82.5,39.3 84.2,39.6 C86.0,40.0 87.7,40.2 89.5,40.3 C91.2,40.4 93.0,40.3 94.7,40.2 C96.5,40.0 98.2,39.7 100.0,39.3 C101.8,38.9 103.5,38.0 105.3,37.8 C107.0,37.6 108.8,38.5 110.5,38.3 C112.3,38.1 114.0,37.0 115.8,36.3 C117.5,35.7 119.3,35.0 121.1,34.5 C122.8,33.9 124.6,33.4 126.3,33.0 C128.1,32.5 129.8,32.2 131.6,31.9 C133.3,31.6 135.1,31.5 136.8,31.4 C138.6,31.3 140.4,30.9 142.1,31.3 C143.9,31.7 145.6,33.4 147.4,33.9 C149.1,34.4 150.9,34.1 152.6,34.2 C154.4,34.3 156.1,34.5 157.9,34.5 C159.6,34.5 161.4,34.5 163.2,34.4 C164.9,34.2 166.7,34.0 168.4,33.7 C170.2,33.3 171.9,32.9 173.7,32.3 C175.4,31.7 177.2,30.6 178.9,30.2 C180.7,29.7 182.5,30.3 184.2,29.6 C186.0,29.0 187.7,27.4 189.5,26.3 C191.2,25.1 193.0,23.8 194.7,22.6 C196.5,21.3 199.1,19.5 200.0,18.9 L200,50 L0,50 Z" fill="url(#miniArea)"></path>
+                  <path d="M0.0,45.7 C0.9,45.2 3.5,43.9 5.3,42.8 C7.0,41.8 8.8,40.6 10.5,39.4 C12.3,38.2 14.0,36.9 15.8,35.6 C17.5,34.3 19.3,33.0 21.1,31.8 C22.8,30.6 24.6,29.3 26.3,28.2 C28.1,27.2 29.8,25.7 31.6,25.3 C33.3,24.8 35.1,25.6 36.8,25.5 C38.6,25.3 40.4,24.5 42.1,24.3 C43.9,24.1 45.6,24.1 47.4,24.2 C49.1,24.3 50.9,24.6 52.6,25.0 C54.4,25.5 56.1,26.1 57.9,26.7 C59.6,27.4 61.4,28.1 63.2,28.9 C64.9,29.7 66.7,30.2 68.4,31.4 C70.2,32.6 71.9,35.0 73.7,36.1 C75.4,37.3 77.2,37.6 78.9,38.2 C80.7,38.8 82.5,39.3 84.2,39.6 C86.0,40.0 87.7,40.2 89.5,40.3 C91.2,40.4 93.0,40.3 94.7,40.2 C96.5,40.0 98.2,39.7 100.0,39.3 C101.8,38.9 103.5,38.0 105.3,37.8 C107.0,37.6 108.8,38.5 110.5,38.3 C112.3,38.1 114.0,37.0 115.8,36.3 C117.5,35.7 119.3,35.0 121.1,34.5 C122.8,33.9 124.6,33.4 126.3,33.0 C128.1,32.5 129.8,32.2 131.6,31.9 C133.3,31.6 135.1,31.5 136.8,31.4 C138.6,31.3 140.4,30.9 142.1,31.3 C143.9,31.7 145.6,33.4 147.4,33.9 C149.1,34.4 150.9,34.1 152.6,34.2 C154.4,34.3 156.1,34.5 157.9,34.5 C159.6,34.5 161.4,34.5 163.2,34.4 C164.9,34.2 166.7,34.0 168.4,33.7 C170.2,33.3 171.9,32.9 173.7,32.3 C175.4,31.7 177.2,30.6 178.9,30.2 C180.7,29.7 182.5,30.3 184.2,29.6 C186.0,29.0 187.7,27.4 189.5,26.3 C191.2,25.1 193.0,23.8 194.7,22.6 C196.5,21.3 199.1,19.5 200.0,18.9" fill="none" stroke="var(--accentBright,#c4b5fd)" stroke-width="1.75" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+                </svg>
+              </div>
+            </div>
+          
+          
+          <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line,#232b36);display:flex;gap:1.25rem;flex-wrap:wrap">
+            <a href="#">Voir le monitoring →</a>
+            <a href="#" style="color:var(--muted,#7f8c9c)">Configurer le paper</a>
+          </div>
+        </article>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(18.75rem,1fr));gap:1rem;margin-bottom:1.125rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Diagnostic</h3>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+              
+                <div style="color:var(--up,#46c46f)">[OK] Connexion Kraken (ETH/USD = 3 120.50, vérifié à 14:02)</div>
+              
+                <div style="color:var(--up,#46c46f)">[OK] truststore actif (SSL de l'OS)</div>
+              
+            </div>
+            
+            <div style="margin-top:0.875rem"><a href="#">Lancer le diagnostic</a></div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Recherche · dernier verdict</h3>
+            
+              <div>
+                <div style="display:flex;align-items:center;gap:0.625rem;margin-bottom:0.5rem">
+                  <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.125rem;color:var(--down,#e5534b)">✗</span>
+                  <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;color:var(--down,#e5534b)">Pas d'edge fiable</span>
+                </div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Walk-forward · 0 / 4 actifs OOS positifs</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">ETH, BTC, SOL, ADA · 2026-08-09 11:47</div>
+              </div>
+            
+            
+            <div style="margin-top:0.875rem"><a href="#">Nouvelle analyse</a></div>
+          </article>
+
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem;display:flex;flex-direction:column">
+            <h3 style="margin:0 0 0.875rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accent2,#e879f9);flex:0 0 auto"></i>Réglages</h3>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Clés Kraken configurées : OUI</div>
+            
+            <div style="margin-top:0.875rem;display:flex;gap:1.125rem">
+              <a href="#">Options</a>
+              <a href="#">Aide</a>
+            </div>
+            <div style="margin-top:auto;padding-top:1.125rem">
+              <a href="#" style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-decoration:underline">passer en live</a>
+            </div>
+          </article>
+        </div>
+
+        <aside style="border:1px solid var(--feesLine,rgba(240,180,41,.36));background:var(--feesGrad,linear-gradient(180deg,rgba(240,180,41,.12),#171c24));border-radius:0.75rem;padding:1rem 1.25rem;display:flex;gap:0.875rem;align-items:flex-start">
+          <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--warnFill,#f0b429)">⚠</span>
+          <p style="margin:0;color:var(--txt,#d7dee8);text-wrap:pretty">Avertissement : outil de recherche. Aucun gain promis. Le live engage de l'argent réel — il est verrouillé par défaut.</p>
+        </aside>
+      </section>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+  </main>
+</div>
+</body>
+</html>

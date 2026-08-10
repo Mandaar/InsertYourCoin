@@ -37,76 +37,84 @@ DEFAULT_WINDOWS = 4
 # honnete par defaut plutot qu'un holdout desactive par omission).
 DEFAULT_HOLDOUT_PCT = 20.0
 
+# Tokens consommes depuis trading/webui.py THEME_CSS (3 themes) -- valeurs
+# alignees sur l'ecran Walk-forward du design source (LE JUGE, cf.
+# docs/design/from_claude_design/rendered/walkforward_*). Le bandeau verdict
+# EST le plus visible de toute l'app (spec §4.6) : couleurs semantiques
+# up/down/gold-bright portees par les tokens, jamais recopiees en dur.
 _CSS = """
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-.muted { color: #8b97a6; }
-.navlink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
+h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; margin: 0 0 4px;
+  letter-spacing: -.01em; color: var(--txt); }
+.muted { color: var(--muted); }
+.navlink { color: var(--blue); text-decoration: none; font-size: 13px; }
 .navlink:hover { text-decoration: underline; }
-.card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px; }
 .wf-form .row { display: flex; gap: 14px; flex-wrap: wrap; margin: 4px 0 14px; }
 .wf-form .field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
 .wf-form .field.wide { min-width: 280px; flex: 1; }
-.wf-form label.flabel { font-size: 12px; color: #9fb0c3; }
-.wf-form input, .wf-form select { padding: 8px 10px; background: #0e1116;
-  color: #d7dee8; border: 1px solid #2a333f; border-radius: 6px;
-  font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.wf-form label.flabel { font-size: 12px; color: var(--muted2); }
+.wf-form input, .wf-form select { padding: 8px 10px; background: var(--bg-deep);
+  color: var(--txt); border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--mono); font-size: 13px; }
 .radio-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
 .radio-row label { display: flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 13px; color: #d7dee8; }
+  font-size: 13px; color: var(--txt); }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; }
-.check-row label { font-size: 13px; color: #f0b429; font-weight: 600; cursor: pointer; }
-.btn { background: #1f6feb; color: #fff; border: none; border-radius: 7px;
-  padding: 10px 18px; font-size: 14px; cursor: pointer; }
-.btn:hover { background: #2a7bff; }
-.errors { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad;
+.check-row label { font-size: 13px; color: var(--warn-fill); font-weight: 600; cursor: pointer; }
+.btn { background: var(--accent-fill); color: var(--on-accent); border: none; border-radius: 7px;
+  padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn:hover { filter: brightness(1.08); }
+.errors { background: #3a1d12; border: 1px solid var(--down); color: #ffb4ad;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
 .errors ul { margin: 4px 0 0; padding-left: 18px; }
-.busy { background: #3a2a12; border: 1px solid #f0b429; color: #ffd98a;
+.busy { background: #3a2a12; border: 1px solid var(--warn-fill); color: #ffd98a;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
-.honesty { font-size: 12px; color: #9fb0c3; line-height: 1.6; }
-.ignored { background: #3a2a12; border: 1px solid #f0b429; color: #ffd98a;
+.honesty { font-size: 12px; color: var(--muted2); line-height: 1.6; }
+.ignored { background: #3a2a12; border: 1px solid var(--warn-fill); color: #ffd98a;
   border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; }
 .ignored ul, .errors ul { margin: 4px 0 0; padding-left: 18px; }
 
 /* Bandeau verdict -- element le plus visible de toute l'app (spec §4.6). */
 .verdict-banner { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
-  border-radius: 10px; padding: 16px 20px; margin-bottom: 14px; border: 1px solid; }
-.verdict-banner .v-icon { font-size: 24px; line-height: 1; }
-.verdict-banner .v-label { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
-.verdict-banner .v-detail { font-size: 13px; opacity: .85; font-family: ui-monospace, Consolas, monospace; }
-.verdict-banner.v-green { background: rgba(70,196,111,.12); border-color: #46c46f; color: #7ee6a0; }
-.verdict-banner.v-orange { background: rgba(240,180,41,.12); border-color: #f0b429; color: #ffd98a; }
-.verdict-banner.v-red { background: rgba(229,83,75,.12); border-color: #e5534b; color: #ffb4ad; }
+  border-radius: 10px; padding: 16px 20px; margin-bottom: 14px; border: 1px solid;
+  box-shadow: var(--glow); }
+.verdict-banner .v-icon { font-family: var(--mono); font-size: 24px; line-height: 1; }
+.verdict-banner .v-label { font-family: var(--serif); font-size: 22px; font-weight: 400;
+  letter-spacing: .01em; }
+.verdict-banner .v-detail { font-size: 13px; opacity: .85; font-family: var(--mono); }
+.verdict-banner.v-green { background: rgba(70,196,111,.12); border-color: var(--up); color: var(--up); }
+.verdict-banner.v-orange { background: rgba(240,180,41,.12); border-color: var(--warn-fill); color: var(--gold-bright); }
+.verdict-banner.v-red { background: rgba(229,83,75,.12); border-color: var(--down); color: var(--down); }
 
 .holdout-state { font-size: 13px; }
-.holdout-state.holdout-consumed { border-color: #f0b429; background: #3a2a12; color: #ffd98a; }
-.result-error { background: #3a1d12; border: 1px solid #e5534b; color: #ffb4ad; }
+.holdout-state.holdout-consumed { border-color: var(--warn-fill); background: #3a2a12; color: #ffd98a; }
+.result-error { background: #3a1d12; border: 1px solid var(--down); color: #ffb4ad; }
 
 /* Verdict holdout par actif (BUG-011) -- meme palette que .verdict-banner. */
 .holdout-verdict { font-size: 13px; margin: 8px 0 0; padding: 6px 10px;
   border-radius: 6px; display: inline-block; }
-.holdout-verdict.v-green { background: rgba(70,196,111,.12); color: #7ee6a0; }
-.holdout-verdict.v-orange { background: rgba(240,180,41,.12); color: #ffd98a; }
-.holdout-verdict.v-red { background: rgba(229,83,75,.12); color: #ffb4ad; }
+.holdout-verdict.v-green { background: rgba(70,196,111,.12); color: var(--up); }
+.holdout-verdict.v-orange { background: rgba(240,180,41,.12); color: var(--gold-bright); }
+.holdout-verdict.v-red { background: rgba(229,83,75,.12); color: var(--down); }
 
 .wf-card .wf-sym-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
   margin-bottom: 8px; }
-.wf-sym-head .wf-sym-name { font-weight: 700; color: #d6aa5a; font-size: 14px; }
+.wf-sym-head .wf-sym-name { font-family: var(--serif); font-weight: 400; color: var(--txt); font-size: 16px; }
 table.wf-windows { width: 100%; border-collapse: collapse; font-size: 12.5px;
-  font-family: ui-monospace, Consolas, monospace; }
+  font-family: var(--mono); }
 table.wf-windows th, table.wf-windows td { text-align: right; padding: 7px 9px;
-  border-bottom: 1px solid #232b36; }
+  border-bottom: 1px solid var(--line); }
 table.wf-windows th:first-child, table.wf-windows td:first-child,
 table.wf-windows th:nth-child(2), table.wf-windows td.params { text-align: left; }
-table.wf-windows th { color: #9fb0c3; font-weight: 500; font-size: 10.5px;
-  text-transform: uppercase; letter-spacing: .04em; }
-.up { color: #46c46f; } .down { color: #e5534b; } .neu { color: #d7dee8; }
-.wf-warn { color: #ffb4ad; font-size: 12.5px; margin: 6px 0 0; }
-.wf-why { font-size: 12.5px; color: #9fb0c3; line-height: 1.6; margin-bottom: 14px; }
-.wf-why summary { cursor: pointer; color: #6cb6ff; }
+table.wf-windows th { color: var(--muted); font-weight: 500; font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: .1em; }
+.up { color: var(--up); } .down { color: var(--down); } .neu { color: var(--txt); }
+.wf-warn { color: var(--down); font-size: 12.5px; margin: 6px 0 0; }
+.wf-why { font-size: 12.5px; color: var(--muted2); line-height: 1.6; margin-bottom: 14px; }
+.wf-why summary { cursor: pointer; color: var(--blue); }
 """
 
 

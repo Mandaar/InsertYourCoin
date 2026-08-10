@@ -199,9 +199,13 @@ def test_route_fragment_toujours_actif(server):
 
 def test_route_accueil_hub(server):
     # Lot 1 : "/" est desormais l'Accueil (hub), pas le monitoring.
+    # Reskin design (Claude Design) : le h1 reprend le libelle EXACT de
+    # l'ecran Accueil source ("État du poste", cf.
+    # docs/design/from_claude_design/rendered/accueil_*) -- l'ancien "Accueil"
+    # devient l'eyebrow/le titre d'onglet, plus le h1 (fidelite au design).
     code, page = _get(server + "/")
     assert code == 200
-    assert "<h1>Accueil</h1>" in page
+    assert "<h1>État du poste</h1>" in page
     assert "Diagnostic" in page
     assert "Paper trading" in page
     assert "Recherche" in page
@@ -522,6 +526,80 @@ def test_nav_presente_sur_monitoring_et_options(server):
     for page in (monitoring, opts):
         assert "<nav class='nav'>" in page
         assert "Local 127.0.0.1" in page
+
+
+# --------------------------------------------------------------------------- #
+#  Reskin design (Claude Design) -- switch de theme POST /theme               #
+# --------------------------------------------------------------------------- #
+def test_route_theme_default_is_dark_ambre(server):
+    _, page = _get(server + "/")
+    assert "data-theme='dark'" in page
+
+
+def test_route_theme_post_sans_csrf_rejete(server):
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(server + "/theme", {"theme": "violet"})
+    assert exc.value.code == 403
+
+
+def test_route_theme_post_switches_and_persists(server):
+    token = _csrf_token(server)
+    code, page_after_redirect = _post(server + "/theme", {"theme": "violet", "csrf_token": token})
+    assert code == 200  # urlopen suit le 303 -> 200 final sur la page de retour
+    assert "data-theme='violet'" in page_after_redirect
+    # Persistance reelle (pas juste la reponse de cette requete) : une AUTRE
+    # page, sur une AUTRE requete, reflete desormais aussi le theme choisi.
+    _, options_page = _get(server + "/options")
+    assert "data-theme='violet'" in options_page
+
+
+def test_route_theme_post_invalid_value_ignored_silently(server):
+    # Une valeur hors THEME_IDS est ignoree (pas d'exception, pas de crash) --
+    # le theme persiste reste celui d'avant (defaut "dark").
+    token = _csrf_token(server)
+    code, page = _post(server + "/theme", {"theme": "n-existe-pas", "csrf_token": token})
+    assert code == 200
+    assert "data-theme='dark'" in page
+
+
+def test_route_theme_post_redirects_to_referer_path(server):
+    token = _csrf_token(server)
+    data = urllib.parse.urlencode({"theme": "light", "csrf_token": token}).encode()
+    req = urllib.request.Request(server + "/theme", data=data, method="POST")
+    req.add_header("Referer", server + "/stats")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        # urlopen a suivi la redirection : l'URL finale est bien /stats (pas "/").
+        assert r.geturl() == server + "/stats"
+        page = r.read().decode("utf-8")
+    assert "Labo de stats" in page
+    assert "data-theme='light'" in page
+
+
+def test_route_theme_post_never_redirects_off_origin(server):
+    # _safe_next_path ne recopie QUE le chemin du Referer (jamais son schema
+    # ni son hote) : meme avec un Referer forge vers un autre domaine, la
+    # redirection reste TOUJOURS sur ce serveur (127.0.0.1:<port>) -- jamais
+    # une evasion vers l'exterieur. Ici le chemin "/phishing" n'existe pas
+    # sur ce serveur -> 404, mais l'hote redirige, lui, reste le notre.
+    token = _csrf_token(server)
+    data = urllib.parse.urlencode({"theme": "dark", "csrf_token": token}).encode()
+    req = urllib.request.Request(server + "/theme", data=data, method="POST")
+    req.add_header("Referer", "http://evil.example/phishing")
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 404
+    assert exc.value.geturl().startswith(server + "/")  # jamais evil.example
+
+
+def test_route_theme_post_referer_without_scheme_stays_local(server):
+    # Referer "propre" (meme origine, comme un vrai navigateur l'envoie) ->
+    # redirection fonctionnelle vers CE chemin precis.
+    token = _csrf_token(server)
+    data = urllib.parse.urlencode({"theme": "dark", "csrf_token": token}).encode()
+    req = urllib.request.Request(server + "/theme", data=data, method="POST")
+    req.add_header("Referer", server + "/help")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        assert r.geturl() == server + "/help"
 
 
 # --------------------------------------------------------------------------- #

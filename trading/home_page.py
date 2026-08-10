@@ -12,26 +12,45 @@ import html
 
 from .webui import page_shell
 
+# Tokens consommes depuis trading/webui.py THEME_CSS (3 themes, reagit au
+# switch de la nav) -- valeurs alignees sur le design source (Accueil =
+# "Session locale", cf. docs/design/from_claude_design/rendered/accueil_*).
 _CSS = """
-.head { display: flex; justify-content: space-between; align-items: baseline;
-  margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-.soon-link { color: #8b97a6; font-size: 13px; }
-.soon-link .soon { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 9px;
+.head { display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 6px; }
+.eyebrow { display: flex; align-items: center; gap: 10px; font-size: 10.5px;
+  font-weight: 600; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--accent-text, var(--gold-bright)); margin-bottom: 12px; }
+.eyebrow i { width: 24px; height: 2px; border-radius: 2px;
+  background: var(--accent-fill); display: inline-block; }
+h1 { font-family: var(--serif); font-size: 34px; font-weight: 400;
+  letter-spacing: -.01em; margin: 0 0 6px; color: var(--txt); }
+.lede { margin: 0; color: var(--muted); max-width: 56ch; }
+.soon-link { color: var(--muted2); font-size: 13px; }
+.soon-link .soon { font-family: var(--mono); font-size: 9px;
   letter-spacing: .06em; text-transform: uppercase; margin-left: 5px; padding: 1px 5px;
-  border: 1px solid #232b36; border-radius: 999px; color: #8b97a6; vertical-align: 1px; }
-h2 { font-size: 14px; margin: 0 0 10px; color: #9fb0c3; text-transform: uppercase;
-  letter-spacing: .5px; }
-.muted { color: #8b97a6; }
+  border: 1px solid var(--line); border-radius: 999px; color: var(--muted2); vertical-align: 1px; }
+h2 { font-size: 11px; margin: 0 0 12px; color: var(--txt); text-transform: uppercase;
+  letter-spacing: .16em; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+h2 i { width: 7px; height: 7px; border-radius: 2px; background: var(--accent2); flex: 0 0 auto; }
+.muted { color: var(--muted); }
 .hub { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px; }
-.card { background: #171c24; border: 1px solid #232b36; border-radius: 10px;
-  padding: 16px 18px; }
-.card.warn-full { grid-column: 1 / -1; border-color: #f0b429; color: #ffd98a; }
-.ok { color: #46c46f; font-weight: 600; }
-.no { color: #e5534b; font-weight: 600; }
-.warn { color: #f0b429; font-weight: 600; }
-.hublink { color: #6cb6ff; text-decoration: none; font-size: 13px; }
+  gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 20px; }
+.card.hero {
+  border-color: var(--line-gold); background: var(--panel-grad);
+  box-shadow: var(--glow); position: relative; overflow: hidden;
+}
+.card.hero::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px;
+  background: linear-gradient(180deg, var(--accent2), var(--gold), transparent); }
+.card.warn-full { grid-column: 1 / -1; border-color: var(--fees-line, var(--warn-fill));
+  background: var(--fees-grad); color: var(--txt); display: flex; gap: 14px; align-items: flex-start; }
+.card.warn-full .warn-icon { color: var(--warn-fill); font-family: var(--mono); font-size: 17px; }
+.ok { color: var(--up); font-weight: 600; }
+.no { color: var(--down); font-weight: 600; }
+.warn { color: var(--warn-fill); font-weight: 600; }
+.hublink { color: var(--blue); text-decoration: none; font-size: 13px; }
 .hublink:hover { text-decoration: underline; }
 .btnrow { margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 """
@@ -60,7 +79,7 @@ def _diag_card(check_cache, truststore_ok):
         conn_line = f"<span class='no'>[ÉCHEC]</span> Connexion Kraken [{_esc(category)}]"
 
     return (
-        "<div class='card'><h2>Diagnostic</h2>"
+        "<div class='card'><h2><i></i>Diagnostic</h2>"
         f"<p>{conn_line}</p><p>{truststore_line}</p>"
         "<div class='btnrow'><a class='hublink' href='/check'>Lancer le diagnostic -&gt;</a></div>"
         "</div>"
@@ -84,7 +103,7 @@ def _paper_card(paper_view):
             f"<p>Equity {equity_txt}  (P&amp;L {pnl_txt})</p>"
         )
     return (
-        "<div class='card'><h2>Paper trading</h2>" + body +
+        "<div class='card hero'><h2><i></i>Paper trading</h2>" + body +
         "<div class='btnrow'><a class='hublink' href='/monitoring'>Voir le monitoring -&gt;</a></div>"
         "</div>"
     )
@@ -96,7 +115,7 @@ def _research_card():
     # /research/walkforward n'existe pas, Lot 6) -- etat vide honnete, jamais
     # de faux verdict fabrique.
     return (
-        "<div class='card'><h2>Recherche</h2>"
+        "<div class='card'><h2><i></i>Recherche</h2>"
         "<p class='muted'>Aucune analyse lancée.</p>"
         "<div class='btnrow'><a class='hublink' href='/research/backtest'>"
         "Nouvelle analyse -&gt;</a></div>"
@@ -107,7 +126,7 @@ def _research_card():
 def _settings_card(keys_ok):
     etat = "<span class='ok'>OUI</span>" if keys_ok else "<span class='no'>NON</span>"
     return (
-        "<div class='card'><h2>Réglages</h2>"
+        "<div class='card'><h2><i></i>Réglages</h2>"
         f"<p>Clés Kraken configurées : {etat}</p>"
         "<div class='btnrow'>"
         "<a class='hublink' href='/options'>Options</a>"
@@ -131,15 +150,21 @@ def render_home_page(paper_view, check_cache, keys_ok, truststore_ok) -> str:
     """
     body = (
         f"<style>{_CSS}</style>"
-        "<div class='head'><h1>Accueil</h1></div>"
+        "<div class='head'><div>"
+        "<div class='eyebrow'><i></i>Session locale &middot; poste de travail</div>"
+        "<h1>État du poste</h1>"
+        "<p class='lede'>Rien ne se lance tout seul. Cette page dit ce qui tourne, "
+        "ce qui est prêt, et ce qui manque.</p>"
+        "</div></div>"
         "<div class='hub'>"
         + _diag_card(check_cache, truststore_ok)
         + _paper_card(paper_view)
         + _research_card()
         + _settings_card(keys_ok)
-        + "<div class='card warn-full'>Avertissement : outil de recherche. "
+        + "<div class='card warn-full'><span class='warn-icon'>&#9888;</span>"
+          "<p>Avertissement : outil de recherche. "
           "Aucun gain promis. Le live engage de l'argent réel -- il est "
-          "verrouillé par défaut.</div>"
+          "verrouillé par défaut.</p></div>"
         + "</div>"
     )
     return page_shell("Accueil - InsertYourCoin", "home", body)

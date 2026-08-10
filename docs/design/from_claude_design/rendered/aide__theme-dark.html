@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - aide (dark)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--accent-ink:#d6aa5a;--on-accent:#1a140a;--accent-text:#f0b429;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(214,170,90,.35));--logo-ink:#f3ece0;--pill-fill:linear-gradient(120deg,#e08a3c,#d6aa5a);--warn-fill:#f0b429;--warn-big:#f0b429;--accent-fill:linear-gradient(120deg,#e08a3c,#d6aa5a);--warn:#f0b429;--on-danger:#ffffff;--glow:0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85);--accent2:#e08a3c;--accent2-soft:rgba(224,138,60,.14);--bg:#0e1116;--code:#0a0c10;--panel:#171c24;--panel-grad:linear-gradient(180deg,#1b212b,#171c24);--line:#232b36;--line-accent:rgba(224,138,60,.34);--txt:#d7dee8;--muted:#7f8c9c;--accent:#d6aa5a;--accent-bright:#f0b429;--accent-soft:rgba(214,170,90,.12);--up:#46c46f;--down:#e5534b;--down-soft:rgba(229,83,75,.10);--up-soft:rgba(70,196,111,.12);--blue:#6cb6ff;--nav-bg:rgba(11,13,17,.94);--fees-grad:linear-gradient(180deg,rgba(240,180,41,.13),#171c24);--fees-line:rgba(240,180,41,.38);--shadow:0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85);--track:rgba(255,255,255,.022);background:radial-gradient(68.75rem 35rem at 82% -12%, rgba(214,170,90,.07), transparent 60%),radial-gradient(51.25rem 28.75rem at -8% 112%, rgba(70,196,111,.045), transparent 60%),#0e1116;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:none"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:0 0 0 3px #d6aa5a33"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:none"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+      <section data-screen-label="Aide">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.65625rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Mode d'emploi</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Aide</h1>
+          <p style="margin:0.625rem 0 0;color:var(--muted,#7f8c9c);max-width:60ch;text-wrap:pretty">L'ordre de travail compte plus que les réglages. Sauter une étape, c'est se convaincre trop tôt.</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:0.875rem;margin-bottom:1.375rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">1</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Backtest</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Une idée, mesurée sur le passé. In-sample : jamais une preuve, seulement un filtre pour jeter ce qui ne marche pas du tout.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">2</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Walk-forward</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Le juge. Hors-échantillon, paramètres figés, holdout sacré. Sa réponse est le plus souvent non — c'est normal, et c'est utile.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--accent2,#e879f9);margin-bottom:0.75rem">3</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Paper</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Des semaines en argent fictif, en conditions réelles de latence et de frais. C'est long exprès.</p>
+          </article>
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.25rem">
+            <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.25rem;line-height:1;color:var(--muted,#7f8c9c);margin-bottom:0.75rem">4</div>
+            <h2 style="margin:0 0 0.5rem;font-size:1rem;font-weight:600;color:var(--txt,#d7dee8)">Live</h2>
+            <p style="margin:0;color:var(--muted,#7f8c9c)">Sous conditions, jamais par défaut, avec du capital qu'on peut perdre. Verrouillé tant que les trois étapes précédentes ne sont pas franchies.</p>
+          </article>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:0.875rem">
+          <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.75rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--txt,#d7dee8);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>SSL et antivirus</h2>
+            <p style="margin:0 0 0.75rem;color:var(--muted,#7f8c9c)">La panne la plus fréquente sur cette machine : l'antivirus intercepte le certificat de Kraken et la connexion est refusée. La marche à suivre est détaillée sur la page Diagnostic.</p>
+            <a href="#">Voir le diagnostic →</a>
+          </article>
+          <article style="background:var(--downSoft,rgba(229,83,75,.10));border:1px solid var(--down,#e5534b);border-radius:0.75rem;padding:1.125rem 1.25rem">
+            <h2 style="margin:0 0 0.75rem;display:flex;align-items:center;gap:0.5625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--down,#e5534b);font-weight:600"><i style="width:0.4375rem;height:0.4375rem;border-radius:2px;background:var(--down,#e5534b);flex:0 0 auto"></i>Risque</h2>
+            <p style="margin:0;color:var(--txt,#d7dee8);text-wrap:pretty">Le trading algorithmique perd de l'argent la plupart du temps. Cet outil sert à le constater honnêtement, pas à l'éviter. N'engage jamais un capital dont tu as besoin.</p>
+          </article>
+        </div>
+      </section>
+    
+
+  </main>
+</div>
+</body>
+</html>

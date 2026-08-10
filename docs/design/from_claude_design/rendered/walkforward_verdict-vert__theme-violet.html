@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - walkforward_verdict-vert (violet)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--bg:#0b0a14;--code:#08070f;--panel:#141223;--panel-grad:linear-gradient(180deg,#1a1734,#141223);--line:#2a2545;--line-accent:rgba(167,139,250,.34);--txt:#e7e4f6;--muted:#9a94b8;--accent:#a78bfa;--accent-bright:#c4b5fd;--accent-soft:rgba(167,139,250,.12);--accent-ink:#a78bfa;--on-accent:#12101f;--accent-text:#c4b5fd;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45));--logo-ink:#e7e4f6;--pill-fill:linear-gradient(120deg,#e879f9,#a78bfa);--warn-fill:#fbbf24;--warn-big:#fbbf24;--accent-fill:linear-gradient(120deg,#e879f9,#a78bfa);--warn:#fbbf24;--on-danger:#ffffff;--accent2:#e879f9;--accent2-soft:rgba(232,121,249,.14);--up:#34d399;--down:#f04438;--down-soft:rgba(240,68,56,.12);--up-soft:rgba(52,211,153,.12);--blue:#67e8f9;--nav-bg:rgba(9,8,18,.90);--fees-grad:linear-gradient(180deg,rgba(251,191,36,.13),#141223);--fees-line:rgba(251,191,36,.38);--shadow:0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.75);--glow:0 0 0 1px rgba(167,139,250,.18), 0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.8);--track:rgba(255,255,255,.03);background:radial-gradient(56.25rem 31.25rem at 80% -12%, rgba(167,139,250,.18), transparent 62%),radial-gradient(45rem 26.25rem at -6% 112%, rgba(52,211,153,.09), transparent 60%),#0b0a14;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:0 0 0 3px #a78bfa33"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:none"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:none"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+
+    
+
+    
+      <section data-screen-label="Walk-forward">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.375rem">
+          <div>
+            <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Recherche · validation hors-échantillon</div>
+            <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.125rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Walk-forward</h1>
+          </div>
+          <div style="display:flex;gap:0.375rem;align-items:center">
+            <span style="font-size:0.625rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-right:0.25rem">Studio · états</span>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Verdict rouge</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Ambre</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--accentInk,#a78bfa);background:var(--accentFill,#a78bfa);color:var(--onAccent,#12101f);font-weight:600;white-space:nowrap;font-family:inherit">Vert</button>
+            
+              <button type="button" style="cursor:pointer;min-height:2rem;padding:0 0.75rem;border-radius:0.5rem;font-size:0.7813rem;border:1px solid var(--line,#232b36);background:transparent;color:var(--txt,#d7dee8);font-weight:400;white-space:nowrap;font-family:inherit">Calcul en cours</button>
+            
+          </div>
+        </div>
+
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.625rem;border-bottom:1px solid var(--line,#232b36);padding-bottom:2px;flex-wrap:wrap">
+          
+            <span style="padding:0.5625rem 0.875rem;font-size:0.8438rem;color:var(--muted,#7f8c9c);border-bottom:2px solid transparent;margin-bottom:-2px">Backtest</span>
+          
+            <span style="padding:0.5625rem 0.875rem;font-size:0.8438rem;color:var(--muted,#7f8c9c);border-bottom:2px solid transparent;margin-bottom:-2px">Comparer</span>
+          
+            <span style="padding:0.5625rem 0.875rem;font-size:0.8438rem;color:var(--muted,#7f8c9c);border-bottom:2px solid transparent;margin-bottom:-2px">Optimiser</span>
+          
+            <span style="padding:0.5625rem 0.875rem;font-size:0.8438rem;color:var(--muted,#7f8c9c);border-bottom:2px solid transparent;margin-bottom:-2px">Portefeuille</span>
+          
+            <span style="padding:0.5625rem 0.875rem;font-size:0.8438rem;color:var(--accent,#a78bfa);border-bottom:2px solid var(--accent,#a78bfa);margin-bottom:-2px">Walk-forward</span>
+          
+        </div>
+
+        
+
+        
+          <div>
+            <section style="border:1px solid var(--up,#46c46f);background:var(--upSoft,rgba(70,196,111,.12));border-radius:1.125rem;padding:2.375rem 2.5rem;box-shadow:var(--glow,0 1.125rem 2.5rem -1.75rem rgba(0,0,0,.85));position:relative;overflow:hidden">
+              <div style="font-size:0.6875rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:1.125rem">Verdict hors-échantillon</div>
+              <div style="display:flex;align-items:flex-start;gap:1.5rem;flex-wrap:wrap">
+                <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:3.5rem;line-height:0.9;color:var(--up,#46c46f)">✓</span>
+                <div style="flex:1;min-width:17.5rem">
+                  <h2 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:4rem;line-height:1;font-weight:400;letter-spacing:-.015em;color:var(--up,#46c46f);text-wrap:balance">Edge plausible</h2>
+                  <p style="margin:1.125rem 0 0;font-size:1.0625rem;color:var(--txt,#d7dee8);max-width:60ch;text-wrap:pretty">Trois actifs sur quatre restent positifs hors-échantillon, avec des paramètres figés. Plausible ne veut pas dire prouvé : la suite est le paper trading, pas le live.</p>
+                  <div style="margin-top:1.125rem;display:flex;gap:0.625rem;flex-wrap:wrap;align-items:center">
+                    
+                      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:0.25rem 0.625rem;border-radius:62.4375rem;border:1px solid var(--up,#46c46f);color:var(--up,#46c46f);background:var(--upSoft,rgba(70,196,111,.12))">ETH</span>
+                    
+                      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:0.25rem 0.625rem;border-radius:62.4375rem;border:1px solid var(--up,#46c46f);color:var(--up,#46c46f);background:var(--upSoft,rgba(70,196,111,.12))">BTC</span>
+                    
+                      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:0.25rem 0.625rem;border-radius:62.4375rem;border:1px solid var(--up,#46c46f);color:var(--up,#46c46f);background:var(--upSoft,rgba(70,196,111,.12))">SOL</span>
+                    
+                      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7188rem;padding:0.25rem 0.625rem;border-radius:62.4375rem;border:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c);background:transparent">ADA</span>
+                    
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--muted,#7f8c9c);margin-left:0.375rem">3 / 4 actifs OOS positifs · holdout non consommé</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(16.25rem,1fr));gap:0.875rem;margin:1rem 0 1.625rem">
+              <article style="background:var(--panel,#171c24);border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Holdout sacré</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--accent,#a78bfa)">NON consommé</div>
+                <div style="margin:0.75rem 0 0.5rem;display:flex;height:0.5rem;border-radius:0.3125rem;overflow:hidden;border:1px solid var(--line,#232b36)">
+                  <i style="flex:4;background:var(--line,#232b36)"></i>
+                  <i style="flex:1;background:var(--accentFill,linear-gradient(135deg,#c4b5fd,#a78bfa))"></i>
+                </div>
+                <p style="margin:0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">20 % des données les plus récentes, jamais touchées. Une seule utilisation possible, en toute fin.</p>
+              </article>
+              <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Paramètres</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--txt,#d7dee8)">FIGÉS · fast=50, slow=200</div>
+                <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Aucune recherche de paramètres : impossible de fabriquer un bon résultat par tâtonnement.</p>
+              </article>
+              <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1rem 1.125rem">
+                <div style="font-size:0.6563rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.5rem">Découpage</div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.0625rem;color:var(--txt,#d7dee8)">4 fenêtres · train-frac 0.5</div>
+                <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Métrique de sélection : sharpe. Source : Binance. Timeframe 1d, 720 jours.</p>
+              </article>
+            </div>
+
+            <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Par actif <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+            <div style="display:grid;gap:0.875rem;margin-bottom:1.875rem">
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:1.125rem;flex-wrap:wrap;padding:1rem 1.25rem;border-bottom:1px solid var(--line,#232b36)">
+                    <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;color:var(--txt,#d7dee8)">ETH/USD</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.9375rem;color:var(--down,#e5534b)">OOS cumulé −7.4 %</span>
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:1.375rem">
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.666rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.309rem;background:var(--up,#46c46f)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.520rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.325rem;background:var(--down,#e5534b)"></i>
+                      
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">25 % de fenêtres profitables · PSR 0.11 · DSR 0.02</span>
+                  </div>
+                  
+                    <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                      <thead>
+                        <tr>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Fenêtre OOS</th>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Paramètres retenus</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Sharpe</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Rendement</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">DD max</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-02 → 2025-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.42</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−4.10 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−12.8 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-08 → 2026-02</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">0.18</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--up,#46c46f)">+1.90 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−9.4 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-02 → 2026-05</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.61</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−3.20 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−14.1 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-05 → 2026-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.28</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−2.00 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−10.2 %</td>
+                          </tr>
+                        
+                      </tbody>
+                    </table>
+                  
+                  
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:1.125rem;flex-wrap:wrap;padding:1rem 1.25rem;border-bottom:1px solid var(--line,#232b36)">
+                    <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;color:var(--txt,#d7dee8)">BTC/USD</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.9375rem;color:var(--down,#e5534b)">OOS cumulé −3.1 %</span>
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:1.375rem">
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.390rem;background:var(--up,#46c46f)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.293rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.341rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.260rem;background:var(--down,#e5534b)"></i>
+                      
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">25 % de fenêtres profitables · PSR 0.19 · DSR 0.04</span>
+                  </div>
+                  
+                    <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                      <thead>
+                        <tr>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Fenêtre OOS</th>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Paramètres retenus</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Sharpe</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Rendement</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">DD max</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-02 → 2025-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">0.31</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--up,#46c46f)">+2.40 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−7.7 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-08 → 2026-02</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.22</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−1.80 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−8.9 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-02 → 2026-05</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.35</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−2.10 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−11.0 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-05 → 2026-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.19</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−1.60 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−6.4 %</td>
+                          </tr>
+                        
+                      </tbody>
+                    </table>
+                  
+                  
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:1.125rem;flex-wrap:wrap;padding:1rem 1.25rem;border-bottom:1px solid var(--line,#232b36)">
+                    <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;color:var(--txt,#d7dee8)">SOL/USD</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.9375rem;color:var(--down,#e5534b)">OOS cumulé −18.9 %</span>
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:1.375rem">
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:1.186rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.666rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.845rem;background:var(--down,#e5534b)"></i>
+                      
+                        <i style="display:block;width:0.4375rem;border-radius:2px;height:0.374rem;background:var(--down,#e5534b)"></i>
+                      
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">0 % de fenêtres profitables · PSR 0.03 · DSR 0.00</span>
+                  </div>
+                  
+                    <table style="width:100%;border-collapse:collapse;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem">
+                      <thead>
+                        <tr>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Fenêtre OOS</th>
+                          <th style="text-align:left;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Paramètres retenus</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Sharpe</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">Rendement</th>
+                          <th style="text-align:right;padding:0.5625rem 1.25rem;color:var(--muted,#7f8c9c);font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600">DD max</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-02 → 2025-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.88</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−7.30 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−22.4 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2025-08 → 2026-02</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.51</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−4.10 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−18.0 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-02 → 2026-05</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.74</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−5.20 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−19.7 %</td>
+                          </tr>
+                        
+                          <tr>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--muted,#7f8c9c)">2026-05 → 2026-08</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);color:var(--txt,#d7dee8)">fast=50, slow=200</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">−0.40</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−2.30 %</td>
+                            <td style="padding:0.5625rem 1.25rem;border-top:1px solid var(--line,#232b36);text-align:right;font-variant-numeric:tabular-nums;color:var(--down,#e5534b)">−13.6 %</td>
+                          </tr>
+                        
+                      </tbody>
+                    </table>
+                  
+                  
+                </article>
+              
+                <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.75rem;overflow:hidden">
+                  <div style="display:flex;align-items:center;gap:1.125rem;flex-wrap:wrap;padding:1rem 1.25rem;border-bottom:1px solid var(--line,#232b36)">
+                    <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.375rem;color:var(--txt,#d7dee8)">ADA/USD</span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.9375rem;color:var(--muted,#7f8c9c)">non chargé</span>
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:1.375rem">
+                      
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">données indisponibles sur Binance</span>
+                  </div>
+                  
+                  
+                    <p style="margin:0;padding:1rem 1.25rem;color:var(--muted,#7f8c9c)">Actif non chargé — données indisponibles sur la source choisie. Il est exclu du décompte du verdict.</p>
+                  
+                </article>
+              
+            </div>
+          </div>
+        
+
+        <h2 style="margin:0 0 0.875rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)">Relancer une validation <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <form style="display:grid;gap:0.875rem">
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa)">Quoi tester</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">La stratégie et les marchés sur lesquels on la juge. Plusieurs actifs valent mieux qu'un : un edge qui n'existe que sur un seul actif est le plus souvent un hasard.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="strategie" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Stratégie</label>
+                    <input id="strategie" name="strategie" defaultValue="Croisement de moyennes" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty"></span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="symboles" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Symboles</label>
+                    <input id="symboles" name="symboles" defaultValue="ETH/USD, BTC/USD, SOL/USD, ADA/USD" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">séparés par des virgules</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="timeframe" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Timeframe</label>
+                    <input id="timeframe" name="timeframe" defaultValue="1d" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">plus la bougie est courte, plus les frais pèsent</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="jours" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Jours d'historique</label>
+                    <input id="jours" name="jours" defaultValue="720" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty"></span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="source" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Source de données</label>
+                    <input id="source" name="source" defaultValue="Binance" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">Binance recommandé : historique plus profond que Kraken</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa)">Comment découper</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Chaque fenêtre se règle sur son début, puis se teste sur sa fin — la partie que la stratégie n'a jamais vue.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="fenetres" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Nombre de fenêtres</label>
+                    <input id="fenetres" name="fenetres" defaultValue="4" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty"></span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="trainfrac" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Train-frac</label>
+                    <input id="trainfrac" name="trainfrac" defaultValue="0.5" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">part de chaque fenêtre utilisée pour régler avant de tester. 0.5 = moitié réglage, moitié test.</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="metrique" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Métrique de sélection</label>
+                    <input id="metrique" name="metrique" defaultValue="sharpe" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">sharpe · sortino · calmar · total_return · profit_factor</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="params" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Paramètres FIGÉS</label>
+                    <input id="params" name="params" defaultValue="fast=50,slow=200" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">on impose les réglages au lieu de les chercher : cela empêche de fabriquer un bon résultat par tâtonnement. Recommandé.</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+            <fieldset style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--accentSoft,rgba(167,139,250,.12))">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa)">Le segment sacré</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Une portion récente des données est mise de côté et n'est jamais touchée par les fenêtres. Elle ne sert qu'UNE fois, en toute fin, pour trancher.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="holdout" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Holdout sacré (%)</label>
+                    <input id="holdout" name="holdout" defaultValue="20" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">20 % des données les plus récentes, réservées. Le mettre à 0 revient à renoncer à la seule garantie anti-data-mining.</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+            <fieldset style="border:1px solid var(--line,#232b36);border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem;background:var(--panel,#171c24)">
+              <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa)">Le risque</legend>
+              <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Appliqué identiquement à toutes les fenêtres.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(13.75rem,1fr));gap:0.875rem">
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="stop" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Stop (%)</label>
+                    <input id="stop" name="stop" defaultValue="5" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">perte maximale acceptée sur une position avant sortie</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="objectif" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Objectif (%)</label>
+                    <input id="objectif" name="objectif" defaultValue="20" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">sortie automatique au gain visé</span>
+                  </div>
+                
+                  <div style="display:flex;flex-direction:column;gap:0.375rem">
+                    <label for="trailing" style="font-size:0.7813rem;color:var(--txt,#d7dee8)">Trailing (%)</label>
+                    <input id="trailing" name="trailing" defaultValue="8" style="min-height:2.5rem;background:var(--code,#0a0c10);border:1px solid var(--line,#232b36);border-radius:0.5rem;color:var(--txt,#d7dee8);padding:0 0.75rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem" />
+                    <span style="font-size:0.75rem;color:var(--muted,#7f8c9c);text-wrap:pretty">suit le plus haut atteint et sort au repli</span>
+                  </div>
+                
+              </div>
+            </fieldset>
+          
+
+          <fieldset style="border:1px solid var(--down,#e5534b);background:var(--downSoft,rgba(229,83,75,.08));border-radius:0.75rem;padding:1.125rem 1.25rem 1.25rem">
+            <legend style="padding:0 0.625rem;font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--down,#e5534b)">Validation finale</legend>
+            <div style="display:flex;gap:0.75rem;align-items:flex-start">
+              <input id="wf-final" name="final" type="checkbox" style="width:1.25rem;height:1.25rem;margin-top:2px;accent-color:var(--down,#e5534b)" />
+              <label for="wf-final" style="max-width:70ch">
+                <span style="font-weight:700;color:var(--down,#e5534b)">VALIDATION FINALE — 1 seule fois par stratégie.</span>
+                <span style="display:block;margin-top:0.375rem;color:var(--txt,#d7dee8)">Consomme le holdout sacré. Une fois consommé, plus aucune donnée n'est vierge pour cette stratégie : tout résultat ultérieur est contaminé. À ne cocher que lorsque tout le reste est déjà décidé.</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <button type="button" style="min-height:2.75rem;padding:0 1.625rem;border-radius:0.625rem;border:none;background:var(--accentFill,linear-gradient(135deg,#c4b5fd,#a78bfa));color:var(--onAccent,#1a140a);font-weight:600;font-size:0.875rem;cursor:pointer;box-shadow:0 0.625rem 1.5rem -0.875rem rgba(240,180,41,.7)">Lancer le walk-forward</button>
+            <span style="color:var(--muted,#7f8c9c);font-size:0.7813rem">Calcul long — plusieurs minutes. La page reste ouverte.</span>
+          </div>
+        </form>
+
+        <details style="margin-top:1.5rem;border:1px solid var(--line,#232b36);border-radius:0.75rem;background:var(--panel,#171c24);padding:0.875rem 1.125rem">
+          <summary style="cursor:pointer;font-size:0.875rem;color:var(--txt,#d7dee8)">Pourquoi le walk-forward est le juge</summary>
+          <p style="margin:0.75rem 0 0;color:var(--txt,#d7dee8);max-width:78ch;text-wrap:pretty">Un backtest est réglé sur les données qu'il traverse : il sait déjà ce qui s'est passé. Le walk-forward règle la stratégie sur une fenêtre, puis la teste sur la fenêtre suivante qu'il n'a jamais vue, et recommence. Ce qui reste après ce traitement est la seule chose qui ressemble à un edge — et le plus souvent, il ne reste rien.</p>
+        </details>
+      </section>
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+  </main>
+</div>
+</body>
+</html>

@@ -106,6 +106,44 @@ def test_page_shell_ssl_indicator_reflects_config(monkeypatch):
     assert "SSL VÉRIF. DÉSACTIVÉE" in out_off
 
 
+# --------------------------------------------------------------------------- #
+#  Switch de theme (reskin design Claude Design -- Nuit/Ambre/Clair)          #
+# --------------------------------------------------------------------------- #
+def test_page_shell_default_theme_is_dark_ambre(tmp_path, monkeypatch):
+    # Pas d'options.json -> defaut "dark" (Ambre), continuite du theme historique.
+    monkeypatch.setattr(webui._options, "OPTIONS_PATH", lambda: tmp_path / "nope.json")
+    out = webui.page_shell("T", "options", "<p>x</p>")
+    assert "data-theme='dark'" in out
+
+
+def test_page_shell_reflects_persisted_theme(tmp_path, monkeypatch):
+    monkeypatch.setattr(webui._options, "OPTIONS_PATH", lambda: tmp_path / "options.json")
+    webui._options.write_options({"log_level": "moyen", "theme": "violet"}, tmp_path / "options.json")
+    out = webui.page_shell("T", "options", "<p>x</p>")
+    assert "data-theme='violet'" in out
+
+
+def test_page_shell_theme_switch_has_3_forms_to_slash_theme(tmp_path, monkeypatch):
+    monkeypatch.setattr(webui._options, "OPTIONS_PATH", lambda: tmp_path / "nope.json")
+    out = webui.page_shell("T", "options", "<p>x</p>", csrf="tok-abc")
+    assert out.count("action='/theme'") == 3
+    for theme_id in ("violet", "dark", "light"):
+        assert f"name='theme' value='{theme_id}'" in out
+    assert out.count("name='csrf_token' value='tok-abc'") == 3
+    # Le theme actif (defaut "dark") porte la classe active, pas les deux autres.
+    assert "class='theme-btn active'>" in out
+    assert out.count("class='theme-btn active'>") == 1
+
+
+def test_page_shell_theme_switch_falls_back_to_runtime_csrf_token(tmp_path, monkeypatch):
+    # page_shell() sans `csrf` explicite -> repli sur config._RUNTIME_CSRF_TOKEN
+    # (pose par trading.monitor.build_monitor_server au demarrage du serveur reel).
+    monkeypatch.setattr(webui._options, "OPTIONS_PATH", lambda: tmp_path / "nope.json")
+    monkeypatch.setattr(webui.config, "_RUNTIME_CSRF_TOKEN", "server-wide-tok", raising=False)
+    out = webui.page_shell("T", "options", "<p>x</p>")
+    assert out.count("name='csrf_token' value='server-wide-tok'") == 3
+
+
 def test_page_shell_escapes_title():
     out = webui.page_shell("<script>alert(1)</script>", "options", "<p>x</p>")
     assert "<script>alert(1)</script>" not in out

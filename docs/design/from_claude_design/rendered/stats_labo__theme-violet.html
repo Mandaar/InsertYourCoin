@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InsertYourCoin - stats_labo (violet)</title>
+<style>
+  body { margin:0; background:#0b0a14; }
+  a { color:var(--blue,#6cb6ff); text-decoration:none; }
+  a:hover { color:var(--accentBright,#c4b5fd); }
+  *:focus-visible { outline:2px solid var(--accentBright,#c4b5fd); outline-offset:2px; }
+  @keyframes iyc-pulse { 0%{ r:4; opacity:.55 } 70%{ r:13; opacity:0 } 100%{ r:13; opacity:0 } }
+  @keyframes iyc-draw { from { stroke-dashoffset:1600 } to { stroke-dashoffset:0 } }
+</style>
+</head>
+<body>
+<div style="--bg:#0b0a14;--code:#08070f;--panel:#141223;--panel-grad:linear-gradient(180deg,#1a1734,#141223);--line:#2a2545;--line-accent:rgba(167,139,250,.34);--txt:#e7e4f6;--muted:#9a94b8;--accent:#a78bfa;--accent-bright:#c4b5fd;--accent-soft:rgba(167,139,250,.12);--accent-ink:#a78bfa;--on-accent:#12101f;--accent-text:#c4b5fd;--logo-glow:drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45));--logo-ink:#e7e4f6;--pill-fill:linear-gradient(120deg,#e879f9,#a78bfa);--warn-fill:#fbbf24;--warn-big:#fbbf24;--accent-fill:linear-gradient(120deg,#e879f9,#a78bfa);--warn:#fbbf24;--on-danger:#ffffff;--accent2:#e879f9;--accent2-soft:rgba(232,121,249,.14);--up:#34d399;--down:#f04438;--down-soft:rgba(240,68,56,.12);--up-soft:rgba(52,211,153,.12);--blue:#67e8f9;--nav-bg:rgba(9,8,18,.90);--fees-grad:linear-gradient(180deg,rgba(251,191,36,.13),#141223);--fees-line:rgba(251,191,36,.38);--shadow:0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.75);--glow:0 0 0 1px rgba(167,139,250,.18), 0 1.5rem 3.75rem -2.125rem rgba(124,58,237,.8);--track:rgba(255,255,255,.03);background:radial-gradient(56.25rem 31.25rem at 80% -12%, rgba(167,139,250,.18), transparent 62%),radial-gradient(45rem 26.25rem at -6% 112%, rgba(52,211,153,.09), transparent 60%),#0b0a14;min-height:100vh;color:var(--txt);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:0.875rem;line-height:1.5">
+
+  <nav style="position:sticky;top:0;z-index:20;min-height:3.5rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.625rem 1.125rem;padding:0.5rem 1.375rem;background:var(--navBg,rgba(11,13,17,.94));border-bottom:1px solid var(--line,#232b36);backdrop-filter:blur(0.5rem)">
+    <a href="#" style="display:flex;align-items:center;gap:0.6875rem;text-decoration:none;flex:0 0 auto">
+      <svg viewBox="0 0 48 48" style="width:2.625rem;height:2.625rem;display:block;filter:var(--logoGlow,drop-shadow(0 0.375rem 0.875rem rgba(167,139,250,.45)))">
+        <defs>
+          <linearGradient id="logoG" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="42" y2="42">
+            <stop offset="0%" style="stop-color:var(--accent2,#e879f9)"></stop>
+            <stop offset="100%" style="stop-color:var(--accent,#a78bfa)"></stop>
+          </linearGradient>
+        </defs>
+        <circle cx="24" cy="24" r="22" fill="url(#logoG)" opacity=".10"></circle>
+        <circle cx="24" cy="24" r="22" fill="none" stroke="url(#logoG)" stroke-width="2.6"></circle>
+        <circle cx="24" cy="24" r="17.6" fill="none" stroke="url(#logoG)" stroke-width="1" opacity=".45"></circle>
+        <clipPath id="logoClip"><circle cx="24" cy="24" r="17.6"></circle></clipPath>
+        <g clip-path="url(#logoClip)">
+          <path d="M0,0 L24,24 L48,0" fill="none" stroke="url(#logoG)" stroke-width="8" stroke-linejoin="miter"></path>
+          <path d="M24,22 L24,48" fill="none" stroke="url(#logoG)" stroke-width="8"></path>
+          <rect x="12.4" y="25.9" width="2.2" height="8.4" rx="1.1" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="25.9" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <rect x="10.6" y="32.5" width="5.8" height="1.8" rx=".9" fill="var(--logoInk,#333333)"></rect>
+          <path d="M37.71,27.94 A3.05,3.05 0 1 0 37.71,32.26" fill="none" stroke="var(--logoInk,#333333)" stroke-width="1.8" stroke-linecap="round"></path>
+        </g>
+      </svg>
+      <span style="display:flex;flex-direction:column;line-height:1.05">
+        <span style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.1875rem;letter-spacing:-.01em;white-space:nowrap;color:var(--txt,#d7dee8)">Insert<span style="color:var(--accent2,#e879f9)">Your</span>Coin</span>
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.5313rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-top:3px">Recherche · Kraken</span>
+      </span>
+    </a>
+    <div style="display:flex;align-items:center;gap:1px;flex:1 1 37.5rem;flex-wrap:wrap">
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Accueil</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Diagnostic</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Paper</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Monitoring</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));color:var(--accentText,#c4b5fd);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent2,#e879f9);font-family:inherit;white-space:nowrap">Stats</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Options</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Aide</button>
+      
+        <button type="button" style="cursor:pointer;height:2.125rem;padding:0 0.6875rem;border-radius:0.5rem;font-size:0.8125rem;border:1px solid transparent;background:transparent;color:var(--txt,#d7dee8);font-weight:400;box-shadow:none;font-family:inherit;white-space:nowrap">Recherche</button>
+      
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex:0 0 auto;margin-left:auto">
+      <label for="nav-search" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Rechercher</label>
+      <span style="display:flex;align-items:center;gap:0.5rem;border:1px solid var(--line,#232b36);border-radius:62.4375rem;padding:0 0.75rem;height:2rem;background:var(--code,#0a0c10)">
+        <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.75rem;color:var(--muted,#7f8c9c)">⌕</span>
+        <input id="nav-search" name="q" type="search" placeholder="Écran, actif, stratégie…" style="border:none;background:transparent;color:var(--txt,#d7dee8);font-family:inherit;font-size:0.7813rem;width:10.625rem;outline:none" />
+      </span>
+      <span style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.625rem;letter-spacing:.12em;font-weight:600;color:var(--onAccent,#12101f);background:var(--pillFill,linear-gradient(100deg,#e879f9,#fbbf24));border-radius:62.4375rem;padding:0.375rem 0.8125rem;white-space:nowrap">LOCAL · ARGENT FICTIF</span>
+      <span style="display:inline-flex;border:1px solid var(--line,#232b36);border-radius:62.4375rem;overflow:hidden">
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:var(--accentFill,#a78bfa);font-weight:600;color:var(--onAccent,#12101f)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#a78bfa;display:inline-block;box-shadow:0 0 0 3px #a78bfa33"></i>Nuit</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#d6aa5a;display:inline-block;box-shadow:none"></i>Ambre</button>
+        
+          <button type="button" style="cursor:pointer;border:none;padding:0.375rem 0.6875rem;font-size:0.7188rem;font-family:inherit;display:inline-flex;align-items:center;gap:0.375rem;background:transparent;font-weight:400;color:var(--txt,#d7dee8)"><i style="width:0.5rem;height:0.5rem;border-radius:62.4375rem;background:#0f766e;display:inline-block;box-shadow:none"></i>Clair</button>
+        
+      </span>
+    </div>
+  </nav>
+
+  <main style="max-width:72.5rem;margin:0 auto;padding:1.875rem 1.25rem 5rem">
+
+    
+
+    
+
+    
+
+    
+      <section data-screen-label="Stats">
+        <div style="margin-bottom:1.375rem">
+          <div style="display:flex;align-items:center;gap:0.625rem;font-size:0.6563rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--accentText,#c4b5fd);margin-bottom:0.875rem"><i style="width:1.5rem;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent2,#e879f9),var(--accent,#a78bfa));flex:0 0 auto"></i>Statistiques descriptives</div>
+          <h1 style="margin:0;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:2.625rem;font-weight:400;line-height:1.1;color:var(--txt,#d7dee8)">Labo de stats</h1>
+          <p style="margin:0.625rem 0 0;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.7813rem;color:var(--muted,#7f8c9c)">paper_eth_1h.csv · période 2026-07-01 08:12:00 → 2026-08-09 14:03:12 · 947 cycles</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15.625rem,1fr));gap:0.875rem;margin-bottom:0.875rem">
+          <article style="background:var(--feesGrad,linear-gradient(180deg,rgba(240,180,41,.12),#171c24));border:1px solid var(--feesLine,rgba(240,180,41,.36));border-radius:0.875rem;padding:1.375rem 1.5rem;position:relative;overflow:hidden">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--warnBig,#f0b429);margin-bottom:0.625rem;font-weight:700">Frais · part du |pnl| + frais</div>
+            <div style="display:flex;align-items:center;gap:1.125rem">
+              <div>
+                <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--warnBig,#f0b429);font-variant-numeric:tabular-nums">~45 %</div>
+                <div style="margin-top:0.625rem;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.8125rem;color:var(--txt,#d7dee8)">974.77 $ payés en frais</div>
+              </div>
+              <svg viewBox="0 0 84 84" style="width:4.875rem;height:4.875rem;flex:0 0 auto;margin-left:auto">
+                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--line,#232b36)" stroke-width="10"></circle>
+                <circle cx="42" cy="42" r="34" fill="none" stroke="var(--warnFill,#f0b429)" stroke-width="10" stroke-linecap="round" stroke-dasharray="96.1 213.6" transform="rotate(-90 42 42)"></circle>
+              </svg>
+            </div>
+            <p style="margin:0.75rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Près de la moitié de l'amplitude du résultat part en frais. C'est le premier obstacle, avant toute question de stratégie.</p>
+          </article>
+          <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Drawdown max</div>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--down,#e5534b);font-variant-numeric:tabular-nums">−3.10 %</div>
+            <div style="margin:0.875rem 0 0;height:0.375rem;border-radius:0.25rem;background:var(--line,#232b36);overflow:hidden">
+              <i style="display:block;width:31%;height:100%;background:linear-gradient(90deg,var(--down,#e5534b),rgba(229,83,75,.45))"></i>
+            </div>
+            <p style="margin:0.625rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Pire recul depuis un sommet d'equity, le 2026-07-23.</p>
+          </article>
+          <article style="background:var(--panelGrad,linear-gradient(180deg,#1b212b,#171c24));border:1px solid var(--lineAccent,rgba(167,139,250,.34));border-radius:0.875rem;padding:1.375rem 1.5rem">
+            <div style="font-size:0.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.625rem">Rendement</div>
+            <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:2.375rem;line-height:1;color:var(--up,#46c46f);font-variant-numeric:tabular-nums">+0.42 %</div>
+            <div style="margin:0.875rem 0 0;height:0.375rem;border-radius:0.25rem;background:var(--line,#232b36);overflow:hidden">
+              <i style="display:block;width:8%;height:100%;background:linear-gradient(90deg,var(--up,#46c46f),rgba(70,196,111,.45))"></i>
+            </div>
+            <p style="margin:0.625rem 0 0;font-size:0.7813rem;color:var(--muted,#7f8c9c)">Sur 39 jours, 18 trades. Trop peu pour conclure quoi que ce soit.</p>
+          </article>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(9.375rem,1fr));gap:0.625rem;margin-bottom:1.625rem">
+          
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Cycles</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">947</div>
+            </article>
+          
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Trades</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">18 · 9A / 9V</div>
+            </article>
+          
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Réussite</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">44 %</div>
+            </article>
+          
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">PnL total</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">+42.31</div>
+            </article>
+          
+            <article style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.625rem;padding:0.75rem 0.875rem">
+              <div style="font-size:0.6563rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted,#7f8c9c);margin-bottom:0.375rem">Exposition moy.</div>
+              <div style="font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:1.1875rem;font-variant-numeric:tabular-nums;color:var(--txt,#d7dee8)">37 %</div>
+            </article>
+          
+        </div>
+
+        <h2 style="margin:0 0 0.375rem;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;font-size:1.3125rem;font-weight:400;display:flex;align-items:center;gap:0.875rem;color:var(--txt,#d7dee8)"><i style="width:0.625rem;height:0.625rem;border-radius:3px;background:var(--accentFill,linear-gradient(120deg,#e879f9,#a78bfa));flex:0 0 auto"></i>Résultat par heure <i style="flex:1;height:1px;background:var(--line,#232b36)"></i></h2>
+        <p style="margin:0 0 1rem;color:var(--muted,#7f8c9c);max-width:70ch">Le nombre de cycles par heure est constant — un bot passe partout. Ce qui varie, c'est le résultat net des trades. Les créneaux sans trade sont marqués d'un tiret.</p>
+        <div style="background:var(--panel,#171c24);border:1px solid var(--line,#232b36);border-radius:0.875rem;padding:1.375rem 1.375rem 1rem;margin-bottom:1.625rem">
+          <div style="margin-left:3.5rem">
+            <div style="position:relative">
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:0;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">+15 $</div>
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:50%;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">0</div>
+              <div style="position:absolute;right:100%;margin-right:0.625rem;top:100%;transform:translateY(-50%);white-space:nowrap;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">−15 $</div>
+              <svg viewBox="14 15 700 120" preserveAspectRatio="none" style="width:100%;height:11.875rem;display:block">
+                <defs>
+                  <linearGradient id="barUp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:var(--up,#46c46f);stop-opacity:1"></stop>
+                    <stop offset="100%" style="stop-color:var(--up,#46c46f);stop-opacity:.35"></stop>
+                  </linearGradient>
+                  <linearGradient id="barDown" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" style="stop-color:var(--down,#e5534b);stop-opacity:.35"></stop>
+                    <stop offset="100%" style="stop-color:var(--down,#e5534b);stop-opacity:1"></stop>
+                  </linearGradient>
+                </defs>
+                <line x1="14" y1="15" x2="714" y2="15" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="45" x2="714" y2="45" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="105" x2="714" y2="105" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                <line x1="14" y1="135" x2="714" y2="135" stroke="var(--line,#232b36)" stroke-width="1" stroke-dasharray="2 6" vector-effect="non-scaling-stroke"></line>
+                
+                  <rect x="15.0" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="44.2" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="73.3" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="102.5" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="131.7" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="160.8" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="190.0" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="219.2" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="248.3" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="277.5" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="306.7" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="335.8" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="365.0" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="394.2" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="423.3" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="452.5" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="481.7" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="510.8" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="540.0" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="569.2" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="598.3" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="627.5" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="656.7" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                  <rect x="685.8" y="16" width="27.2" height="118" fill="var(--track,rgba(255,255,255,.02))"></rect>
+                
+                <line x1="14" y1="75" x2="714" y2="75" stroke="var(--muted,#7f8c9c)" stroke-width="1" opacity=".7" vector-effect="non-scaling-stroke"></line>
+                
+                  <rect x="23.6" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="52.8" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="78.9" y="75.0" width="16" height="16.8" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="111.1" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="140.3" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="166.4" y="62.6" width="16" height="12.4" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="195.6" y="41.4" width="16" height="33.6" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="224.8" y="24.2" width="16" height="50.8" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="253.9" y="75.0" width="16" height="24.4" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="283.1" y="57.4" width="16" height="17.6" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="315.3" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="341.4" y="75.0" width="16" height="47.2" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="370.6" y="66.2" width="16" height="8.8" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="402.8" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="428.9" y="47.4" width="16" height="27.6" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="458.1" y="75.0" width="16" height="13.6" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="487.3" y="18.6" width="16" height="56.4" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="516.4" y="75.0" width="16" height="35.2" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="545.6" y="54.2" width="16" height="20.8" fill="url(#barUp)" rx="1.5"></rect>
+                
+                  <rect x="577.8" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="606.9" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="633.1" y="75.0" width="16" height="8.4" fill="url(#barDown)" rx="1.5"></rect>
+                
+                  <rect x="665.3" y="75.0" width="10" height="3.0" fill="var(--muted,#7f8c9c)" rx="1.5"></rect>
+                
+                  <rect x="691.4" y="69.4" width="16" height="5.6" fill="url(#barUp)" rx="1.5"></rect>
+                
+              </svg>
+            </div>
+            <div style="display:flex;margin-top:0.5rem">
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">00</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">01</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">02</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">03</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">04</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">05</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">06</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">07</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">08</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">09</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">10</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">11</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">12</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">13</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">14</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">15</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">16</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">17</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">18</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">19</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">20</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">21</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">22</div>
+              
+                <div style="flex:1;text-align:center;font-family:ui-monospace,'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:0.6563rem;color:var(--muted,#7f8c9c)">23</div>
+              
+            </div>
+          </div>
+          <div style="display:flex;gap:1.25rem;margin-top:1rem;padding-top:0.875rem;border-top:1px solid var(--line,#232b36);font-size:0.75rem;color:var(--muted,#7f8c9c);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:0.6875rem;background:var(--up,#46c46f);border-radius:2px;display:inline-block"></i>P&amp;L net positif</span>
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:0.6875rem;background:var(--down,#e5534b);border-radius:2px;display:inline-block"></i>P&amp;L net négatif</span>
+            <span style="display:flex;align-items:center;gap:0.4375rem"><i style="width:0.6875rem;height:3px;background:var(--muted,#7f8c9c);border-radius:2px;display:inline-block"></i>aucun trade — 9 h sur 24, la prudence s'impose</span>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--lineAccent,rgba(167,139,250,.34));background:var(--accentSoft,rgba(167,139,250,.12));border-radius:0.75rem;padding:1.25rem 1.5rem">
+          <div style="font-size:0.6875rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent,#a78bfa);margin-bottom:0.75rem">Honnêteté</div>
+          <div style="display:grid;gap:0.625rem;max-width:80ch">
+            <p style="margin:0;color:var(--txt,#d7dee8)">Ces statistiques sont DESCRIPTIVES : elles décrivent ce qui s'est passé, elles ne prouvent rien sur l'avenir.</p>
+            <p style="margin:0;color:var(--txt,#d7dee8)">Les frais (0.26 % par ordre) pèsent lourd sur les petites unités de temps : plus on trade souvent, plus il faut d'edge pour simplement rentrer dans ses frais.</p>
+            <p style="margin:0;color:var(--txt,#d7dee8)">Un faible nombre de trades rend tout ratio instable. En dessous de 30 trades, ne conclus rien.</p>
+          </div>
+        </div>
+      </section>
+    
+
+    
+
+    
+
+    
+
+    
+
+  </main>
+</div>
+</body>
+</html>
