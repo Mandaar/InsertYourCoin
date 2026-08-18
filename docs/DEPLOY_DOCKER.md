@@ -417,6 +417,9 @@ présent sur `monitor` dans `docker-compose.yml`/`docker-compose.eunivers.yml`,
 
 ## 9. Mettre à jour
 
+> ⚠️ **Mode dédié uniquement.** Derrière un reverse-proxy existant (SWAG, `iyc.eunivers.net`),
+> cette commande **fait tomber le site** : voir le §9 bis juste en dessous.
+
 ```bash
 git pull
 docker compose --env-file .env.deploy up -d --build
@@ -426,6 +429,62 @@ Rebuild l'image, recrée `paper` et `monitor` avec le nouveau code (le volume `i
 n'est jamais touché — les données survivent). `proxy` n'a pas besoin de rebuild
 (image officielle Caddy, sauf si tu modifies `Caddyfile`, auquel cas `docker compose
 --env-file .env.deploy up -d proxy` suffit).
+
+### 9 bis. Mettre à jour en mode reverse-proxy existant (SWAG) — le `-f` n'est pas optionnel
+
+> ⚠️ **Footgun mesuré (2026-08-18).** La commande du §9 est celle du **mode dédié**. Lancée
+> telle quelle dans `/home/iyc/insertyourcoin`, elle lit `docker-compose.yml` — or le **nom de
+> projet Compose est déduit du répertoire** (`insertyourcoin`), le même que celui de la stack
+> eunivers en cours. Compose considère donc `iyc-paper`/`iyc-monitor` comme siens et les
+> **réconcilie vers la définition du mode dédié** : `monitor` recréé **sans le réseau `proxy`**
+> (SWAG ne le trouve plus → `iyc.eunivers.net` tombe) et un service `proxy` (Caddy) qui tente
+> de prendre **80/443 déjà tenus par SWAG**. Ne jamais taper la commande du §9 sur ce serveur.
+
+**1. Mesurer avec quoi la stack tourne (jamais le supposer)**
+
+```bash
+cd /home/iyc/insertyourcoin
+docker inspect iyc-monitor --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+# doit afficher un chemin se terminant par docker-compose.eunivers.yml
+```
+
+Si la sortie ne contient pas `eunivers` : **s'arrêter** et diagnostiquer — la stack n'est pas
+celle que ce runbook décrit.
+
+**2. Relever le volume de données AVANT (preuve de conservation, L3)**
+
+```bash
+docker run --rm -v insertyourcoin_iyc_data:/d alpine sh -c 'ls -1 /d; wc -l /d/paper_stats.csv'
+```
+
+Noter le nombre de lignes : il doit être **identique ou supérieur** après la mise à jour.
+
+**3. Mettre à jour**
+
+```bash
+git pull
+docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build
+```
+
+**4. Vérifier (les quatre, pas un seul)**
+
+```bash
+docker ps --filter name=iyc --format '{{.Names}}  {{.Status}}'        # iyc-paper Up, iyc-monitor Up (healthy)
+docker network inspect proxy --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | grep iyc-monitor
+curl -sI https://iyc.eunivers.net | head -1                            # HTTP/2 401 (Basic Auth SWAG) = servi
+docker run --rm -v insertyourcoin_iyc_data:/d alpine wc -l /d/paper_stats.csv   # >= la valeur de l'etape 2
+```
+
+**Rollback** si un des quatre échoue :
+
+```bash
+git log --oneline -3            # reperer le commit precedent
+git checkout <commit-precedent>
+docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build
+```
+
+Le volume `insertyourcoin_iyc_data` n'est **jamais** touché par ces commandes — les données
+du paper (état, stats, trades) survivent à la mise à jour comme au rollback.
 
 ## 10. Sécurité — pourquoi ces couches, ce qu'elles protègent
 
