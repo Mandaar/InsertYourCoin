@@ -225,3 +225,32 @@ def test_job_panel_html_js_references_state_labels_as_json():
     assert '"done": "Terminé."' in out
     assert '"error": "Erreur."' in out
     assert '"cancelled": "Annulé."' in out
+
+
+def test_le_fond_est_ancre_au_viewport_pas_au_contenu():
+    """Non-regression du defaut signale par l'utilisateur le 2026-08-18
+    (capture a l'appui) : sur l'accueil, page courte, les deux radial-gradient
+    de --page-bg etaient dimensionnes sur la boite du body (~630 px) alors que
+    la couleur de fond, elle, se propage au canvas -- d'ou une coupure nette et
+    une bande plate en bas de fenetre.
+
+    Les deux proprietes ci-dessous sont ce qui ancre le fond au viewport ; les
+    retirer fait revenir le defaut a l'identique. La source Claude Design portait
+    deja `minHeight: 100vh` sur son conteneur racine."""
+    # Ancrer sur un saut de ligne suivi de "body{" : la 1re occurrence de
+    # "body{" tout court est `html,body{margin:0}`, qui ne porte pas le fond.
+    regle_body = webui.THEME_CSS.split("\nbody{", 1)[1].split("\n}", 1)[0]
+    # Retirer les commentaires CSS AVANT d'assertir : le commentaire de cette
+    # regle nomme justement les deux proprietes, donc sans ce nettoyage le test
+    # passerait meme si les declarations disparaissaient (mesure du 2026-08-18).
+    declarations = re.sub(r"/\*.*?\*/", "", regle_body, flags=re.S)
+    assert "background-attachment:fixed" in declarations
+    assert "min-height:100vh" in declarations
+
+
+def test_les_trois_themes_gardent_leur_propre_page_bg():
+    """Le correctif d'ancrage ne doit pas uniformiser les fonds : chaque theme
+    garde le sien (Ambre par defaut sur :root, Nuit et Clair en surcharge)."""
+    fonds = re.findall(r"--page-bg:([^;]+);", webui.THEME_CSS)
+    assert len(fonds) == 3, "il faut exactement 3 --page-bg (Ambre, Nuit, Clair)"
+    assert len(set(fonds)) == 3, "les 3 themes doivent avoir des fonds distincts"

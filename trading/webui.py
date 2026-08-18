@@ -119,7 +119,18 @@ THEME_CSS = """
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
+  /* Le fond est ancre au VIEWPORT, pas a la hauteur du contenu.
+     Sans ces deux proprietes, les deux radial-gradient de --page-bg sont
+     dimensionnes sur la boite du body : sur une page courte (accueil), le
+     halo s'arretait net au bas du contenu et laissait une bande de couleur
+     plate en dessous (la couleur de fond, elle, se propage au canvas).
+       - min-height:100vh  -> fidele a la source Claude Design (minHeight 100vh) ;
+       - background-attachment:fixed -> la zone de positionnement devient le
+         viewport, donc le halo bas (at -8% 112%) reste colle en bas de la
+         fenetre, y compris au defilement sur les pages longues (Stats, Aide). */
   background:var(--page-bg);
+  background-attachment:fixed;
+  min-height:100vh;
   color:var(--txt); font-family:var(--sans); -webkit-font-smoothing:antialiased;
   line-height:1.5; padding:0;
 }
