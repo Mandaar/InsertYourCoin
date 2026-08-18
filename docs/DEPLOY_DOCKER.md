@@ -440,47 +440,81 @@ n'est jamais touché — les données survivent). `proxy` n'a pas besoin de rebu
 > (SWAG ne le trouve plus → `iyc.eunivers.net` tombe) et un service `proxy` (Caddy) qui tente
 > de prendre **80/443 déjà tenus par SWAG**. Ne jamais taper la commande du §9 sur ce serveur.
 
-**1. Mesurer avec quoi la stack tourne (jamais le supposer)**
+**0. Tout passe par l'utilisateur `iyc` — l'admin ne peut pas entrer dans `/home/iyc`**
+
+> Mesuré le 2026-08-18 : `cd /home/iyc/insertyourcoin` depuis le compte admin renvoie
+> `Permission denied`. C'est **voulu** (un utilisateur Linux par stack, isolation des
+> fichiers et propriété des données) — le dépôt et le volume appartiennent à `iyc`.
+> `git pull` doit d'ailleurs tourner sous `iyc` : lancé sous un autre compte, git
+> refuserait le dépôt (« dubious ownership ») ou casserait les droits des fichiers.
+
+Chaque bloc ci-dessous s'exécute donc via `sudo -u iyc bash -lc`. Le `-l` (login shell)
+n'est pas cosmétique : sans lui, l'appartenance de `iyc` au groupe `docker` n'est pas
+prise en compte et toutes les commandes `docker` échouent en « permission denied » sur
+le socket.
+
+**1 à 4 — une seule chaîne mécanique**
+
+Aucune gate textuelle entre deux blocs (LEDGER-0153 : une précondition vit **dans** la
+chaîne, jamais dans une phrase au-dessus). `set -e` + `grep -q` : si la stack n'est pas
+en mode eunivers, **rien ne se met à jour**.
 
 ```bash
+sudo -u iyc bash -lc '
+set -e
 cd /home/iyc/insertyourcoin
-docker inspect iyc-monitor --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
-# doit afficher un chemin se terminant par docker-compose.eunivers.yml
-```
 
-Si la sortie ne contient pas `eunivers` : **s'arrêter** et diagnostiquer — la stack n'est pas
-celle que ce runbook décrit.
+echo "== 1. la stack tourne-t-elle bien en mode eunivers ? =="
+docker inspect iyc-monitor | grep -q docker-compose.eunivers.yml
+echo "   OK -- mode eunivers confirme"
 
-**2. Relever le volume de données AVANT (preuve de conservation, L3)**
+echo "== 2. donnees AVANT (preuve de conservation, L3) =="
+docker run --rm -v insertyourcoin_iyc_data:/d alpine sh -c "ls -1 /d; wc -l /d/paper_stats.csv"
 
-```bash
-docker run --rm -v insertyourcoin_iyc_data:/d alpine sh -c 'ls -1 /d; wc -l /d/paper_stats.csv'
-```
-
-Noter le nombre de lignes : il doit être **identique ou supérieur** après la mise à jour.
-
-**3. Mettre à jour**
-
-```bash
+echo "== 3. mise a jour -- le -f est obligatoire =="
 git pull
 docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build
+
+echo "== 4. verifications =="
+docker ps --filter name=iyc --format "{{.Names}}  {{.Status}}"
+docker network inspect proxy | grep iyc-monitor
+docker run --rm -v insertyourcoin_iyc_data:/d alpine wc -l /d/paper_stats.csv
+'
 ```
 
-**4. Vérifier (les quatre, pas un seul)**
+Ce qu'il faut lire dans la sortie : `iyc-paper` **Up** et `iyc-monitor` **Up (healthy)** ·
+`iyc-monitor` **présent** dans le réseau `proxy` (sinon SWAG ne le trouve plus) ·
+`wc -l` de l'étape 4 **supérieur ou égal** à celui de l'étape 2.
+
+> ⚠️ Aucune apostrophe ne doit apparaître à l'intérieur du bloc entre quotes simples —
+> elle fermerait la chaîne `sudo -u iyc bash -lc '...'` en plein milieu. C'est pourquoi
+> les commentaires internes sont écrits sans accents ni apostrophes.
+
+**5. Vérifier le service rendu (depuis ta machine, pas le serveur)**
 
 ```bash
-docker ps --filter name=iyc --format '{{.Names}}  {{.Status}}'        # iyc-paper Up, iyc-monitor Up (healthy)
-docker network inspect proxy --format '{{range .Containers}}{{.Name}} {{end}}' | tr ' ' '\n' | grep iyc-monitor
-curl -sI https://iyc.eunivers.net | head -1                            # HTTP/2 401 (Basic Auth SWAG) = servi
-docker run --rm -v insertyourcoin_iyc_data:/d alpine wc -l /d/paper_stats.csv   # >= la valeur de l'etape 2
+curl -sI https://iyc.eunivers.net | head -1     # HTTP/2 401 = servi (Basic Auth SWAG)
 ```
 
-**Rollback** si un des quatre échoue :
+**Rollback** si une des vérifications échoue :
 
 ```bash
-git log --oneline -3            # reperer le commit precedent
+sudo -u iyc bash -lc '
+set -e
+cd /home/iyc/insertyourcoin
+git log --oneline -3
+'
+```
+
+puis, avec le commit précédent relevé ci-dessus :
+
+```bash
+sudo -u iyc bash -lc '
+set -e
+cd /home/iyc/insertyourcoin
 git checkout <commit-precedent>
 docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build
+'
 ```
 
 Le volume `insertyourcoin_iyc_data` n'est **jamais** touché par ces commandes — les données
