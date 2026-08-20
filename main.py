@@ -277,8 +277,14 @@ def cmd_live(args):
         print("=" * 64)
         if input('  Tape exactement  OUI JE CONFIRME  pour continuer : ').strip() != "OUI JE CONFIRME":
             sys.exit("Annule. (Aucun ordre envoye.)")
-    LiveTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
-               timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args)).run()
+    trader = LiveTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
+                        timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args))
+    # BUG-017 (P0, gate Lot 8B FAIL-1) : reconcile() AVANT run(), sinon une
+    # position ouverte reprise apres un restart tourne SANS stop ni trailing
+    # (_risk_overlay sort immediatement si entry_price est None). reconcile()
+    # ne passe JAMAIS d'ordre (purement defensif) et l'exchange fait foi.
+    trader.reconcile()
+    trader.run()
 
 
 def _live_root(args):
