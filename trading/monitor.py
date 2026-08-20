@@ -406,7 +406,9 @@ def render_fragment(view) -> str:
         f"<div class='card stat {pnl_cls}'><div class='label'>P&amp;L</div>"
         f"<div class='value'>{_fmt_num(view.get('pnl_total'), decimals=2)} "
         f"({_fmt_pct(view.get('pnl_pct'), signed=True)})</div></div>"
-        f"<div class='card stat'><div class='label'>Drawdown</div>"
+        f"<div class='card stat'><div class='label' title='Ecart au plus haut "
+        f"atteint depuis le DERNIER demarrage du paper (le pic repart de zero a "
+        f"chaque restart) - pas depuis le capital initial'>Drawdown (session)</div>"
         f"<div class='value'>{_fmt_pct(view.get('drawdown'))}</div></div>"
         f"<div class='card stat'><div class='label'>Exposition</div>"
         f"<div class='value'>{_fmt_pct(view.get('exposure'), decimals=0)}</div></div>"
@@ -425,6 +427,14 @@ def render_fragment(view) -> str:
         + "<div class='card'><h2>Journal</h2>"
         + _log_html(view.get("log_lines"))
         + "</div>"
+        + "<div class='card'><h2>Export des donnees</h2>"
+          "<p class='muted' style='margin:0 0 10px'>Telechargement direct des "
+          "fichiers bruts du paper - aucune console necessaire.</p>"
+          "<p style='display:flex;gap:10px;flex-wrap:wrap;margin:0'>"
+          "<a class='exp' href='/export/stats.csv' download>Stats (CSV)</a>"
+          "<a class='exp' href='/export/trades.log' download>Journal des ordres</a>"
+          "<a class='exp' href='/export/state.json' download>Etat (JSON)</a>"
+          "</p></div>"
     )
 
 
@@ -447,6 +457,10 @@ h1 { font-family: var(--serif); font-size: 26px; font-weight: 400; margin: 0 0 4
 h2 { font-size: 12px; margin: 0 0 10px; color: var(--txt); text-transform: uppercase;
   letter-spacing: .14em; font-weight: 600; }
 .muted { color: var(--muted); }
+a.exp { display: inline-block; padding: 8px 14px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--panel-grad); color: var(--gold-bright);
+  font-size: 13px; font-weight: 600; }
+a.exp:hover { border-color: var(--gold); }
 .head { display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 14px; flex-wrap: wrap; gap: 6px; }
 .head .maj { color: var(--muted); font-size: 12px; font-family: var(--mono); }
@@ -1723,6 +1737,40 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 result = _last_check["value"]
             return render_check_page(symbol, static_diagnostic_lines(), result=result)
 
+        # Table export : nom public -> (chemin resolu par le serveur, type MIME).
+        # Les chemins sont ceux que le monitor lit deja (--stats/--log/--state) ;
+        # l'URL ne porte qu'une CLE de cette table, jamais un chemin.
+        def _send_export(self, name):
+            table = {
+                "stats.csv": (stats_path, "text/csv; charset=utf-8"),
+                "trades.log": (log_path, "text/plain; charset=utf-8"),
+                "state.json": (state_path, "application/json; charset=utf-8"),
+            }
+            entry = table.get(name)
+            if entry is None:
+                self._send_html(
+                    _error_page("404 - Export inconnu",
+                                "Exports disponibles : stats.csv, trades.log, state.json."),
+                    code=404,
+                )
+                return
+            path, ctype = entry
+            if not path.exists():
+                self._send_html(
+                    _error_page("404 - Fichier absent",
+                                "Le paper n'a pas encore produit ce fichier."),
+                    code=404,
+                )
+                return
+            data = path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Disposition",
+                             'attachment; filename="paper_' + name.replace("/", "") + '"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
         def _send_static(self, rel_path):
             result = serve_static(rel_path)
             if result is None:
@@ -1834,6 +1882,15 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 if self.path.startswith("/monitoring"):
                     # Ex-"/" (Lot 0). Page complete (coquille + fragment + script JS).
                     self._send_html(build_html(_compute_view_now()))
+                    return
+                if self.path.startswith("/export/"):
+                    # Telechargement des donnees brutes du paper SANS console
+                    # (demande user 2026-08-20 : "pas besoin d'ouvrir la consol").
+                    # Table FIXE nom -> chemin deja resolu par le serveur :
+                    # aucun chemin ne vient de l'URL, pas de traversal possible.
+                    if not self._host_ok():
+                        return
+                    self._send_export(self.path.split("?", 1)[0][len("/export/"):])
                     return
                 if self.path.startswith("/fragment"):
                     # Route fragment : retourne uniquement le contenu (pas la coquille).
