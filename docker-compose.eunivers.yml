@@ -26,6 +26,7 @@ services:
       --stop-loss ${PAPER_STOP_LOSS:-5}
       --take-profit ${PAPER_TAKE_PROFIT:-10}
       --trailing-stop ${PAPER_TRAILING_STOP:-8}
+      --params ${PAPER_PARAMS:-band=1.5}
     volumes:
       - iyc_data:/data
     networks:

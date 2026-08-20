@@ -27,21 +27,73 @@ class Strategy:
         return self.name
 
 
+def round_trip_cost(fee: float = None) -> float:
+    """
+    Cout d'un aller-retour en mouvement de prix : ce que le prix doit monter
+    pour rembourser les frais des DEUX cotes (etude #6). fee=None -> config.FEE
+    du moment : si les frais changent (palier Kraken, passage maker), tous les
+    seuils ancres dessus SUIVENT -- c'est une MARGE, pas une constante figee.
+      taker 0.80%/cote -> +1.62% ; maker 0.40%/cote -> +0.80%.
+    """
+    from config import FEE
+    f = FEE if fee is None else fee
+    return 1.0 / (1.0 - f) ** 2 - 1.0
+
+
 class SMACrossover(Strategy):
     """
     Croisement de moyennes mobiles (la stratégie de suivi de tendance la plus connue).
     Long quand la MM courte passe au-dessus de la MM longue ("golden cross"),
     flat quand elle repasse en dessous ("death cross").
+
+    `band` (etude #6, anti-churn) : MARGE exprimee en MULTIPLES du cout
+    d'aller-retour (round_trip_cost), jamais en valeur absolue -- regle user
+    2026-08-20 : "pas des delais dans le marbre mais des marges". band=2.0 avec
+    frais taker -> le croisement ne compte que si l'ecart fast/slow depasse
+    ~3.24%. A chaque bougie la decision passe un TEST explicite :
+      - ACHAT   seulement si fast > slow * (1 + seuil)   (marge franchie)
+      - VENTE   seulement si fast < slow * (1 - seuil)
+      - entre les deux : on GARDE l'etat courant (hysteresis, pas de churn).
+    band=0 (defaut) = comportement historique STRICTEMENT identique.
+    Le dernier test evalue est expose dans `self.gate_info` (journal du paper).
     """
-    def __init__(self, fast: int = 20, slow: int = 50):
-        self.fast, self.slow = fast, slow
-        self.name = f"SMA({fast}/{slow})"
+    def __init__(self, fast: int = 20, slow: int = 50, band: float = 0.0):
+        self.fast, self.slow, self.band = fast, slow, float(band)
+        self.name = (f"SMA({fast}/{slow})" if not self.band
+                     else f"SMA({fast}/{slow}, marge {band:g}x frais)")
+        self.gate_info = None
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         fast = ind.sma(df["close"], self.fast)
         slow = ind.sma(df["close"], self.slow)
-        signal = (fast > slow).astype(int)
-        return signal.where(slow.notna(), 0)
+        if not self.band:
+            signal = (fast > slow).astype(int)
+            return signal.where(slow.notna(), 0)
+        seuil = self.band * round_trip_cost()
+        haut = (fast > slow * (1.0 + seuil))   # test d'ACHAT franchi
+        bas = (fast < slow * (1.0 - seuil))    # test de VENTE franchi
+        etat, out = 0, []
+        for h, b, ok in zip(haut.tolist(), bas.tolist(), slow.notna().tolist()):
+            if not ok:
+                etat = 0
+            elif h:
+                etat = 1
+            elif b:
+                etat = 0
+            # ni h ni b : zone neutre -> on conserve l'etat (hysteresis)
+            out.append(etat)
+        # Journal de decision (paper) : le TEST de la DERNIERE bougie, chiffre.
+        f_last, s_last = fast.iloc[-1], slow.iloc[-1]
+        if pd.notna(s_last) and s_last:
+            ecart = f_last / s_last - 1.0
+            self.gate_info = {
+                "ecart_pct": round(100.0 * ecart, 3),
+                "seuil_pct": round(100.0 * seuil, 3),
+                "verdict": ("ACHAT possible" if ecart > seuil else
+                            "VENTE possible" if ecart < -seuil else
+                            "zone neutre - marge non atteinte, on garde l etat"),
+            }
+        return pd.Series(out, index=df.index)
 
 
 class TSMomentum(Strategy):
@@ -123,9 +175,14 @@ STRATEGIES = {
 }
 
 
-def build_strategy(name: str) -> Strategy:
-    """Instancie une stratégie a partir de son nom court avec ses parametres par defaut."""
+def build_strategy(name: str, params: dict = None) -> Strategy:
+    """
+    Instancie une stratégie a partir de son nom court. `params` (optionnel) :
+    dict k->v passe au constructeur (ex. {"fast": 50, "slow": 200, "band": 2})
+    -- meme format que le --fixed du walk-forward, pour que le paper/live
+    puissent tourner EXACTEMENT la config que le juge a evaluee.
+    """
     name = name.lower()
     if name not in STRATEGIES:
         raise ValueError(f"Stratégie inconnue : {name}. Disponibles : {list(STRATEGIES)}")
-    return STRATEGIES[name]()
+    return STRATEGIES[name](**(params or {}))

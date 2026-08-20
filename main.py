@@ -138,10 +138,17 @@ def _run_all_strategies(df, **bt_kwargs):
             for k in STRATEGIES]
 
 
+def _strategy_params(args):
+    """--params "k=v,..." (meme format que --fixed du walk-forward) -> dict pour
+    build_strategy. Permet au paper/live/backtest de tourner EXACTEMENT la
+    config validee par le juge (ex. --params "fast=50,slow=200,band=2")."""
+    return _parse_fixed(getattr(args, "params", None))
+
+
 def cmd_backtest(args):
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
-    result = Backtester(**_bt_kwargs(args)).run(df, build_strategy(args.strategy))
+    result = Backtester(**_bt_kwargs(args)).run(df, build_strategy(args.strategy, _strategy_params(args)))
     print(result.summary())
     if args.chart:
         _save_chart(result, args.chart)
@@ -235,7 +242,7 @@ def cmd_dashboard(args):
     from trading.dashboard import generate_dashboard
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days)
     kw = _bt_kwargs(args)
-    detail = Backtester(**kw).run(df, build_strategy(args.strategy))
+    detail = Backtester(**kw).run(df, build_strategy(args.strategy, _strategy_params(args)))
     comparison = _run_all_strategies(df, **kw)
     path = generate_dashboard(detail, comparison,
                               {"symbol": args.symbol, "timeframe": args.timeframe}, path=args.out)
@@ -253,7 +260,7 @@ def cmd_portfolio(args):
 
 def cmd_paper(args):
     from trading.paper_trader import PaperTrader
-    PaperTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
+    PaperTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
                 timeframe=args.timeframe, **_bt_kwargs(args)).run()
 
 
@@ -266,7 +273,7 @@ def cmd_live(args):
         print("\n" + "=" * 64)
         print("  ⚠️  MODE REEL : des ordres vont etre passes avec de l'ARGENT REEL.")
         print(f"     Paire          : {args.symbol}")
-        print(f"     Stratégie      : {build_strategy(args.strategy).name}")
+        print(f"     Stratégie      : {build_strategy(args.strategy, _strategy_params(args)).name}")
         print(f"     Stop / Objectif: {args.stop_loss or '—'}% / {args.take_profit or '—'}%")
         if args.trailing_stop:
             print(f"     Trailing stop  : {args.trailing_stop}%")
@@ -277,7 +284,7 @@ def cmd_live(args):
         print("=" * 64)
         if input('  Tape exactement  OUI JE CONFIRME  pour continuer : ').strip() != "OUI JE CONFIRME":
             sys.exit("Annule. (Aucun ordre envoye.)")
-    trader = LiveTrader(KrakenExchange(), build_strategy(args.strategy), symbol=args.symbol,
+    trader = LiveTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
                         timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args))
     # BUG-017 (P0, gate Lot 8B FAIL-1) : reconcile() AVANT run(), sinon une
     # position ouverte reprise apres un restart tourne SANS stop ni trailing
@@ -563,6 +570,10 @@ def build_parser():
 
     def common(sp, days=True):
         sp.add_argument("--strategy", default="sma", choices=list(STRATEGIES))
+        sp.add_argument("--params", default=None, metavar="K=V,...",
+                        help='parametres de la strategie, meme format que --fixed '
+                             '(ex. "fast=50,slow=200,band=2" -- band en multiples '
+                             'du cout de frais aller-retour, etude #6)')
         sp.add_argument("--symbol", default=config.DEFAULT_SYMBOL)
         sp.add_argument("--timeframe", default=config.DEFAULT_TIMEFRAME,
                         help="1m,5m,15m,1h,4h,1d (defaut: 1d)")

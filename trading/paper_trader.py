@@ -128,8 +128,19 @@ class _Trader:
         return df.iloc[:-1]
 
     def _latest_signal(self, df) -> int:
-        """Signal sur la derniere bougie cloturee."""
-        return int(self.strategy.generate_signals(df).iloc[-1])
+        """Signal sur la derniere bougie cloturee. Si la strategie expose son
+        TEST de decision (gate_info -- SMA a bande, etude #6), il est journalise
+        en clair : le journal montre POURQUOI on agit ou pourquoi on s abstient
+        ("zone neutre - marge non atteinte"), regle user 2026-08-20 : a chaque
+        action le soft se demande s il repond a certains tests."""
+        sig = int(self.strategy.generate_signals(df).iloc[-1])
+        gate = getattr(self.strategy, "gate_info", None)
+        if gate:
+            self._trace(
+                f"TEST : ecart {gate['ecart_pct']:+.2f}% vs marge "
+                f"{gate['seuil_pct']:.2f}% -> {gate['verdict']}",
+                level="leger")
+        return sig
 
     def _entry_fraction(self, df) -> float:
         """
