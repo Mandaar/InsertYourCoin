@@ -14,6 +14,7 @@ fichier vient uniquement de la DUREE d'accumulation.
   commande `stats` (fonctions PURES, testables sans reseau).
 """
 import csv
+import datetime as dt
 from pathlib import Path
 
 import numpy as np
@@ -104,6 +105,66 @@ def load_stats(path) -> pd.DataFrame:
     return pd.read_csv(p)
 
 
+# --------------------------------------------------------------------------- #
+#  Filtrage temporel (fonctions PURES : aucune I/O, aucun reseau)             #
+# --------------------------------------------------------------------------- #
+DATE_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d")
+
+
+def parse_bound(value, end=False):
+    """
+    Convertit une borne de date CLI en Timestamp. Formats acceptes :
+    'YYYY-MM-DD' et 'YYYY-MM-DD HH:MM:SS'. Retourne None si `value` est vide.
+
+    `end=True` (borne de FIN) et date SEULE -> fin de journee (23:59:59), pour que
+    `--until 2026-09-01` inclue toute la journee du 1er (sinon la borne serait
+    minuit et la journee demandee serait vide, piege classique). Une borne avec
+    heure explicite est prise telle quelle. Les deux bornes sont INCLUSIVES.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    for fmt in DATE_FORMATS:
+        try:
+            ts = pd.Timestamp(dt.datetime.strptime(s, fmt))
+        except ValueError:
+            continue
+        if end and fmt == "%Y-%m-%d":
+            ts = ts + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        return ts
+    raise ValueError(
+        f"Date invalide : '{value}'. Formats acceptes : "
+        "'YYYY-MM-DD' ou 'YYYY-MM-DD HH:MM:SS'."
+    )
+
+
+def filter_period(df: pd.DataFrame, since=None, until=None) -> pd.DataFrame:
+    """
+    Restreint le CSV a une fenetre temporelle sur la colonne `time`, bornes
+    INCLUSIVES. `since`/`until` sont des chaines CLI (cf. parse_bound) ou None.
+
+    - fenetre vide -> DataFrame vide (memes colonnes), jamais une erreur ;
+    - lignes a `time` illisible -> exclues des qu'un filtre est demande (on ne
+      peut pas affirmer qu'elles sont dans la fenetre) ;
+    - aucun filtre -> le DataFrame est retourne TEL QUEL (comportement inchange).
+    """
+    lo = parse_bound(since, end=False)
+    hi = parse_bound(until, end=True)
+    if lo is None and hi is None:
+        return df
+    if "time" not in df.columns:
+        raise ValueError("Colonne 'time' absente : impossible de filtrer par date.")
+    t = pd.to_datetime(df["time"], errors="coerce")
+    keep = t.notna()
+    if lo is not None:
+        keep &= t >= lo
+    if hi is not None:
+        keep &= t <= hi
+    return df[keep]
+
+
 def _max_drawdown(equity: pd.Series) -> float:
     """Drawdown max (<= 0) recalcule depuis la serie d'equity (high-water-mark global)."""
     eq = pd.to_numeric(equity, errors="coerce").dropna()
@@ -125,8 +186,15 @@ def _group_counts(df: pd.DataFrame, key: str) -> dict:
     return out
 
 
-def summarize(df: pd.DataFrame) -> dict:
-    """Synthese descriptive depuis le CSV (source de verite)."""
+def summarize(df: pd.DataFrame, since=None, until=None, n_total=None) -> dict:
+    """
+    Synthese descriptive depuis le CSV (source de verite).
+
+    `since`/`until`/`n_total` sont PUREMENT DESCRIPTIFS (le filtrage, lui, est fait
+    par `filter_period` en amont) : ils servent a ce que le resume dise sur quelle
+    FENETRE il porte, pour qu'on ne puisse pas confondre une fenetre avec le total.
+    Appel historique `summarize(df)` : sortie inchangee, plus 3 cles descriptives.
+    """
     n = len(df)
     equity = pd.to_numeric(df.get("equity", pd.Series(dtype=float)), errors="coerce")
     eq = equity.dropna()
@@ -160,6 +228,10 @@ def summarize(df: pd.DataFrame) -> dict:
         "avg_exposure": float(exposure.mean()) if len(exposure) else 0.0,
         "by_hour": _group_counts(df, "hour"),
         "by_weekday": _group_counts(df, "weekday"),
+        # Fenetre demandee (None = aucun filtre) + total AVANT filtrage.
+        "filter_since": str(since) if since else None,
+        "filter_until": str(until) if until else None,
+        "n_cycles_total": int(n if n_total is None else n_total),
     }
 
 
@@ -193,7 +265,19 @@ def format_summary(d: dict) -> str:
     L.append("  LABO DE STATS - synthese descriptive")
     L.append("=" * 60)
     L.append(f"Periode      : {d['time_min']} -> {d['time_max']}")
+    # Fenetre : n'apparait QUE si un filtre --since/--until a ete demande, pour
+    # qu'on ne confonde jamais une fenetre avec le total accumule. Rendu par
+    # defaut (sans filtre) strictement inchange. `.get` : un dict de resume
+    # construit a la main (ancien appelant) reste affichable.
+    if d.get("filter_since") or d.get("filter_until"):
+        L.append(f"Fenetre      : depuis {d.get('filter_since') or 'le debut'} "
+                 f"jusqu'a {d.get('filter_until') or 'la fin'} "
+                 f"(filtre demande ; {d['n_cycles']} cycles retenus sur "
+                 f"{d.get('n_cycles_total', d['n_cycles'])} au total)")
     L.append(f"Cycles       : {d['n_cycles']}")
+    if not d["n_cycles"]:
+        L.append("Aucun cycle dans cette fenetre : les chiffres ci-dessous sont vides "
+                 "(ce n'est PAS un resultat).")
     L.append(f"Rendement    : {d['total_return']*100:+.2f}%  (equity debut -> fin)")
     L.append(f"Drawdown max : {d['max_drawdown']*100:.2f}%")
     L.append(f"Trades       : {d['n_trades']}  ({d['n_buy']} achats / {d['n_sell']} ventes)")

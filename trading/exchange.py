@@ -139,6 +139,34 @@ class KrakenExchange:
         self._require_keys()
         return self.client.create_order(symbol, "market", "sell", amount)
 
+    # --- Ordres LIMIT (maker) ------------------------------------------ #
+    # `postOnly` GARANTIT le statut maker : un ordre limite qui croiserait le
+    # carnet serait execute en TAKER (au tarif taker) ; avec postOnly, Kraken le
+    # REJETTE plutot que de nous facturer le tarif taker. Sans ce drapeau, le
+    # taux de frais simule (FEE_MAKER) et le taux reellement paye pourraient
+    # diverger -- exactement ce qu'on veut interdire.
+    def create_limit_buy(self, symbol: str, amount: float, price: float):
+        """Achat LIMITE postOnly de `amount` unites a `price` (maker garanti)."""
+        self._require_keys()
+        return self.client.create_order(symbol, "limit", "buy", amount, price,
+                                        {"postOnly": True})
+
+    def create_limit_sell(self, symbol: str, amount: float, price: float):
+        """Vente LIMITE postOnly de `amount` unites a `price` (maker garanti)."""
+        self._require_keys()
+        return self.client.create_order(symbol, "limit", "sell", amount, price,
+                                        {"postOnly": True})
+
+    def cancel_order(self, order_id: str, symbol: str):
+        """Annule un ordre (un limite non rempli au bout du delai d'attente)."""
+        self._require_keys()
+        return self.client.cancel_order(order_id, symbol)
+
+    def fetch_order(self, order_id: str, symbol: str):
+        """Etat d'un ordre (statut + quantite REELLEMENT remplie)."""
+        self._require_keys()
+        return self.client.fetch_order(order_id, symbol)
+
     # ----------------------------------------------------------------- #
     #  Helpers                                                           #
     # ----------------------------------------------------------------- #

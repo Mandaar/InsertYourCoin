@@ -30,6 +30,41 @@ FEE_MAKER = 0.0040      # 0.40% : ordre LIMIT (a utiliser CONSCIEMMENT si on pas
 # pour garder toute la compatibilite existante : tout le code lit `config.FEE`.
 FEE = FEE_TAKER
 
+# Types d'ordre supportes par le paper/live. "market" = comportement historique.
+ORDER_TYPES = ("market", "limit")
+
+
+def fee_for_order_type(order_type: str) -> float:
+    """
+    SOURCE UNIQUE du couplage type d'ordre <-> taux de frais simule.
+
+    Un ordre MARCHE prend la liquidite (taker), un ordre LIMIT postOnly la fournit
+    (maker). Faire diverger les deux (passer des ordres marche en facturant du
+    maker, ou l'inverse) fausserait la MESURE : c'est pour ca que ce mapping vit a
+    UN seul endroit, lu par `_Trader` (paper ET live). Aucun appelant ne recopie
+    la regle.
+
+    Ne cree aucun gain : reduit un COUT d'execution, rien d'autre.
+    """
+    if order_type == "market":
+        return FEE_TAKER
+    if order_type == "limit":
+        return FEE_MAKER
+    raise ValueError(
+        f"Type d'ordre inconnu : {order_type!r} (attendu : {' ou '.join(ORDER_TYPES)})"
+    )
+
+
+# --- Ordres LIMIT : attente de remplissage (borne de cadence) ---
+# Un ordre limite postOnly peut ne JAMAIS etre rempli. On l'attend un temps BORNE
+# puis on l'annule et on laisse le cycle suivant re-decider avec un prix frais
+# (plutot que de courir apres le marche). 60 s : court devant la cadence de
+# re-evaluation (>= 3600 s en 1h/1d, soit <= 1,7 % du cycle) et assez long pour
+# qu'un ordre pose au toucher sur une paire majeure se remplisse s'il doit l'etre.
+# L'attente effective est de toute facon bornee par `poll_seconds` (cf. _Trader).
+LIMIT_ORDER_TIMEOUT_SEC = 60
+LIMIT_ORDER_POLL_SEC = 5      # cadence d'interrogation de l'ordre pendant l'attente
+
 # --- Slippage (cout d'execution defavorable) — AUDIT B6 ---
 # Le prix reellement obtenu est moins bon que le prix theorique : a l'ACHAT on paie un
 # peu plus cher, a la VENTE on encaisse un peu moins (carnet d'ordres, latence, impact).

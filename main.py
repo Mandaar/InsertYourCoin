@@ -260,8 +260,16 @@ def cmd_portfolio(args):
 
 def cmd_paper(args):
     from trading.paper_trader import PaperTrader
+    state_file = getattr(args, "state", None) or "paper_state.json"
+    stats_file = getattr(args, "stats", None) or "paper_stats.csv"
+    if getattr(args, "reset", False):
+        # ARCHIVAGE (jamais d'ecrasement) + etat neuf, AVANT tout appel reseau :
+        # la remise a zero est acquise meme si la boucle echoue ensuite.
+        from trading.reset import reset_paper, format_reset
+        print(format_reset(reset_paper(state_file, stats_file)))
     PaperTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
-                timeframe=args.timeframe, **_bt_kwargs(args)).run()
+                timeframe=args.timeframe, state_file=state_file, stats_file=stats_file,
+                **_order_kwargs(args), **_bt_kwargs(args)).run()
 
 
 def cmd_live(args):
@@ -280,12 +288,16 @@ def cmd_live(args):
         if args.position_sizing == "vol":
             tv = args.target_vol if args.target_vol is not None else config.TARGET_VOL * 100
             print(f"     Sizing         : volatilite cible {tv:g}%")
+        ot = getattr(args, "order_type", "market")
+        print(f"     Type d'ordre   : {ot} (frais simules {config.fee_for_order_type(ot)*100:.2f}%)"
+              + ("  -- remplissage NON garanti" if ot == "limit" else ""))
         print(f"     Ordre max      : {config.MAX_TRADE_VALUE_USD} $ | Exposition max : {config.MAX_POSITION_VALUE_USD} $")
         print("=" * 64)
         if input('  Tape exactement  OUI JE CONFIRME  pour continuer : ').strip() != "OUI JE CONFIRME":
             sys.exit("Annule. (Aucun ordre envoye.)")
     trader = LiveTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
-                        timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args))
+                        timeframe=args.timeframe, dry_run=dry_run,
+                        **_order_kwargs(args), **_bt_kwargs(args))
     # BUG-017 (P0, gate Lot 8B FAIL-1) : reconcile() AVANT run(), sinon une
     # position ouverte reprise apres un restart tourne SANS stop ni trailing
     # (_risk_overlay sort immediatement si entry_price est None). reconcile()
@@ -395,12 +407,21 @@ def cmd_live_run(args):
 
 
 def cmd_stats(args):
-    from trading.stats import load_stats, summarize, format_summary
+    from trading.stats import load_stats, summarize, format_summary, filter_period
     try:
         df = load_stats(args.file)
     except FileNotFoundError as e:
         sys.exit(str(e))
-    print(format_summary(summarize(df)))
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    n_total = len(df)
+    try:
+        # Le filtrage vit dans trading/stats.py (fonction pure, testable) ; ici on
+        # ne fait que router les bornes et rapporter une date invalide clairement.
+        df = filter_period(df, since, until)
+    except ValueError as e:
+        sys.exit(str(e))
+    print(format_summary(summarize(df, since=since, until=until, n_total=n_total)))
 
 
 def _resolve_allowed_hosts(cli_hosts):
@@ -550,6 +571,25 @@ def _risk_args(sp):
                     help="take-profit en %% (ex: 20)")
 
 
+def _order_type_arg(sp):
+    """Type d'ordre pour le paper/live (PAS l'analyse : le backtester, lui, simule
+    des ordres marche). Defaut 'market' = comportement historique, inchange.
+
+    Un seul reglage pilote les DEUX faces (type d'ordre envoye en live ET taux de
+    frais simule, via config.fee_for_order_type) : impossible de simuler des frais
+    maker en passant des ordres marche."""
+    sp.add_argument("--order-type", choices=list(config.ORDER_TYPES), default="market",
+                    help="'market' (defaut, taker) ou 'limit' (ordre postOnly, maker : "
+                         "frais moindres MAIS remplissage non garanti -- l'ordre non "
+                         "rempli est annule et le cycle suivant re-decide)")
+
+
+def _order_kwargs(args):
+    """Kwargs de type d'ordre pour PaperTrader/LiveTrader (jamais pour Backtester :
+    il n'a pas cette notion). Ne passe JAMAIS `fee` -- il est derive du type."""
+    return {"order_type": getattr(args, "order_type", "market")}
+
+
 def _adv_risk_args(sp):
     """Options de risque avancees (analyse + paper/live)."""
     sp.add_argument("--trailing-stop", type=float, default=None, metavar="PCT",
@@ -620,9 +660,19 @@ def build_parser():
     pf.set_defaults(func=cmd_portfolio)
 
     pa = sub.add_parser("paper"); common(pa, days=False); _risk_args(pa); _adv_risk_args(pa)
+    _order_type_arg(pa)
+    pa.add_argument("--reset", action="store_true",
+                    help="repart de zero : ARCHIVE paper_state.json et paper_stats.csv "
+                         "(renommes avec un horodatage, rien n'est supprime) puis recree "
+                         "un etat neuf au capital initial")
+    pa.add_argument("--state", default="paper_state.json",
+                    help="etat du paper (defaut: paper_state.json)")
+    pa.add_argument("--stats", default="paper_stats.csv",
+                    help="CSV de stats du paper (defaut: paper_stats.csv)")
     pa.set_defaults(func=cmd_paper)
 
     li = sub.add_parser("live"); common(li, days=False); _risk_args(li); _adv_risk_args(li)
+    _order_type_arg(li)
     li.add_argument("--execute", action="store_true",
                     help="DESACTIVE le dry-run et passe de VRAIS ordres (double confirmation)")
     li.set_defaults(func=cmd_live)
@@ -651,6 +701,12 @@ def build_parser():
     st = sub.add_parser("stats")
     st.add_argument("--file", default="paper_stats.csv",
                     help="CSV de stats a analyser (defaut: paper_stats.csv)")
+    st.add_argument("--since", default=None, metavar="DATE",
+                    help="ne resumer qu'a partir de cette date INCLUSE "
+                         "('YYYY-MM-DD' ou 'YYYY-MM-DD HH:MM:SS')")
+    st.add_argument("--until", default=None, metavar="DATE",
+                    help="ne resumer que jusqu'a cette date INCLUSE (une date seule "
+                         "inclut toute la journee)")
     st.set_defaults(func=cmd_stats)
 
     mo = sub.add_parser("monitor")
