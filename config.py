@@ -19,6 +19,55 @@ DEFAULT_SYMBOL = "ETH/USD"
 DEFAULT_TIMEFRAME = "1d"
 INITIAL_CAPITAL = 10_000.0
 
+# =====================================================================
+# HOLDOUT SACRE — registre GELE (garde-fou, incident #9 du 2026-09-01)
+# =====================================================================
+# Le holdout est une ressource qui NE SE RECONSTITUE PAS : une fois les bougies
+# recentes regardees, elles ne sont plus hors-echantillon, pour toujours. Le
+# 2026-09-01, `backtest --timeframe 1d --days 730` a recouvert INTEGRALEMENT le
+# holdout ETH de l'etude #5 sans que personne ne soit averti (cf.
+# docs/ENQUETE_ET_AMELIORATIONS.md, incident #9).
+#
+# Ce registre decrit l'HISTORIQUE DE REFERENCE sur lequel le holdout a ete
+# decoupe -- PAS la frontiere elle-meme : la frontiere est CALCULEE par
+# `trading.optimizer.holdout_split` (source UNIQUE, la meme que le walk-forward),
+# jamais recopiee a la main.
+#
+# Provenance (DERIVE de docs/ETUDE_5_TSMOM_VS_BH.md §1 "Spans OOS effectifs") :
+#   BTC/ETH : segment de recherche 2017-08-17 -> 2024-10-02 = 2604 bougies daily
+#             (verifie : le calendrier daily continu donne exactement 2604).
+#             holdout 20% => n total tel que holdout_split(n, 0.20) == 2604 => 3255,
+#             soit une derniere bougie de reference au 2026-07-15 (etude datee du
+#             2026-07-16 : la derniere bougie close est bien celle du 15) ->
+#             recoupement independant qui confirme le compte.
+#   SOL     : recherche 2020-08-11 -> 2025-05-08 = 1732 bougies => n = 2165,
+#             derniere bougie de reference 2026-07-15 (meme recoupement).
+# La ZONE RESERVEE est [frontiere, +inf[ : toute bougie plus recente que la
+# frontiere n'a jamais ete vue par la recherche et reste reservee a la
+# validation finale.
+HOLDOUT_PCT = 20.0            # % de bougies recentes reservees (etude #5)
+
+HOLDOUT_REFERENCES = {
+    # actif de base (BTC/USD, BTC/USDT... -> "BTC") : historique de reference
+    "BTC": {"start": "2017-08-17", "bars": 3255, "timeframe": "1d",
+            "source": "binance", "study": "etude #5 (2026-07-16)"},
+    "ETH": {"start": "2017-08-17", "bars": 3255, "timeframe": "1d",
+            "source": "binance", "study": "etude #5 (2026-07-16)"},
+    "SOL": {"start": "2020-08-11", "bars": 2165, "timeframe": "1d",
+            "source": "binance", "study": "etude #5 (2026-07-16)"},
+}
+
+# Le decoupage a ete GELE sur Binance ; mais ce qui est reserve, c'est la PERIODE
+# (les prix d'ETH en 2025 sont les memes sur Kraken, a la prime stablecoin pres).
+# Le garde-fou s'applique donc quelle que soit la `--source` : c'est exactement le
+# cas de l'incident #9 (backtest Kraken sur la periode du holdout Binance). Il
+# raisonne en revanche sur les bougies REELLEMENT chargees (dates de l'index), qui
+# different d'une source a l'autre.
+
+# Journal APPEND-ONLY des contournements volontaires (--use-holdout). Le holdout
+# reste utilisable en connaissance de cause, mais jamais silencieusement.
+HOLDOUT_USAGE_LOG = "holdout_usage.log"
+
 # --- Frais Kraken spot (grille A PARTIR DU 9 JUILLET 2026, palier de base) ---
 # Ordres MARCHE = on PREND la liquidite => taker. Ordres LIMIT poses dans le carnet
 # = on FOURNIT la liquidite => maker (moins cher). On developpe pour trader DANS LE

@@ -66,11 +66,46 @@ def archive_file(path, when=None):
     return target
 
 
-def reset_paper(state_file="paper_state.json", stats_file="paper_stats.csv",
-                initial_capital=None, when=None) -> dict:
+DEFAULT_LOG_NAME = "paper_trades.log"      # meme defaut que PaperTrader.__init__
+
+
+def resolve_log_file(state_file, log_file="auto"):
     """
-    Archive l'etat et le CSV de stats du paper, puis ecrit un etat NEUF a
-    `initial_capital` (defaut config.INITIAL_CAPITAL).
+    Chemin du journal des ordres a couper avec l'etat.
+
+    ⛔ GARDE-FOU (incident mesure le 2026-09-02, pendant l'implementation) : un
+    defaut litteral `"paper_trades.log"` se resout contre le REPERTOIRE COURANT.
+    Un appel `reset_paper(tmp/state.json, tmp/stats.csv)` archivait donc le
+    journal du paper REELLEMENT EN TRAIN DE TOURNER a la racine du depot --
+    mesure : une suite de tests a renomme le journal d'un process vivant. Le
+    journal est desormais resolu A COTE de l'etat : les fichiers d'une meme
+    session restent ensemble, et personne ne peut atteindre un autre paper par
+    accident. Comportement par defaut inchange (`paper_state.json` -> `.`).
+
+    `log_file=None` = ne pas toucher au journal (appels historiques a 2 fichiers).
+    """
+    if log_file is None:
+        return None
+    if log_file != "auto":
+        return Path(log_file)
+    return Path(state_file).parent / DEFAULT_LOG_NAME
+
+
+def reset_paper(state_file="paper_state.json", stats_file="paper_stats.csv",
+                initial_capital=None, when=None, log_file="auto") -> dict:
+    """
+    Archive l'etat, le CSV de stats ET le journal des ordres du paper, puis ecrit
+    un etat NEUF a `initial_capital` (defaut config.INITIAL_CAPITAL).
+
+    LE JOURNAL FAIT PARTIE DE LA COUPURE : sans lui, `paper_trades.log` continue
+    a empiler les ordres de l'ancienne configuration et de la nouvelle dans le
+    meme fichier -- la remise a zero devient illisible la ou on lit justement ce
+    qui s'est passe. Les TROIS archives portent le MEME horodatage (`when` est
+    calcule une fois et passe a chaque `archive_file`) : on peut donc reconstituer
+    un ensemble coherent (etat + stats + journal d'une meme periode).
+    `log_file` : "auto" (defaut) = `paper_trades.log` A COTE de l'etat (cf.
+    `resolve_log_file` -- garde-fou) ; un chemin explicite ; ou None pour ne pas
+    toucher au journal.
 
     L'etat neuf est ecrit sur le disque IMMEDIATEMENT (et non laisse en memoire) :
     la remise a zero est ainsi acquise et observable meme si la boucle de paper
@@ -83,7 +118,9 @@ def reset_paper(state_file="paper_state.json", stats_file="paper_stats.csv",
     cap = config.INITIAL_CAPITAL if initial_capital is None else float(initial_capital)
     when = when or dt.datetime.now()
     archived = []
-    for src in (state_file, stats_file):
+    for src in (state_file, stats_file, resolve_log_file(state_file, log_file)):
+        if src is None:
+            continue
         dest = archive_file(src, when=when)
         if dest is not None:
             archived.append((Path(src), dest))

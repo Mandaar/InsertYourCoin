@@ -145,9 +145,36 @@ def _strategy_params(args):
     return _parse_fixed(getattr(args, "params", None))
 
 
+def _guard_holdout(args, df, command):
+    """
+    GARDE-FOU incident #9 : `backtest`/`compare`/`optimize` tiraient les N derniers
+    jours SANS voir qu'ils entamaient le holdout sacre. Ici on compare les bougies
+    REELLEMENT chargees a la zone reservee (frontiere calculee par `holdout_split`,
+    source unique) :
+
+    - aucun recouvrement -> aucun bruit, comportement inchange ;
+    - recouvrement, meme partiel -> par DEFAUT on REFUSE (le holdout ne se
+      reconstitue pas : un simple avertissement arrive apres coup, les donnees
+      sont deja chargees et les resultats sur le point d'etre affiches) ;
+    - `--use-holdout` -> on passe outre, en gros et TRACE dans le journal.
+    """
+    from trading.optimizer import (holdout_overlap, format_holdout_overlap,
+                                   trace_holdout_use)
+    ov = holdout_overlap(df.index, args.symbol)
+    if ov is None:
+        return
+    allowed = bool(getattr(args, "use_holdout", False))
+    msg = format_holdout_overlap(ov, command=command, allowed=allowed)
+    if not allowed:
+        sys.exit(msg)
+    trace_holdout_use(ov, command=command)
+    print(msg)
+
+
 def cmd_backtest(args):
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "backtest")
     result = Backtester(**_bt_kwargs(args)).run(df, build_strategy(args.strategy, _strategy_params(args)))
     print(result.summary())
     if args.chart:
@@ -157,6 +184,7 @@ def cmd_backtest(args):
 def cmd_compare(args):
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "compare")
     rows = _run_all_strategies(df, **_bt_kwargs(args))
     print(f"\nComparaison sur {args.symbol} ({args.timeframe}), "
           f"{df.index[0].date()} -> {df.index[-1].date()}")
@@ -177,6 +205,7 @@ def cmd_optimize(args):
     from trading.optimizer import optimize, format_report
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "optimize")
     res = optimize(df, args.strategy, train_frac=args.train_frac, metric=args.metric, **_bt_kwargs(args))
     print(format_report(res))
 
@@ -262,14 +291,22 @@ def cmd_paper(args):
     from trading.paper_trader import PaperTrader
     state_file = getattr(args, "state", None) or "paper_state.json"
     stats_file = getattr(args, "stats", None) or "paper_stats.csv"
+    # Le JOURNAL des ordres appartient au meme jeu de fichiers que l'etat et les
+    # stats : il est resolu A COTE de l'etat (par defaut ./paper_trades.log, le
+    # comportement historique) et la MEME valeur sert au trader ET au --reset.
+    # Sans ce partage, `--state ailleurs/` ferait archiver un journal pendant que
+    # le trader continuerait d'ecrire dans un autre : la coupure serait fausse.
+    log_file = Path(state_file).parent / "paper_trades.log"
     if getattr(args, "reset", False):
         # ARCHIVAGE (jamais d'ecrasement) + etat neuf, AVANT tout appel reseau :
         # la remise a zero est acquise meme si la boucle echoue ensuite.
+        # Le journal est archive AVEC l'etat et les stats (meme horodatage) :
+        # sinon le log melange l'ancienne et la nouvelle configuration.
         from trading.reset import reset_paper, format_reset
-        print(format_reset(reset_paper(state_file, stats_file)))
+        print(format_reset(reset_paper(state_file, stats_file, log_file=log_file)))
     PaperTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
                 timeframe=args.timeframe, state_file=state_file, stats_file=stats_file,
-                **_order_kwargs(args), **_bt_kwargs(args)).run()
+                log_file=log_file, **_order_kwargs(args), **_bt_kwargs(args)).run()
 
 
 def cmd_live(args):
@@ -564,6 +601,20 @@ def _source_arg(sp):
                          "(historique long pour la recherche, sans cle)")
 
 
+def _holdout_guard_arg(sp):
+    """Contournement EXPLICITE du garde-fou de holdout (incident #9).
+
+    Reserve aux commandes de recherche qui tirent une fenetre brute
+    (backtest/compare/optimize). `walkforward` a deja son propre `--holdout` et
+    n'est pas touche.
+    """
+    sp.add_argument("--use-holdout", action="store_true",
+                    help="AUTORISE cette commande a regarder les bougies du holdout "
+                         "sacre (refus par defaut). Decision consciente : ces bougies "
+                         "cessent d'etre hors-echantillon pour toujours. Tracee dans "
+                         f"{config.HOLDOUT_USAGE_LOG}.")
+
+
 def _risk_args(sp):
     sp.add_argument("--stop-loss", type=float, default=None, metavar="PCT",
                     help="stop-loss en %% (ex: 8)")
@@ -621,12 +672,15 @@ def build_parser():
             sp.add_argument("--days", type=int, default=720)
 
     b = sub.add_parser("backtest"); common(b); _source_arg(b); _risk_args(b); _adv_risk_args(b)
+    _holdout_guard_arg(b)
     b.add_argument("--chart", metavar="FICHIER.png"); b.set_defaults(func=cmd_backtest)
 
     c = sub.add_parser("compare"); common(c); _source_arg(c); _risk_args(c); _adv_risk_args(c)
+    _holdout_guard_arg(c)
     c.set_defaults(func=cmd_compare)
 
     o = sub.add_parser("optimize"); common(o); _source_arg(o); _risk_args(o); _adv_risk_args(o)
+    _holdout_guard_arg(o)
     o.add_argument("--metric", default="sharpe",
                    choices=["sharpe", "sortino", "calmar", "total_return", "profit_factor"])
     o.add_argument("--train-frac", type=float, default=0.6)

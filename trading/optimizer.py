@@ -11,9 +11,12 @@ Deux outils :
 """
 import itertools
 
+import datetime as dt
+
 import numpy as np
 import pandas as pd
 
+import config
 from .backtester import Backtester
 from .strategies import STRATEGIES
 from .stats_metrics import probabilistic_sharpe_ratio, deflated_sharpe_ratio
@@ -242,6 +245,160 @@ def holdout_split(n, holdout_frac):
     if not (0.0 < holdout_frac < 1.0):
         raise ValueError("holdout_frac doit etre dans ]0, 1[.")
     return int(n * (1 - holdout_frac))
+
+
+# =====================================================================
+# GARDE-FOU : ne pas piocher dans le holdout sans le savoir (incident #9)
+# =====================================================================
+# `walkforward --holdout` retire les bougies reservees ; `backtest`, `compare` et
+# `optimize` ignoraient totalement la notion de holdout et tiraient les N derniers
+# jours, zone reservee comprise, SANS un mot (incident #9 du 2026-09-01 : holdout
+# ETH recouvert integralement). Les fonctions ci-dessous rendent ce recouvrement
+# VISIBLE et, cote CLI, BLOQUANT par defaut.
+#
+# Regle de coupe : UNE seule, `holdout_split` ci-dessus. Le registre
+# `config.HOLDOUT_REFERENCES` ne stocke que l'historique de REFERENCE ; la
+# frontiere en est deduite ici, nulle part ailleurs.
+
+def holdout_base_asset(symbol):
+    """Actif de base d'une paire : 'ETH/USD', 'eth/usdt', 'ETH/USD:USD' -> 'ETH'.
+
+    Le holdout porte sur l'ACTIF et sur la PERIODE, pas sur la paire de cotation :
+    ETH/USDT (Binance, source de recherche) et ETH/USD (Kraken, source d'execution)
+    sont le meme actif sur les memes bougies.
+    """
+    s = str(symbol or "").strip().upper().split(":")[0]
+    return s.split("/")[0].strip()
+
+
+def holdout_start(symbol, holdout_pct=None, references=None):
+    """
+    Timestamp de la PREMIERE bougie RESERVEE pour `symbol`, ou None si l'actif n'a
+    aucun holdout declare (registre `config.HOLDOUT_REFERENCES`).
+
+    La frontiere n'est PAS lue dans le registre : elle est CALCULEE par
+    `holdout_split` sur l'historique de reference du registre -- la meme fonction,
+    la meme regle de coupe que le holdout du walk-forward. Aucune date-frontiere
+    n'est recopiee a la main dans le projet.
+    """
+    refs = config.HOLDOUT_REFERENCES if references is None else references
+    ref = refs.get(holdout_base_asset(symbol))
+    if not ref:
+        return None
+    pct = config.HOLDOUT_PCT if holdout_pct is None else holdout_pct
+    n = int(ref["bars"])
+    # pandas 4 deprecie l'unite 'd' minuscule au profit de 'D' ; le projet ecrit
+    # les timeframes en minuscules ('1d', '4h') -> on normalise ici, sans changer
+    # la convention du reste du code.
+    step = pd.Timedelta(str(ref.get("timeframe", "1d")).replace("d", "D"))
+    index = pd.date_range(start=ref["start"], periods=n, freq=step)
+    return index[holdout_split(n, pct / 100.0)]
+
+
+def holdout_overlap(index, symbol, holdout_pct=None, references=None):
+    """
+    Recouvrement entre les bougies REELLEMENT CHARGEES (`index`) et la zone
+    reservee de `symbol`. Retourne None quand il n'y a rien a signaler : actif
+    sans holdout declare, index vide, ou fenetre entierement anterieure a la
+    frontiere (= aucun bruit sur une commande qui ne touche a rien).
+
+    On raisonne sur les DATES de l'index, jamais sur `--days` : deux sources
+    (kraken / binance) n'ont pas le meme historique, donc pas la meme fenetre
+    pour un meme `--days`. Le recouvrement PARTIEL est detecte comme le total.
+
+    Zone reservee = [frontiere, +inf[ : une bougie plus recente que la frontiere
+    n'a jamais ete vue par la recherche non plus.
+    """
+    start = holdout_start(symbol, holdout_pct=holdout_pct, references=references)
+    if start is None or index is None or len(index) == 0:
+        return None
+    idx = pd.DatetimeIndex(index)
+    if idx.tz is not None and start.tzinfo is None:
+        start = start.tz_localize("UTC").tz_convert(idx.tz)
+    elif idx.tz is None and start.tzinfo is not None:
+        start = start.tz_localize(None)
+    hit = idx[idx >= start]
+    if len(hit) == 0:
+        return None
+    refs = config.HOLDOUT_REFERENCES if references is None else references
+    return {
+        "symbol": symbol,
+        "asset": holdout_base_asset(symbol),
+        "holdout_start": start,
+        "n_bars": len(idx),
+        "n_holdout": len(hit),
+        "frac": len(hit) / len(idx),
+        "holdout_first": hit[0],
+        "holdout_last": hit[-1],
+        "window_first": idx[0],
+        "window_last": idx[-1],
+        "reference": refs.get(holdout_base_asset(symbol)),
+        "holdout_pct": config.HOLDOUT_PCT if holdout_pct is None else holdout_pct,
+    }
+
+
+def format_holdout_overlap(ov, command="cette commande", allowed=False):
+    """
+    Message FRANC : bandeau, fraction concernee, dates exactes, et la sortie
+    (drapeau explicite). `allowed=True` = contournement assume, on le dit tel quel.
+    """
+    ref = ov.get("reference") or {}
+    d = lambda t: pd.Timestamp(t).date()
+    tete = ("HOLDOUT UTILISE VOLONTAIREMENT (--use-holdout)" if allowed
+            else "REFUS : la fenetre demandee EMPIETE SUR LE HOLDOUT SACRE")
+    L = [
+        "",
+        "!" * 72,
+        f"  {tete}",
+        "!" * 72,
+        f"  commande        : {command}   actif : {ov['symbol']}",
+        f"  fenetre chargee : {d(ov['window_first'])} -> {d(ov['window_last'])} "
+        f"({ov['n_bars']} bougies)",
+        f"  zone reservee   : a partir du {d(ov['holdout_start'])} "
+        f"(holdout {ov['holdout_pct']:g}%, {ref.get('study', 'etude declaree')})",
+        f"  recouvrement    : {ov['n_holdout']} bougies sur {ov['n_bars']} "
+        f"= {ov['frac']*100:.1f}% de la fenetre, "
+        f"du {d(ov['holdout_first'])} au {d(ov['holdout_last'])}",
+    ]
+    if allowed:
+        L += [
+            "  Ces bougies ne sont plus hors-echantillon : toute validation finale",
+            "  ulterieure sur cette periode n'est PLUS un test honnete. Trace dans "
+            f"{config.HOLDOUT_USAGE_LOG}.",
+        ]
+    else:
+        L += [
+            "  Le holdout NE SE RECONSTITUE PAS : ce qui est regarde est brule.",
+            "  Options :",
+            "    - reduire la fenetre (--days) pour rester avant la frontiere ;",
+            "    - assumer et relancer avec --use-holdout (trace, decision consciente).",
+            "  Cf. docs/ENQUETE_ET_AMELIORATIONS.md, incident #9.",
+        ]
+    L += ["!" * 72, ""]
+    return "\n".join(L)
+
+
+def trace_holdout_use(ov, command="?", path=None, when=None):
+    """
+    Journal APPEND-ONLY des contournements (`--use-holdout`) : une ligne par
+    utilisation, jamais d'ecrasement. Retourne le chemin ecrit, ou None si
+    l'ecriture echoue (un journal indisponible ne doit pas casser une commande --
+    le refus/l'avertissement, lui, a deja ete affiche).
+    """
+    from pathlib import Path
+    p = Path(path or config.HOLDOUT_USAGE_LOG)
+    ts = (when or dt.datetime.now()).strftime("%Y-%m-%dT%H:%M:%S")
+    d = lambda t: pd.Timestamp(t).date()
+    line = (f"{ts}\t{command}\t{ov['symbol']}\t"
+            f"fenetre={d(ov['window_first'])}->{d(ov['window_last'])}\t"
+            f"holdout={d(ov['holdout_first'])}->{d(ov['holdout_last'])}\t"
+            f"{ov['n_holdout']}/{ov['n_bars']} bougies ({ov['frac']*100:.1f}%)\n")
+    try:
+        with p.open("a", encoding="utf-8") as f:
+            f.write(line)
+        return p
+    except OSError:
+        return None
 
 
 def holdout_check(df, holdout_frac, strategy_name, fixed_params=None, metric="sharpe",
