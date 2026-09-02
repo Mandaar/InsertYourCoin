@@ -34,6 +34,18 @@ def now() -> str:
     return dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def fresh_state(init_cap: float) -> dict:
+    """
+    Etat de paper trading NEUF (schema unique). Utilise par `PaperTrader._load_state`
+    (premier demarrage) ET par `trading.reset.reset_paper` (option `paper --reset`) :
+    une seule definition, donc aucun risque d'ecrire un etat "reinitialise" au schema
+    different de celui qu'attend le trader.
+    """
+    return {"cash": float(init_cap), "base_amount": 0.0, "invested": False,
+            "entry_price": None, "peak": None, "entry_ts": None,
+            "entry_cost": None, "trades": []}
+
+
 def describe_error(exc) -> dict:
     """
     Classe une exception levee pendant un cycle pour des logs lisibles et un
@@ -72,7 +84,7 @@ class _Trader:
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
                  max_fraction=None, poll_seconds=None, stats_file=None,
-                 log_file=None):
+                 log_file=None, order_type=None, limit_timeout=None):
         self.exchange = exchange
         self.strategy = strategy
         self.log_file = Path(log_file) if log_file else None
@@ -88,6 +100,18 @@ class _Trader:
         self.vol_window = config.VOL_WINDOW if vol_window is None else vol_window
         self.max_fraction = config.MAX_FRACTION if max_fraction is None else max_fraction
         self.poll_seconds = poll_seconds or _TF_SECONDS.get(self.timeframe, 3600)
+        # --- Type d'ordre et frais : UN SEUL choix, JAMAIS deux ---------------
+        # `order_type` pilote a la fois (a) le type d'ordre reellement envoye par
+        # LiveTrader et (b) le taux de frais simule, DERIVE par config.
+        # fee_for_order_type -- une seule source, donc aucune divergence possible
+        # (simuler des frais maker en passant des ordres marche serait un mensonge
+        # de mesure). Defaut "market" = comportement historique, inchange.
+        self.order_type = "market" if order_type is None else order_type
+        self.fee = config.fee_for_order_type(self.order_type)
+        # Attente maximale d'un remplissage limite, BORNEE par la cadence de
+        # re-evaluation : on ne decale jamais le cycle pour attendre un ordre.
+        wanted = config.LIMIT_ORDER_TIMEOUT_SEC if limit_timeout is None else limit_timeout
+        self.limit_timeout = min(wanted, self.poll_seconds)
         self.base = self.symbol.split("/")[0]
         self.quote = self.symbol.split("/")[1]
         # Niveau de logs ACTIF. Defaut = comportement historique ("moyen"). Rafraichi
@@ -198,6 +222,10 @@ class _Trader:
             risk.append(f"objectif +{self.take_profit*100:g}%")
         if self.position_sizing == "vol":
             risk.append(f"sizing vol cible {self.target_vol*100:g}%")
+        if self.order_type != "market":
+            # Signale seulement le mode NON par defaut -> la ligne de demarrage
+            # reste identique au caractere pres en mode marche (non-regression).
+            risk.append(f"ordres {self.order_type} (frais {self.fee*100:g}%)")
         risk_txt = (" | " + ", ".join(risk)) if risk else ""
         self._refresh_log_level()
         self._trace(f"Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}", level="leger")
@@ -282,12 +310,26 @@ class PaperTrader(_Trader):
                  position_sizing=None, target_vol=None, vol_window=None,
                  max_fraction=None, initial_capital=None, fee=None,
                  poll_seconds=None, state_file="paper_state.json",
-                 stats_file="paper_stats.csv", log_file="paper_trades.log"):
+                 stats_file="paper_stats.csv", log_file="paper_trades.log",
+                 order_type=None, limit_timeout=None):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
                          vol_window, max_fraction, poll_seconds, stats_file,
-                         log_file=log_file)
-        self.fee = config.FEE if fee is None else fee
+                         log_file=log_file, order_type=order_type,
+                         limit_timeout=limit_timeout)
+        # `self.fee` est deja DERIVE de `order_type` par `_Trader` (source unique).
+        # `fee=` reste un surchargeage EXPLICITE, reserve aux tests / a une grille
+        # non standard : il ne change PAS le type d'ordre et n'est jamais utilise
+        # par la CLI (qui ne passe que `order_type`), pour qu'aucun chemin normal
+        # ne puisse faire diverger frais simules et type d'ordre.
+        if fee is not None:
+            self.fee = fee
+        # NOTE D'HONNETETE (simulation) : en mode "limit", le paper simule un
+        # remplissage AU PRIX OBSERVE avec les frais MAKER. Le risque de NON-
+        # remplissage propre au maker n'est PAS simule ici (il faudrait modeliser
+        # une probabilite de fill, qui serait inventee) : seul le live gere
+        # reellement l'attente/annulation. Le paper en maker est donc optimiste
+        # sur l'execution, exact sur les frais.
         self.state_file = Path(state_file)
         init_cap = config.INITIAL_CAPITAL if initial_capital is None else initial_capital
         self.state = self._load_state(init_cap)
@@ -300,9 +342,7 @@ class PaperTrader(_Trader):
             state.setdefault("entry_ts", None)    # retro-compat (suivi pnl/duree par trade)
             state.setdefault("entry_cost", None)
             return state
-        return {"cash": init_cap, "base_amount": 0.0, "invested": False,
-                "entry_price": None, "peak": None, "entry_ts": None,
-                "entry_cost": None, "trades": []}
+        return fresh_state(init_cap)
 
     def _save(self):
         self.state_file.write_text(json.dumps(self.state, indent=2))

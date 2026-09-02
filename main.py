@@ -145,9 +145,36 @@ def _strategy_params(args):
     return _parse_fixed(getattr(args, "params", None))
 
 
+def _guard_holdout(args, df, command):
+    """
+    GARDE-FOU incident #9 : `backtest`/`compare`/`optimize` tiraient les N derniers
+    jours SANS voir qu'ils entamaient le holdout sacre. Ici on compare les bougies
+    REELLEMENT chargees a la zone reservee (frontiere calculee par `holdout_split`,
+    source unique) :
+
+    - aucun recouvrement -> aucun bruit, comportement inchange ;
+    - recouvrement, meme partiel -> par DEFAUT on REFUSE (le holdout ne se
+      reconstitue pas : un simple avertissement arrive apres coup, les donnees
+      sont deja chargees et les resultats sur le point d'etre affiches) ;
+    - `--use-holdout` -> on passe outre, en gros et TRACE dans le journal.
+    """
+    from trading.optimizer import (holdout_overlap, format_holdout_overlap,
+                                   trace_holdout_use)
+    ov = holdout_overlap(df.index, args.symbol)
+    if ov is None:
+        return
+    allowed = bool(getattr(args, "use_holdout", False))
+    msg = format_holdout_overlap(ov, command=command, allowed=allowed)
+    if not allowed:
+        sys.exit(msg)
+    trace_holdout_use(ov, command=command)
+    print(msg)
+
+
 def cmd_backtest(args):
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "backtest")
     result = Backtester(**_bt_kwargs(args)).run(df, build_strategy(args.strategy, _strategy_params(args)))
     print(result.summary())
     if args.chart:
@@ -157,6 +184,7 @@ def cmd_backtest(args):
 def cmd_compare(args):
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "compare")
     rows = _run_all_strategies(df, **_bt_kwargs(args))
     print(f"\nComparaison sur {args.symbol} ({args.timeframe}), "
           f"{df.index[0].date()} -> {df.index[-1].date()}")
@@ -177,6 +205,7 @@ def cmd_optimize(args):
     from trading.optimizer import optimize, format_report
     df = _load_data(KrakenExchange(), args.symbol, args.timeframe, args.days,
                     source=getattr(args, "source", "kraken"))
+    _guard_holdout(args, df, "optimize")
     res = optimize(df, args.strategy, train_frac=args.train_frac, metric=args.metric, **_bt_kwargs(args))
     print(format_report(res))
 
@@ -260,8 +289,24 @@ def cmd_portfolio(args):
 
 def cmd_paper(args):
     from trading.paper_trader import PaperTrader
+    state_file = getattr(args, "state", None) or "paper_state.json"
+    stats_file = getattr(args, "stats", None) or "paper_stats.csv"
+    # Le JOURNAL des ordres appartient au meme jeu de fichiers que l'etat et les
+    # stats : il est resolu A COTE de l'etat (par defaut ./paper_trades.log, le
+    # comportement historique) et la MEME valeur sert au trader ET au --reset.
+    # Sans ce partage, `--state ailleurs/` ferait archiver un journal pendant que
+    # le trader continuerait d'ecrire dans un autre : la coupure serait fausse.
+    log_file = Path(state_file).parent / "paper_trades.log"
+    if getattr(args, "reset", False):
+        # ARCHIVAGE (jamais d'ecrasement) + etat neuf, AVANT tout appel reseau :
+        # la remise a zero est acquise meme si la boucle echoue ensuite.
+        # Le journal est archive AVEC l'etat et les stats (meme horodatage) :
+        # sinon le log melange l'ancienne et la nouvelle configuration.
+        from trading.reset import reset_paper, format_reset
+        print(format_reset(reset_paper(state_file, stats_file, log_file=log_file)))
     PaperTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
-                timeframe=args.timeframe, **_bt_kwargs(args)).run()
+                timeframe=args.timeframe, state_file=state_file, stats_file=stats_file,
+                log_file=log_file, **_order_kwargs(args), **_bt_kwargs(args)).run()
 
 
 def cmd_live(args):
@@ -280,12 +325,16 @@ def cmd_live(args):
         if args.position_sizing == "vol":
             tv = args.target_vol if args.target_vol is not None else config.TARGET_VOL * 100
             print(f"     Sizing         : volatilite cible {tv:g}%")
+        ot = getattr(args, "order_type", "market")
+        print(f"     Type d'ordre   : {ot} (frais simules {config.fee_for_order_type(ot)*100:.2f}%)"
+              + ("  -- remplissage NON garanti" if ot == "limit" else ""))
         print(f"     Ordre max      : {config.MAX_TRADE_VALUE_USD} $ | Exposition max : {config.MAX_POSITION_VALUE_USD} $")
         print("=" * 64)
         if input('  Tape exactement  OUI JE CONFIRME  pour continuer : ').strip() != "OUI JE CONFIRME":
             sys.exit("Annule. (Aucun ordre envoye.)")
     trader = LiveTrader(KrakenExchange(), build_strategy(args.strategy, _strategy_params(args)), symbol=args.symbol,
-                        timeframe=args.timeframe, dry_run=dry_run, **_bt_kwargs(args))
+                        timeframe=args.timeframe, dry_run=dry_run,
+                        **_order_kwargs(args), **_bt_kwargs(args))
     # BUG-017 (P0, gate Lot 8B FAIL-1) : reconcile() AVANT run(), sinon une
     # position ouverte reprise apres un restart tourne SANS stop ni trailing
     # (_risk_overlay sort immediatement si entry_price est None). reconcile()
@@ -395,12 +444,21 @@ def cmd_live_run(args):
 
 
 def cmd_stats(args):
-    from trading.stats import load_stats, summarize, format_summary
+    from trading.stats import load_stats, summarize, format_summary, filter_period
     try:
         df = load_stats(args.file)
     except FileNotFoundError as e:
         sys.exit(str(e))
-    print(format_summary(summarize(df)))
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    n_total = len(df)
+    try:
+        # Le filtrage vit dans trading/stats.py (fonction pure, testable) ; ici on
+        # ne fait que router les bornes et rapporter une date invalide clairement.
+        df = filter_period(df, since, until)
+    except ValueError as e:
+        sys.exit(str(e))
+    print(format_summary(summarize(df, since=since, until=until, n_total=n_total)))
 
 
 def _resolve_allowed_hosts(cli_hosts):
@@ -543,11 +601,44 @@ def _source_arg(sp):
                          "(historique long pour la recherche, sans cle)")
 
 
+def _holdout_guard_arg(sp):
+    """Contournement EXPLICITE du garde-fou de holdout (incident #9).
+
+    Reserve aux commandes de recherche qui tirent une fenetre brute
+    (backtest/compare/optimize). `walkforward` a deja son propre `--holdout` et
+    n'est pas touche.
+    """
+    sp.add_argument("--use-holdout", action="store_true",
+                    help="AUTORISE cette commande a regarder les bougies du holdout "
+                         "sacre (refus par defaut). Decision consciente : ces bougies "
+                         "cessent d'etre hors-echantillon pour toujours. Tracee dans "
+                         f"{config.HOLDOUT_USAGE_LOG}.")
+
+
 def _risk_args(sp):
     sp.add_argument("--stop-loss", type=float, default=None, metavar="PCT",
                     help="stop-loss en %% (ex: 8)")
     sp.add_argument("--take-profit", type=float, default=None, metavar="PCT",
                     help="take-profit en %% (ex: 20)")
+
+
+def _order_type_arg(sp):
+    """Type d'ordre pour le paper/live (PAS l'analyse : le backtester, lui, simule
+    des ordres marche). Defaut 'market' = comportement historique, inchange.
+
+    Un seul reglage pilote les DEUX faces (type d'ordre envoye en live ET taux de
+    frais simule, via config.fee_for_order_type) : impossible de simuler des frais
+    maker en passant des ordres marche."""
+    sp.add_argument("--order-type", choices=list(config.ORDER_TYPES), default="market",
+                    help="'market' (defaut, taker) ou 'limit' (ordre postOnly, maker : "
+                         "frais moindres MAIS remplissage non garanti -- l'ordre non "
+                         "rempli est annule et le cycle suivant re-decide)")
+
+
+def _order_kwargs(args):
+    """Kwargs de type d'ordre pour PaperTrader/LiveTrader (jamais pour Backtester :
+    il n'a pas cette notion). Ne passe JAMAIS `fee` -- il est derive du type."""
+    return {"order_type": getattr(args, "order_type", "market")}
 
 
 def _adv_risk_args(sp):
@@ -581,12 +672,15 @@ def build_parser():
             sp.add_argument("--days", type=int, default=720)
 
     b = sub.add_parser("backtest"); common(b); _source_arg(b); _risk_args(b); _adv_risk_args(b)
+    _holdout_guard_arg(b)
     b.add_argument("--chart", metavar="FICHIER.png"); b.set_defaults(func=cmd_backtest)
 
     c = sub.add_parser("compare"); common(c); _source_arg(c); _risk_args(c); _adv_risk_args(c)
+    _holdout_guard_arg(c)
     c.set_defaults(func=cmd_compare)
 
     o = sub.add_parser("optimize"); common(o); _source_arg(o); _risk_args(o); _adv_risk_args(o)
+    _holdout_guard_arg(o)
     o.add_argument("--metric", default="sharpe",
                    choices=["sharpe", "sortino", "calmar", "total_return", "profit_factor"])
     o.add_argument("--train-frac", type=float, default=0.6)
@@ -620,9 +714,19 @@ def build_parser():
     pf.set_defaults(func=cmd_portfolio)
 
     pa = sub.add_parser("paper"); common(pa, days=False); _risk_args(pa); _adv_risk_args(pa)
+    _order_type_arg(pa)
+    pa.add_argument("--reset", action="store_true",
+                    help="repart de zero : ARCHIVE paper_state.json et paper_stats.csv "
+                         "(renommes avec un horodatage, rien n'est supprime) puis recree "
+                         "un etat neuf au capital initial")
+    pa.add_argument("--state", default="paper_state.json",
+                    help="etat du paper (defaut: paper_state.json)")
+    pa.add_argument("--stats", default="paper_stats.csv",
+                    help="CSV de stats du paper (defaut: paper_stats.csv)")
     pa.set_defaults(func=cmd_paper)
 
     li = sub.add_parser("live"); common(li, days=False); _risk_args(li); _adv_risk_args(li)
+    _order_type_arg(li)
     li.add_argument("--execute", action="store_true",
                     help="DESACTIVE le dry-run et passe de VRAIS ordres (double confirmation)")
     li.set_defaults(func=cmd_live)
@@ -651,6 +755,12 @@ def build_parser():
     st = sub.add_parser("stats")
     st.add_argument("--file", default="paper_stats.csv",
                     help="CSV de stats a analyser (defaut: paper_stats.csv)")
+    st.add_argument("--since", default=None, metavar="DATE",
+                    help="ne resumer qu'a partir de cette date INCLUSE "
+                         "('YYYY-MM-DD' ou 'YYYY-MM-DD HH:MM:SS')")
+    st.add_argument("--until", default=None, metavar="DATE",
+                    help="ne resumer que jusqu'a cette date INCLUSE (une date seule "
+                         "inclut toute la journee)")
     st.set_defaults(func=cmd_stats)
 
     mo = sub.add_parser("monitor")

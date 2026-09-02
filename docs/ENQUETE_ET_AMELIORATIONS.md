@@ -26,6 +26,31 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 
 ## 2. Journal d'enquete (capitalisation)
 
+### Incident #9 — 2026-09-01 — HOLDOUT ENTAME + TSMOM 365 NEGATIF sur la periode recente
+- **Fait 1 (faute de methode, Claude)** : backtest lance sur `--timeframe 1d --days 730`, soit
+  **2024-09-11 -> 2026-08-31**. Le holdout sacre de l'etude #5 pour ETH est **2024-10 -> 2026-07**.
+  Le backtest le **recouvre integralement**. La frontiere du holdout n'a pas ete verifiee AVANT de
+  choisir `--days`. Attenuation partielle (a ne pas surestimer) : l'etude #5 a fige son holdout sur
+  la source **binance** avec `--holdout 20` ; ce backtest-ci est sur **kraken**, sans `--holdout`,
+  et n'a lance aucun `--final`. Le jeu de donnees differe, **la periode non**. Le principe (ne pas
+  regarder les donnees recentes avant la validation finale) est entame pour TSMOM 365 sur ETH.
+- **Fait 2 (resultat, MESURE)** : `backtest --strategy tsmom --params "lookback=365" --timeframe 1d
+  --days 730` sur ETH/USD Kraken donne **-26,3 %** (capital 10 000 -> 7 372), annualise -14,3 %,
+  **Sharpe -0,46**, drawdown max -39,5 %, profit factor 0,39, **4 trades**, taux de reussite 25 %,
+  temps investi 18 %. **Buy & Hold sur la meme periode : +5,4 %.**
+- **Portee du fait 2** : echantillon **tres faible** — un lookback de 365 sur 730 bougies ne laisse
+  que ~365 jours de signal exploitable, d'ou 4 trades. Ce n'est **pas** un walk-forward et ce n'est
+  **pas** le juge du projet. Ca ne refute pas l'etude #5 (~8 ans, 3 actifs, OOS) ; ca montre que sur
+  la periode recente ETH/Kraken, la strategie **aurait perdu**, ce qui est coherent avec le
+  mecanisme deja documente : TSMOM vit de l'evitement de krach et **rend du terrain hors krach**.
+- **Consequence immediate** : la bascule de production vers TSMOM 365 daily, autorisee par Mandar
+  le 2026-09-01, est **SUSPENDUE**. Deployer une strategie mesuree a -26 % sur les 2 dernieres
+  annees de l'actif cible, sans l'avoir dit, aurait ete malhonnete.
+- **Garde-fou par construction (a implementer)** : toute commande de recherche/backtest doit
+  **refuser ou avertir** quand la fenetre demandee empiete sur le holdout declare. La frontiere
+  existe deja en code (`trading/optimizer.py:233 holdout_split`) mais **rien ne protege un
+  `backtest --days N`**, qui ignore completement la notion de holdout. C'est le vrai defaut.
+
 ### Incident #1 — 2026-06-05 — "Erreur recurrente Kraken" (nuit)
 - **Symptome** : `kraken GET .../OHLC` repete dans la console ; collecte interrompue
   (~00:18 -> matin) ; le process paper retrouve mort.

@@ -80,6 +80,61 @@ def test_parse_paper_params_toutes_les_strategies_du_registre_acceptees():
 
 
 # --------------------------------------------------------------------------- #
+#  order_type -- Lot "reglages CLI exposes" (--order-type market|limit)       #
+# --------------------------------------------------------------------------- #
+def test_parse_paper_params_order_type_absent_retombe_sur_market():
+    params, errors = pp.parse_paper_params({"strategy": "sma"})
+    assert errors == []
+    assert params["order_type"] == "market"
+
+
+def test_parse_paper_params_order_type_limit_accepte():
+    params, errors = pp.parse_paper_params({"strategy": "sma", "order_type": "limit"})
+    assert errors == []
+    assert params["order_type"] == "limit"
+
+
+def test_parse_paper_params_order_type_invalide_ou_forge_rejete():
+    params, errors = pp.parse_paper_params({"strategy": "sma", "order_type": "live"})
+    assert params is None
+    assert any("Type d'ordre inconnu" in e for e in errors)
+
+    params2, errors2 = pp.parse_paper_params({"strategy": "sma", "order_type": "n-importe-quoi"})
+    assert params2 is None
+    assert any("Type d'ordre inconnu" in e for e in errors2)
+
+
+# --------------------------------------------------------------------------- #
+#  reset -- Lot "reglages CLI exposes" (--reset), confirmation obligatoire    #
+# --------------------------------------------------------------------------- #
+def test_parse_paper_params_reset_absent_par_defaut():
+    params, errors = pp.parse_paper_params({"strategy": "sma"})
+    assert errors == []
+    assert params["reset"] is False
+
+
+def test_parse_paper_params_reset_sans_confirmation_rejete():
+    params, errors = pp.parse_paper_params({"strategy": "sma", "reset": "1"})
+    assert params is None
+    assert any("confirmation" in e.lower() for e in errors)
+
+
+def test_parse_paper_params_reset_confirme_accepte():
+    params, errors = pp.parse_paper_params({
+        "strategy": "sma", "reset": "1", "reset_confirm": "1",
+    })
+    assert errors == []
+    assert params["reset"] is True
+
+
+def test_parse_paper_params_reset_confirm_sans_reset_ignore():
+    # Cocher "Je confirme" seul (sans "Repartir de zero") ne demande rien.
+    params, errors = pp.parse_paper_params({"strategy": "sma", "reset_confirm": "1"})
+    assert errors == []
+    assert params["reset"] is False
+
+
+# --------------------------------------------------------------------------- #
 #  compute_paper_status -- fonction pure, aucune I/O                          #
 # --------------------------------------------------------------------------- #
 def test_compute_paper_status_arrete():
@@ -210,3 +265,43 @@ def test_render_paper_page_disabled_false_par_defaut_comportement_lot7_inchange(
     html = pp.render_paper_page(status, "T")
     assert "Démarrer le paper trading" in html
     assert "Pilotage désactivé" not in html
+
+
+# --------------------------------------------------------------------------- #
+#  Rendu des 2 nouveaux reglages (type d'ordre langage clair + remise a zero) #
+# --------------------------------------------------------------------------- #
+def test_render_paper_page_affiche_le_type_dordre_en_langage_clair():
+    status = pp.compute_paper_status(False, None)
+    html = pp.render_paper_page(status, "T")
+    assert "name='order_type'" in html
+    # Le compromis (cher-garanti vs. moins cher-non garanti) doit etre LISIBLE
+    # a l'ecran, pas cache dans une infobulle.
+    assert "0,80" in html and "0,40" in html
+    # Jamais le jargon "maker"/"taker" (demande explicite de l'utilisateur).
+    assert "maker" not in html.lower()
+    assert "taker" not in html.lower()
+
+
+def test_render_paper_page_affiche_la_remise_a_zero_non_destructive():
+    status = pp.compute_paper_status(False, None)
+    html = pp.render_paper_page(status, "T")
+    assert "name='reset'" in html
+    assert "name='reset_confirm'" in html
+    # L'interface DOIT dire que rien n'est supprime (peur exprimee par l'user).
+    assert "archive" in html.lower()
+    assert "supprim" in html.lower()
+
+
+def test_render_paper_page_re_remplit_order_type_et_reset_apres_erreur():
+    status = pp.compute_paper_status(False, None)
+    html = pp.render_paper_page(
+        status, "T",
+        errors=["Remise à zéro demandée sans confirmation : coche aussi "
+                "« Je confirme » pour repartir de zéro."],
+        values={"strategy": "sma", "order_type": "limit", "reset": "1"},
+    )
+    assert "<option value='limit' selected>" in html
+    assert "id='reset' name='reset' value='1' checked" in html
+    # reset_confirm n'etait PAS coche dans le POST rejete -> ne doit pas
+    # revenir coche.
+    assert "id='reset_confirm' name='reset_confirm' value='1' checked" not in html

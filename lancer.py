@@ -111,7 +111,14 @@ def build_paper_command_params(root: Path, params: dict, python=None):
     (str), timeframe (str), stop_loss/take_profit/trailing_stop (float ou
     None, en POURCENTAGES -- meme convention que --stop-loss/--take-profit/
     --trailing-stop du CLI), position_sizing ("none"/"vol"), target_vol
-    (float ou None, en POURCENTAGES).
+    (float ou None, en POURCENTAGES), order_type ("market"/"limit"/absent,
+    ecran /paper), reset (bool/absent, ecran /paper).
+
+    Non-regression : un `params` qui n'a ni order_type ni reset (les appels
+    d'avant l'ajout de ces 2 reglages) produit EXACTEMENT la meme commande
+    qu'avant -- "market" est deja le defaut CLI (main.py::_order_type_arg),
+    donc omis comme "none" pour position_sizing ; reset absent/False -> pas
+    de "--reset".
     """
     cmd = _base_cmd(root, python) + [
         "paper",
@@ -130,6 +137,11 @@ def build_paper_command_params(root: Path, params: dict, python=None):
         cmd += ["--position-sizing", str(position_sizing)]
         if params.get("target_vol") is not None:
             cmd += ["--target-vol", str(params["target_vol"])]
+    order_type = params.get("order_type")
+    if order_type and order_type != "market":
+        cmd += ["--order-type", str(order_type)]
+    if params.get("reset"):
+        cmd += ["--reset"]
     return assert_paper_only(cmd)
 
 

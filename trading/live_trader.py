@@ -45,11 +45,13 @@ class LiveTrader(_Trader):
                  stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, vol_window=None,
                  max_fraction=None, dry_run=True, poll_seconds=None,
-                 stats_file="live_stats.csv", state_file=None):
+                 stats_file="live_stats.csv", state_file=None,
+                 order_type=None, limit_timeout=None):
         super().__init__(exchange, strategy, symbol, timeframe, stop_loss,
                          take_profit, trailing_stop, position_sizing, target_vol,
                          vol_window, max_fraction, poll_seconds, stats_file,
-                         log_file=LOG_FILE)
+                         log_file=LOG_FILE, order_type=order_type,
+                         limit_timeout=limit_timeout)
         self.dry_run = dry_run
         # `state_file` resolu au call-time contre le module STATE_FILE (comme LOG_FILE
         # ci-dessus) pour rester monkeypatchable par les tests sans polluer le depot.
@@ -182,6 +184,83 @@ class LiveTrader(_Trader):
     def _units(self):
         return self._base_balance()
 
+    # ------------------------------------------------------------------- #
+    #  Execution des ordres (marche = taker, limite postOnly = maker)      #
+    # ------------------------------------------------------------------- #
+    @staticmethod
+    def _filled_of(order) -> float:
+        """Quantite REELLEMENT remplie lue sur l'ordre (0.0 si absente/illisible)."""
+        try:
+            return float((order or {}).get("filled") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _place_limit(self, side: str, amount: float, price: float) -> float:
+        """
+        Place un ordre LIMITE postOnly et attend un remplissage pendant un temps
+        BORNE (`self.limit_timeout`, defaut config.LIMIT_ORDER_TIMEOUT_SEC = 60 s,
+        toujours <= poll_seconds). Retourne la quantite REELLEMENT remplie.
+
+        Politique de non-remplissage, explicite (un ordre maker peut ne JAMAIS
+        etre rempli) :
+          - rejet a l'envoi (postOnly : l'ordre aurait croise le carnet, donc
+            aurait ete facture en TAKER) -> 0.0, on ne prend PAS la position et le
+            cycle suivant re-decide avec un prix frais ;
+          - delai ecoule sans remplissage complet -> ANNULATION, puis relecture de
+            l'ordre pour connaitre le remplissage REEL (un remplissage PARTIEL a
+            pu se produire avant l'annulation) ;
+          - le retour fait foi pour la position : `filled`, jamais `amount`. Aucune
+            position fantome ne peut donc etre inscrite dans l'etat.
+        """
+        placer = (self.exchange.create_limit_buy if side == "buy"
+                  else self.exchange.create_limit_sell)
+        try:
+            order = placer(self.symbol, amount, price)
+        except Exception as e:
+            _log(f"Ordre LIMITE {side} refuse a l'envoi ({type(e).__name__}: {e}) -- "
+                 "rien d'execute, le cycle suivant re-decidera.")
+            return 0.0
+
+        order_id = (order or {}).get("id")
+        filled = self._filled_of(order)
+        deadline = time.time() + self.limit_timeout
+        # Boucle "au moins une relecture" : meme avec un delai nul on interroge
+        # l'ordre UNE fois avant de conclure -- sinon on annulerait un ordre
+        # peut-etre deja rempli (et on inscrirait une position fausse).
+        while filled < amount:
+            time.sleep(max(0.0, min(config.LIMIT_ORDER_POLL_SEC,
+                                    deadline - time.time())))
+            try:
+                order = self.exchange.fetch_order(order_id, self.symbol)
+            except Exception as e:
+                _log(f"Lecture de l'ordre {order_id} impossible ({type(e).__name__}: {e}) "
+                     "-- on tente l'annulation.")
+                break
+            filled = self._filled_of(order)
+            if str((order or {}).get("status") or "").lower() in (
+                    "closed", "canceled", "cancelled", "rejected", "expired"):
+                break
+            if time.time() >= deadline:
+                break
+
+        if filled < amount:
+            # Delai ecoule (ou ordre deja termine partiellement) : on annule et on
+            # RELIT le remplissage reel -- ne jamais supposer 0 apres annulation.
+            try:
+                self.exchange.cancel_order(order_id, self.symbol)
+                final = self.exchange.fetch_order(order_id, self.symbol)
+                filled = max(filled, self._filled_of(final))
+            except Exception as e:
+                _log(f"Annulation/relecture de l'ordre {order_id} en echec "
+                     f"({type(e).__name__}: {e}) -- remplissage retenu : {filled:.8f}.")
+            if filled <= 0:
+                _log(f"Ordre LIMITE {side} NON REMPLI en {self.limit_timeout:.0f}s -> annule. "
+                     "Aucune position prise ; re-decision au cycle suivant.")
+            else:
+                _log(f"Ordre LIMITE {side} PARTIELLEMENT rempli : {filled:.8f} / "
+                     f"{amount:.8f} -> reste annule. La position suit le rempli REEL.")
+        return filled
+
     def _cooldown_ok(self):
         if time.time() - self.last_trade_ts < config.MIN_TRADE_INTERVAL_SEC:
             _log("Ordre ignore : delai minimum entre trades non ecoule (garde-fou).")
@@ -207,6 +286,15 @@ class LiveTrader(_Trader):
             amount = budget / price
             if self.dry_run:
                 _log(f"[DRY-RUN] ACHAT prevu : {amount:.5f} {self.base} (~{budget:.2f} {self.quote}) @ {price:.2f}")
+            elif self.order_type == "limit":
+                filled = self._place_limit("buy", amount, price)
+                if filled <= 0:
+                    return None          # aucun remplissage -> AUCUNE position inscrite
+                amount = filled          # remplissage partiel : la position = le REMPLI
+                budget = filled * price
+                _log(f"ACHAT LIMITE EXECUTE : {amount:.5f} {self.base} @ {price:.2f} "
+                     f"(~{budget:.2f} {self.quote})")
+                self.last_trade_ts = time.time()
             else:
                 order = self.exchange.create_market_buy(self.symbol, amount)
                 _log(f"ACHAT EXECUTE : {amount:.5f} {self.base} @ ~{price:.2f} | id={order.get('id')}")
@@ -216,29 +304,55 @@ class LiveTrader(_Trader):
             self.entry_ts = time.time()
             self.entry_cost = budget
             self._save_state()
-            return {"action": "buy", "pnl": 0.0, "fee_paid": budget * config.FEE, "hold_secs": ""}
+            return {"action": "buy", "pnl": 0.0, "fee_paid": budget * self.fee, "hold_secs": ""}
 
         elif desired == 0 and invested:                         # VENTE
             if not self._cooldown_ok():
                 return None
             amount = self._base_balance()
-            # PnL APPROXIMATIF en live : on ignore les fills/slippage reels (inconnus
-            # ici), on suppose une vente au prix observe, frais Kraken deduits.
-            proceeds = amount * price
-            fee_sell = amount * price * config.FEE
-            pnl = proceeds * (1 - config.FEE) - (self.entry_cost or 0.0)
             hold = time.time() - (self.entry_ts or time.time())
             tag = f" [{reason}]" if reason else ""
+            sold = amount            # quantite REELLEMENT vendue (= amount hors limite)
             if self.dry_run:
                 _log(f"[DRY-RUN] VENTE prevue{tag} : {amount:.5f} {self.base} @ {price:.2f}")
+            elif self.order_type == "limit":
+                sold = self._place_limit("sell", amount, price)
+                if sold <= 0:
+                    # DANGER PROPRE AU MAKER, dit explicitement : une sortie de
+                    # risque (stop/trailing/objectif) qui ne trouve pas de
+                    # contrepartie NE PROTEGE PAS. On garde les ancres de risque
+                    # intactes et on re-essaiera au cycle suivant.
+                    _log(f"ATTENTION : VENTE LIMITE{tag} NON REMPLIE -- la position "
+                         "reste OUVERTE et non protegee ; nouvelle tentative au "
+                         "cycle suivant (passer en --order-type market pour sortir "
+                         "au marche).")
+                    return None
+                _log(f"VENTE LIMITE EXECUTEE{tag} : {sold:.5f} {self.base} @ {price:.2f}")
+                self.last_trade_ts = time.time()
             else:
                 order = self.exchange.create_market_sell(self.symbol, amount)
                 _log(f"VENTE EXECUTEE{tag} : {amount:.5f} {self.base} @ ~{price:.2f} | id={order.get('id')}")
                 self.last_trade_ts = time.time()
-            self.entry_price = None
-            self.peak = None
-            self.entry_ts = None
-            self.entry_cost = None
+            # PnL APPROXIMATIF en live : on ignore les fills/slippage reels (inconnus
+            # ici), on suppose une vente au prix observe, frais Kraken deduits. En
+            # remplissage PARTIEL, le cout d'entree est impute AU PRORATA du vendu.
+            part = (sold / amount) if amount else 1.0
+            entry_cost = self.entry_cost or 0.0
+            proceeds = sold * price
+            fee_sell = proceeds * self.fee
+            pnl = proceeds * (1 - self.fee) - entry_cost * part
+            if part < 1.0:
+                # Reste une position ouverte : on CONSERVE les ancres de risque
+                # (entry_price/peak/entry_ts) pour que stop et trailing continuent
+                # de la couvrir, et on ne garde que la part de cout non soldee.
+                self.entry_cost = entry_cost * (1 - part)
+                _log(f"Position PARTIELLEMENT soldee ({part*100:.0f}%) -- le reste "
+                     "demeure ouvert, stop/trailing toujours actifs dessus.")
+            else:
+                self.entry_price = None
+                self.peak = None
+                self.entry_ts = None
+                self.entry_cost = None
             self._save_state()
             return {"action": "sell", "pnl": pnl, "fee_paid": fee_sell,
                     "hold_secs": hold, "reason": reason}

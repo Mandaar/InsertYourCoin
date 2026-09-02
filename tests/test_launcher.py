@@ -117,6 +117,64 @@ def test_build_paper_command_params_jamais_live_meme_avec_entree_malveillante(tm
 
 
 # --------------------------------------------------------------------------- #
+#  order_type / reset (ecran /paper, exposition de --order-type et --reset)   #
+# --------------------------------------------------------------------------- #
+def test_build_paper_command_params_sans_order_type_ni_reset_identique_a_avant(tmp_path):
+    # NON-REGRESSION la plus importante : un appel qui n'a ni order_type ni
+    # reset (comportement d'avant l'ajout de ces 2 reglages) ne doit RIEN
+    # ajouter de plus a la commande.
+    params = {
+        "strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+        "stop_loss": 5.0, "take_profit": 10.0, "trailing_stop": None,
+        "position_sizing": "none", "target_vol": None,
+    }
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--order-type" not in cmd
+    assert "--reset" not in cmd
+
+
+def test_build_paper_command_params_market_omis_comme_avant(tmp_path):
+    # "market" = defaut CLI (main.py::_order_type_arg) : meme explicite, il
+    # ne doit PAS apparaitre dans la commande (meme convention que
+    # position_sizing="none").
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "order_type": "market", "reset": False}
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--order-type" not in cmd
+
+
+def test_build_paper_command_params_limit_ajoute_order_type(tmp_path):
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "order_type": "limit"}
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--order-type" in cmd and cmd[cmd.index("--order-type") + 1] == "limit"
+
+
+def test_build_paper_command_params_reset_ajoute_flag(tmp_path):
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "reset": True}
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--reset" in cmd
+
+
+def test_build_paper_command_params_reset_false_omis(tmp_path):
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "reset": False}
+    cmd = lancer.build_paper_command_params(tmp_path, params)
+    assert "--reset" not in cmd
+
+
+def test_build_paper_command_params_order_type_malveillant_bloque_par_assert_paper_only(tmp_path):
+    # Defense en profondeur (comme le test position_sizing="live" ci-dessus) :
+    # meme si order_type contenait "live" (impossible depuis parse_paper_params
+    # qui valide contre config.ORDER_TYPES), assert_paper_only doit bloquer.
+    params = {"strategy": "sma", "symbol": "ETH/USD", "timeframe": "1h",
+              "order_type": "live"}
+    with pytest.raises(RuntimeError):
+        lancer.build_paper_command_params(tmp_path, params)
+
+
+# --------------------------------------------------------------------------- #
 #  Dossiers run/ et logs/                                                       #
 # --------------------------------------------------------------------------- #
 def test_ensure_dirs_creates_run_and_logs(tmp_path):
