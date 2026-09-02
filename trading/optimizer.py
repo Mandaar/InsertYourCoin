@@ -30,6 +30,9 @@ DEFAULT_GRIDS = {
     "macd": ({"fast": [8, 12, 16], "slow": [21, 26, 34], "signal": [7, 9, 12]},
              lambda p: p["fast"] < p["slow"]),
     "bollinger": ({"period": [10, 20, 30], "num_std": [1.5, 2.0, 2.5]}, None),
+    # Etude #8 : seul l'horizon d'etiquetage varie (les 3 valeurs GELEES de
+    # docs/ETUDE_8_PREDICTIF.md §0.3) ; tout le reste du modele est fige.
+    "predictive": ({"horizon": [5, 10, 20]}, None),
 }
 
 # B1) Marge de warm-up (en bougies) ajoutee EN AMONT de chaque fenetre OOS pour
@@ -156,6 +159,25 @@ def _params_warmup(params):
     return max(WARMUP, longest + 50)
 
 
+def _declared_warmup(strat_cls, params):
+    """Amorcage DECLARE par la strategie elle-meme (attribut/propriete `warmup_bars`).
+
+    Une strategie qui APPREND (etude #8) a besoin de bien plus de passe que la plus
+    longue de ses periodes : fenetre de caracteristiques + lignes d'entrainement +
+    horizon d'etiquetage. `_params_warmup` (qui ne lit que les entiers des parametres)
+    la sous-estimerait systematiquement, et la moitie de chaque fenetre OOS se
+    passerait a l'arret -- un handicap qui n'existe pas en trading reel, ou le bot
+    dispose de tout l'historique anterieur.
+
+    Generique et NEUTRE pour l'existant : une strategie sans `warmup_bars` renvoie 0,
+    donc la marge reste exactement celle d'avant (aucun changement de resultat).
+    """
+    try:
+        return int(getattr(strat_cls(**params), "warmup_bars", 0) or 0)
+    except Exception:
+        return 0
+
+
 def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe",
                  fee=None, stop_loss=None, take_profit=None, trailing_stop=None,
                  position_sizing=None, target_vol=None, fixed_params=None, slippage=None):
@@ -196,8 +218,11 @@ def walk_forward(df, strategy_name, n_windows=4, train_frac=0.5, metric="sharpe"
             train = df.iloc[:test_start]
             params, _ = _best_on(bt, train, strat_cls, grid, is_valid, metric)
         # B1) OOS [test_start, test_end) backteste avec warm-up amont, mais seul
-        # ce segment est compte (equity/trades/metriques).
-        t_start = max(0, test_start - warmup_margin)
+        # ce segment est compte (equity/trades/metriques). La marge retenue est la
+        # plus grande entre celle deduite des parametres et celle DECLAREE par la
+        # strategie (cf. _declared_warmup ; 0 pour toutes les strategies classiques).
+        margin = max(warmup_margin, _declared_warmup(strat_cls, params))
+        t_start = max(0, test_start - margin)
         test_ext = df.iloc[t_start:test_end]
         tm = bt.run(test_ext, strat_cls(**params), warmup=test_start - t_start).metrics
         compounded *= (1 + tm["total_return"])
@@ -441,7 +466,7 @@ def holdout_check(df, holdout_frac, strategy_name, fixed_params=None, metric="sh
         if params is None:
             raise RuntimeError("Aucune combinaison valide sur le segment de recherche.")
         optimised = True
-    warmup_margin = _params_warmup(params)
+    warmup_margin = max(_params_warmup(params), _declared_warmup(strat_cls, params))
     t_start = max(0, cut - warmup_margin)
     ext = df.iloc[t_start:]
     m = bt.run(ext, strat_cls(**params), warmup=cut - t_start).metrics

@@ -175,6 +175,19 @@ STRATEGIES = {
 }
 
 
+# Strategie PREDICTIVE (etude #8), enregistree ici pour rester accessible par
+# `build_strategy("predictive")` comme toutes les autres. L'import est place EN FIN
+# de module (STRATEGIES existe deja) et TOLERE l'echec : si c'est `trading.predictive`
+# qui a ete importe EN PREMIER, il est ici partiellement initialise et sa classe
+# n'existe pas encore -- dans ce cas c'est lui qui s'enregistre a la fin de son
+# propre module. Les deux ordres d'import aboutissent au meme registre.
+try:  # noqa: E402
+    from .predictive import LogisticRegimeStrategy
+    STRATEGIES["predictive"] = LogisticRegimeStrategy
+except ImportError:
+    pass
+
+
 def build_strategy(name: str, params: dict = None) -> Strategy:
     """
     Instancie une stratégie a partir de son nom court. `params` (optionnel) :
