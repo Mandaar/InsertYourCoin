@@ -2,11 +2,17 @@
 
 > Claude Code lit ce fichier au début de chaque session. Il fait foi pour tout le projet.
 
-## Pourquoi (WHY)
-Outil de trading algorithmique crypto sur Kraken. Objectif honnête : avec du
-**capital qu'on peut se permettre de perdre**, tenter d'amortir au mieux les coûts
-de développement du projet "Regnum". **Ce n'est PAS un revenu/salaire.** Pas de
-promesse de gain régulier ni garanti.
+## Pourquoi (WHY) — réaligné le 2026-09-02
+Outil de **protection du capital crypto** sur Kraken. Objectif honnête : sur du
+**capital qu'on peut se permettre de perdre**, **réduire la casse pendant les krachs**.
+Il ne génère pas de rendement — c'est **mesuré**, pas supposé : neuf études
+(`docs/ETUDE_*.md`) ont testé le trading intraday, le prédictif et la diversification de
+stratégies ; aucune n'a battu le fait de ne rien faire, net de frais, hors échantillon.
+Ce qu'il sait faire, mesuré sur ~8 ans et 3 actifs (étude #5) : **rester en cash pendant
+un krach** (drawdown BTC −53 % contre −77 % en détention simple). Sa prime : rater une
+partie des hausses. **Ce n'est PAS un revenu, et ce n'est plus un amortisseur de coûts** —
+l'objectif initial (« amortir les coûts de Regnum ») a été abandonné le 2026-09-02 sur
+décision de Mandar (« Go » sur le cap proposé), parce que non atteignable par ce moyen.
 
 ## Quoi (WHAT)
 Backtest de stratégies classiques, gestion du risque, diversification de portefeuille,
@@ -103,14 +109,23 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
   BUG-015). Reste non bloquant : BUG-016 (P2, même TOCTOU sur le paper). Aucun live réel jamais
   lancé (exige la frappe user). Reprise détaillée : [`docs/RAPPORT_WEBAPP_SUITE.md`](docs/RAPPORT_WEBAPP_SUITE.md).
 
-## Prochaines étapes (ordre suggéré)
-1. ~~Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.~~ ✅ fait.
-2. Lancer le paper trading en continu sur vraies données et l'observer plusieurs semaines.
-3. Filtre de tendance long terme (ne trader que dans le sens du marché).
-4. Chercher une stratégie à edge réel — valider systématiquement au walk-forward.
-5. Plus tard seulement : live avec petits montants, garde-fous serrés.
-6. **App web locale** : implémenter la spec UI/UX par lots (Lot 0 socle → Lot 9 polish, cf.
-   `docs/UI_UX_WEBAPP_SPEC.md` §9 et `docs/RAPPORT_WEBAPP_SUITE.md`), sous gate SQA, via `ui-programmer`.
+## Le cap (décidé le 2026-09-02, « Go » de Mandar) — et ce qu'on ARRÊTE
+**On arrête de chercher de l'edge.** Neuf études ont répondu ; la réponse est non. Toute nouvelle
+tentative de « stratégie qui gagne » est hors cap tant que ce paragraphe est là.
+
+1. ~~Réécrire la promesse~~ ✅ fait (§WHY ci-dessus).
+2. **Dernier test, gratuit** : timing BTC par SMA 200 j en cadence **mensuelle**, protocole strict
+   de `docs/ETUDE_9_ALLOCATION.md` §4.4 (étalement du jour de décision sur 4 tranches, sinon
+   ininterprétable). S'il confirme « protection, pas rendement », le dossier de recherche est CLOS.
+3. **Le serveur repart en mode protection** : étage 1 de `docs/design/MODE_ADAPTATIF_SPEC.md` —
+   détecteur de régime **sans IA**, vote de plusieurs horizons (180/270/365/450/540) pour ne
+   dépendre d'aucun. BTC + ETH, journalier, ordres limite, compteur neuf. **Jugé sur un seul
+   critère : le drawdown évité par rapport à la détention simple.** Pas sur le rendement.
+   Préalables serveur : relevé d'état + sauvegarde PROUVÉE du volume (cf. session Infrastructure).
+4. Plus tard seulement, et seulement si le point 3 tient plusieurs mois : live avec petits montants.
+
+Hors cap, documenté pour ne pas y revenir : intraday (étude #7), prédictif (étude #8),
+diversification de stratégies, funding/cash-and-carry, rendement stablecoin (étude #9).
 
 ---
 
