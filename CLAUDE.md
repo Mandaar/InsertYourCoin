@@ -114,9 +114,11 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
 tentative de « stratégie qui gagne » est hors cap tant que ce paragraphe est là.
 
 1. ~~Réécrire la promesse~~ ✅ fait (§WHY ci-dessus).
-2. **Dernier test, gratuit** : timing BTC par SMA 200 j en cadence **mensuelle**, protocole strict
-   de `docs/ETUDE_9_ALLOCATION.md` §4.4 (étalement du jour de décision sur 4 tranches, sinon
-   ininterprétable). S'il confirme « protection, pas rendement », le dossier de recherche est CLOS.
+2. ~~Dernier test, gratuit~~ ✅ **fait, étude #10 : NE PROTÈGE PAS. Le dossier de recherche est
+   CLOS.** SMA 200 j mensuel sur BTC évite 14,6 pts de drawdown mais le seul choix du jour de
+   décision en déplace 27,8 — on mesure un calendrier, pas une protection. Nuance à garder : en
+   2022 la sortie a été totale (0 ordre, 100 % cash) ; ce qui échoue est la **cadence mensuelle**,
+   pas l'idée de sortir en baisse. Le point 3 en sort renforcé.
 3. **Le serveur repart en mode protection** : étage 1 de `docs/design/MODE_ADAPTATIF_SPEC.md` —
    détecteur de régime **sans IA**, vote de plusieurs horizons (180/270/365/450/540) pour ne
    dépendre d'aucun. BTC + ETH, journalier, ordres limite, compteur neuf. **Jugé sur un seul
