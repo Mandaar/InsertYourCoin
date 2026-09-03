@@ -2,11 +2,17 @@
 
 > Claude Code lit ce fichier au début de chaque session. Il fait foi pour tout le projet.
 
-## Pourquoi (WHY)
-Outil de trading algorithmique crypto sur Kraken. Objectif honnête : avec du
-**capital qu'on peut se permettre de perdre**, tenter d'amortir au mieux les coûts
-de développement du projet "Regnum". **Ce n'est PAS un revenu/salaire.** Pas de
-promesse de gain régulier ni garanti.
+## Pourquoi (WHY) — réaligné le 2026-09-02
+Outil de **protection du capital crypto** sur Kraken. Objectif honnête : sur du
+**capital qu'on peut se permettre de perdre**, **réduire la casse pendant les krachs**.
+Il ne génère pas de rendement — c'est **mesuré**, pas supposé : neuf études
+(`docs/ETUDE_*.md`) ont testé le trading intraday, le prédictif et la diversification de
+stratégies ; aucune n'a battu le fait de ne rien faire, net de frais, hors échantillon.
+Ce qu'il sait faire, mesuré sur ~8 ans et 3 actifs (étude #5) : **rester en cash pendant
+un krach** (drawdown BTC −53 % contre −77 % en détention simple). Sa prime : rater une
+partie des hausses. **Ce n'est PAS un revenu, et ce n'est plus un amortisseur de coûts** —
+l'objectif initial (« amortir les coûts de Regnum ») a été abandonné le 2026-09-02 sur
+décision de Mandar (« Go » sur le cap proposé), parce que non atteignable par ce moyen.
 
 ## Quoi (WHAT)
 Backtest de stratégies classiques, gestion du risque, diversification de portefeuille,
@@ -103,14 +109,29 @@ python main.py paper     --strategy sma --timeframe 1h --stop-loss 5 --take-prof
   BUG-015). Reste non bloquant : BUG-016 (P2, même TOCTOU sur le paper). Aucun live réel jamais
   lancé (exige la frappe user). Reprise détaillée : [`docs/RAPPORT_WEBAPP_SUITE.md`](docs/RAPPORT_WEBAPP_SUITE.md).
 
-## Prochaines étapes (ordre suggéré)
-1. ~~Câbler trailing stop + sizing par volatilité dans `paper_trader.py` / `live_trader.py`.~~ ✅ fait.
-2. Lancer le paper trading en continu sur vraies données et l'observer plusieurs semaines.
-3. Filtre de tendance long terme (ne trader que dans le sens du marché).
-4. Chercher une stratégie à edge réel — valider systématiquement au walk-forward.
-5. Plus tard seulement : live avec petits montants, garde-fous serrés.
-6. **App web locale** : implémenter la spec UI/UX par lots (Lot 0 socle → Lot 9 polish, cf.
-   `docs/UI_UX_WEBAPP_SPEC.md` §9 et `docs/RAPPORT_WEBAPP_SUITE.md`), sous gate SQA, via `ui-programmer`.
+## Le cap (décidé le 2026-09-02, « Go » de Mandar) — et ce qu'on ARRÊTE
+**On arrête de chercher de l'edge.** Neuf études ont répondu ; la réponse est non. Toute nouvelle
+tentative de « stratégie qui gagne » est hors cap tant que ce paragraphe est là.
+
+1. ~~Réécrire la promesse~~ ✅ fait (§WHY ci-dessus).
+2. ~~Dernier test, gratuit~~ ✅ **fait, étude #10 : NE PROTÈGE PAS. Le dossier de recherche est
+   CLOS.** SMA 200 j mensuel sur BTC évite 14,6 pts de drawdown mais le seul choix du jour de
+   décision en déplace 27,8 — on mesure un calendrier, pas une protection. Nuance à garder : en
+   2022 la sortie a été totale (0 ordre, 100 % cash) ; ce qui échoue est la **cadence mensuelle**,
+   pas l'idée de sortir en baisse. Le point 3 en sort renforcé.
+3. **Le mode protection — étage 1 testé, étude #11 : le VOTE de 5 horizons est REJETÉ.** Il ne
+   bat TSMOM 365 seul sur aucun actif et fait *pire* que la détention simple sur SOL. Un ensemble
+   moyenne : quand 365 est le seul bon horizon, la majorité suit les mauvais. C'est l'« échec
+   utile » que la spec prévoyait — **365 était un accident de ce cycle**. Étages 2 et 3 : NE PAS
+   lancer. Ce qui reste, à décider par Mandar : TSMOM 365 **seul** est la seule méthode mesurée
+   qui protège 3 actifs sur 3 (DD BTC −53 % vs −77 %), **en sachant** qu'elle est fragile (seul
+   horizon positif) et qu'elle a fait −26,3 % sur les 2 dernières années d'ETH (incident #9).
+   Si elle est déployée : BTC + ETH, journalier, ordres limite, compteur neuf, jugée sur le
+   drawdown évité — pas sur le rendement. Préalables serveur : relevé d'état + sauvegarde PROUVÉE.
+4. Plus tard seulement, et seulement si le point 3 tient plusieurs mois : live avec petits montants.
+
+Hors cap, documenté pour ne pas y revenir : intraday (étude #7), prédictif (étude #8),
+diversification de stratégies, funding/cash-and-carry, rendement stablecoin (étude #9).
 
 ---
 

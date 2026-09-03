@@ -155,6 +155,9 @@ def render_home_page(paper_view, check_cache, keys_ok, truststore_ok) -> str:
         "<h1>État du poste</h1>"
         "<p class='lede'>Rien ne se lance tout seul. Cette page dit ce qui tourne, "
         "ce qui est prêt, et ce qui manque.</p>"
+        "<p class='lede'>Il protège du pire : il se met en cash quand le marché "
+        "s'effondre. Il ne fabrique pas de gain -- ce n'est pas un revenu. Le prix "
+        "de cette protection : il rate une partie des hausses.</p>"
         "</div></div>"
         "<div class='hub'>"
         + _diag_card(check_cache, truststore_ok)

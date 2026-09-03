@@ -53,3 +53,30 @@ def test_help_link_is_active_and_points_to_help_route():
 def test_settings_card_shows_keys_state():
     assert "<span class='ok'>OUI</span>" in _render(keys_ok=True)
     assert "<span class='no'>NON</span>" in _render(keys_ok=False)
+
+
+def test_home_page_states_the_project_promise_and_its_limit():
+    """La promesse du projet (protection, pas de gain, hausses ratees) doit
+    etre lisible sur l'Accueil, AVANT les cartes -- ni repliee, ni grisee au
+    dela du style '.lede' deja utilise pour le lede de la page (cf. §WHY de
+    CLAUDE.md, realigne le 2026-09-02). L'honnetete se verifie sur la partie
+    negative (ce que l'outil NE fait PAS), pas seulement la promesse positive."""
+    out = _render()
+    head, hub = out.split("<div class='hub'>", 1)
+
+    # La promesse positive (protection) est presente...
+    assert "protège du pire" in head
+    assert "se met en cash" in head
+    # ...ET la partie negative (pas de gain / pas un revenu), c'est
+    # l'honnetete qu'on teste ici, pas seulement le cote flatteur.
+    assert "ne fabrique pas de gain" in head
+    assert "pas un revenu" in head
+    # ...ET le prix de cette protection (hausses ratees).
+    assert "rate une partie des hausses" in head
+
+    # Le message est place AVANT la grille de cartes, pas dedans ni apres.
+    assert "protège du pire" not in hub
+
+    # Style : reutilise la classe '.lede' deja existante, aucune nouvelle
+    # classe ni couleur en dur pour ce message.
+    assert "<p class='lede'>Il protège du pire" in out
