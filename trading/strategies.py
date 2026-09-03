@@ -188,6 +188,17 @@ except ImportError:
     pass
 
 
+# Detecteur de REGIME par vote de plusieurs horizons (etude #11, etage 1 de
+# docs/design/MODE_ADAPTATIF_SPEC.md). Meme mecanique d'enregistrement TOLERANTE que
+# `predictive` ci-dessus : les deux ordres d'import aboutissent au meme registre
+# (trading/regime.py se re-enregistre lui-meme a la fin de son propre module).
+try:  # noqa: E402
+    from .regime import RegimeVoteStrategy
+    STRATEGIES["regime"] = RegimeVoteStrategy
+except ImportError:
+    pass
+
+
 def build_strategy(name: str, params: dict = None) -> Strategy:
     """
     Instancie une stratégie a partir de son nom court. `params` (optionnel) :
