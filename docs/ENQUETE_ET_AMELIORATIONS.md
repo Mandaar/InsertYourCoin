@@ -46,10 +46,17 @@ Un bug est *un meurtre a elucider, pas un marathon*. On ne corrige jamais a l'av
 - **Consequence immediate** : la bascule de production vers TSMOM 365 daily, autorisee par Mandar
   le 2026-09-01, est **SUSPENDUE**. Deployer une strategie mesuree a -26 % sur les 2 dernieres
   annees de l'actif cible, sans l'avoir dit, aurait ete malhonnete.
-- **Garde-fou par construction (a implementer)** : toute commande de recherche/backtest doit
-  **refuser ou avertir** quand la fenetre demandee empiete sur le holdout declare. La frontiere
-  existe deja en code (`trading/optimizer.py:233 holdout_split`) mais **rien ne protege un
-  `backtest --days N`**, qui ignore completement la notion de holdout. C'est le vrai defaut.
+- **Garde-fou par construction — IMPLEMENTE le 2026-09-02** (commit `7fdd22a`) : `backtest`,
+  `compare` et `optimize` **REFUSENT** (code de sortie 1) toute fenetre qui empiete sur le holdout
+  declare, en annoncant la fraction recouverte et les dates. Contournement conscient et trace :
+  `--use-holdout`. Frontiere calculee par `holdout_split` (source unique, aucune date en dur ;
+  registre gele `config.HOLDOUT_REFERENCES`). Verifie sur la commande exacte de cet incident :
+  refus, 96,9 % de recouvrement annonce. Tests : `tests/test_holdout_guard.py` (18).
+  **Consequence assumee** : Kraken ne sert que ~720 bougies daily, toutes posterieures a la
+  frontiere -> tout backtest daily en `--source kraken` est refuse sans `--use-holdout`. C'est la
+  doctrine appliquee. Trous restants, figes par des tests pour etre des decisions et non des
+  oublis : `walkforward` sans `--holdout`, `dashboard`, `portfolio`, et les ecrans web
+  (`research_runners.py`) ne sont PAS proteges.
 
 ### Incident #1 — 2026-06-05 — "Erreur recurrente Kraken" (nuit)
 - **Symptome** : `kraken GET .../OHLC` repete dans la console ; collecte interrompue
