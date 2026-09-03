@@ -119,11 +119,15 @@ tentative de « stratégie qui gagne » est hors cap tant que ce paragraphe est 
    décision en déplace 27,8 — on mesure un calendrier, pas une protection. Nuance à garder : en
    2022 la sortie a été totale (0 ordre, 100 % cash) ; ce qui échoue est la **cadence mensuelle**,
    pas l'idée de sortir en baisse. Le point 3 en sort renforcé.
-3. **Le serveur repart en mode protection** : étage 1 de `docs/design/MODE_ADAPTATIF_SPEC.md` —
-   détecteur de régime **sans IA**, vote de plusieurs horizons (180/270/365/450/540) pour ne
-   dépendre d'aucun. BTC + ETH, journalier, ordres limite, compteur neuf. **Jugé sur un seul
-   critère : le drawdown évité par rapport à la détention simple.** Pas sur le rendement.
-   Préalables serveur : relevé d'état + sauvegarde PROUVÉE du volume (cf. session Infrastructure).
+3. **Le mode protection — étage 1 testé, étude #11 : le VOTE de 5 horizons est REJETÉ.** Il ne
+   bat TSMOM 365 seul sur aucun actif et fait *pire* que la détention simple sur SOL. Un ensemble
+   moyenne : quand 365 est le seul bon horizon, la majorité suit les mauvais. C'est l'« échec
+   utile » que la spec prévoyait — **365 était un accident de ce cycle**. Étages 2 et 3 : NE PAS
+   lancer. Ce qui reste, à décider par Mandar : TSMOM 365 **seul** est la seule méthode mesurée
+   qui protège 3 actifs sur 3 (DD BTC −53 % vs −77 %), **en sachant** qu'elle est fragile (seul
+   horizon positif) et qu'elle a fait −26,3 % sur les 2 dernières années d'ETH (incident #9).
+   Si elle est déployée : BTC + ETH, journalier, ordres limite, compteur neuf, jugée sur le
+   drawdown évité — pas sur le rendement. Préalables serveur : relevé d'état + sauvegarde PROUVÉE.
 4. Plus tard seulement, et seulement si le point 3 tient plusieurs mois : live avec petits montants.
 
 Hors cap, documenté pour ne pas y revenir : intraday (étude #7), prédictif (étude #8),
