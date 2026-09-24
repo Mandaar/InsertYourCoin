@@ -29,6 +29,11 @@ _LEVEL_RANK = {name: i for i, name in enumerate(LOG_LEVELS)}
 _TF_SECONDS = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800,
                "1h": 3600, "4h": 14400, "1d": 86400}
 
+# Plafond Kraken par appel fetch_ohlcv (source : trading/exchange.py:35-38, valeur
+# par defaut du parametre `limit`). Sert a REFUSER de demarrer plutot que de
+# tronquer silencieusement l'amorcage d'une strategie trop gourmande.
+_MAX_CANDLES = 720
+
 
 def now() -> str:
     return dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -79,6 +84,49 @@ def backoff_seconds(consec_failures, category, poll_seconds) -> int:
     return min(30 * 2 ** (consec_failures - 1), 600)
 
 
+def next_close_wait_seconds(timeframe: str, margin_sec: float, now_ts: float) -> float:
+    """
+    Secondes a attendre depuis `now_ts` (epoch UTC) jusqu'a la PROCHAINE cloture
+    de bougie de `timeframe` (multiple de sa duree), plus `margin_sec` de marge
+    (le temps que Kraken publie effectivement la bougie fraiche apres sa cloture
+    theorique). PURE (aucun appel a `time.time()`) : `now_ts` injectable, donc
+    testable sans horloge reelle ni monkeypatch du module `time`.
+    Timeframe inconnue -> repli sur 3600 s (meme defaut que `self.poll_seconds`).
+    """
+    tf_sec = _TF_SECONDS.get(timeframe, 3600)
+    since_last_close = now_ts % tf_sec
+    return (tf_sec - since_last_close) + margin_sec
+
+
+def _required_history(strategy) -> int:
+    """
+    Bougies a CHARGER (argument `limit` de `fetch_ohlcv`) pour amorcer `strategy`,
+    AU MOINS 200 -- plancher historique : SMA(20/50), RSI, MACD, Bollinger (toutes
+    leurs periodes actuelles sont tres en-dessous) chargent donc EXACTEMENT comme
+    avant ce correctif (source du defaut d'origine : trading/paper_trader.py:151).
+
+    Priorite 1 : warmup DECLARE par la strategie elle-meme (attribut `warmup_bars`,
+    etude #8 -- generique et neutre, 0 pour les strategies classiques qui n'en
+    exposent pas).
+    Priorite 2, sinon : la plus longue periode ENTIERE parmi les parametres de la
+    strategie, + la MEME marge de 50 que `trading.optimizer._params_warmup` --
+    mais SANS le plancher de 250 de cette derniere (qui ferait passer SMA/RSI/
+    MACD/Bollinger a 250 au lieu de rester a 200 : ce n'est pas le meme appelant,
+    le plancher choisi ici est 200, pas 250).
+    Exemple mesure : TSMOM(lookback=365) -> 365 + 50 = 415 (> 200) -> 415 bougies
+    chargees, au lieu des 200 d'origine qui ne laissaient JAMAIS `close.shift(365)`
+    sortir de NaN (signal fige a 0, cf. brief LOT A, constat C01).
+    """
+    declared = int(getattr(strategy, "warmup_bars", 0) or 0)
+    if declared:
+        return max(200, declared)
+    longest = 0
+    for v in vars(strategy).values():
+        if isinstance(v, int) and not isinstance(v, bool) and v > longest:
+            longest = v
+    return max(200, longest + 50)
+
+
 class _Trader:
     def __init__(self, exchange, strategy, symbol=None, timeframe=None,
                  stop_loss=None, take_profit=None, trailing_stop=None,
@@ -99,7 +147,24 @@ class _Trader:
         self.target_vol = config.TARGET_VOL if target_vol is None else target_vol
         self.vol_window = config.VOL_WINDOW if vol_window is None else vol_window
         self.max_fraction = config.MAX_FRACTION if max_fraction is None else max_fraction
+        # `poll_seconds` EXPLICITE -> attente fixe (comportement historique).
+        # None (defaut) -> cadence AUTO calee sur la cloture des bougies, cf.
+        # `_next_wait_seconds` / `next_close_wait_seconds`. `self.poll_seconds`
+        # reste calcule dans les deux cas : il sert encore de borne a
+        # `limit_timeout` et d'estimation dans le message de demarrage.
+        self._explicit_poll = poll_seconds is not None
         self.poll_seconds = poll_seconds or _TF_SECONDS.get(self.timeframe, 3600)
+        # Bougies a charger pour amorcer `strategy` (cf. `_required_history`) :
+        # refus de DEMARRER si ca depasse ce que Kraken rend par appel, plutot
+        # que de tronquer silencieusement l'amorcage (jamais de cash silencieux).
+        self._required_candles = _required_history(strategy)
+        if self._required_candles > _MAX_CANDLES:
+            raise RuntimeError(
+                f"{strategy} sur {self.timeframe} exige {self._required_candles} "
+                f"bougies d'amorcage, au-dela du plafond Kraken de {_MAX_CANDLES} "
+                "bougies par appel. Reduis la periode/le lookback ou choisis une "
+                "timeframe plus longue."
+            )
         # --- Type d'ordre et frais : UN SEUL choix, JAMAIS deux ---------------
         # `order_type` pilote a la fois (a) le type d'ordre reellement envoye par
         # LiveTrader et (b) le taux de frais simule, DERIVE par config.
@@ -147,9 +212,26 @@ class _Trader:
                 pass  # ne JAMAIS crasher le run a cause du log
 
     def _closed_candles(self) -> pd.DataFrame:
-        """Bougies CLOTUREES (la derniere, en cours de formation, est retiree)."""
-        df = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=200)
+        """Bougies CLOTUREES (la derniere, en cours de formation, est retiree).
+        `limit` = besoin d'amorcage de la strategie (`self._required_candles`,
+        cf. `_required_history`), plus qu'un 200 fige -- sinon une strategie a
+        periode longue (TSMOM 365) ne voit jamais assez de passe pour sortir de
+        signal nul (constat C01)."""
+        df = self.exchange.fetch_ohlcv(self.symbol, self.timeframe, limit=self._required_candles)
         return df.iloc[:-1]
+
+    def _next_wait_seconds(self) -> float:
+        """
+        Attente avant le PROCHAIN cycle. `poll_seconds` EXPLICITE (passe par
+        l'appelant) -> attente fixe, comportement historique inchange. Sinon
+        (defaut, mode auto) -> calee sur la PROCHAINE cloture de bougie (UTC) +
+        marge (`config.CANDLE_CLOSE_MARGIN_SEC`) : le paper se reveille juste
+        apres que Kraken ait publie la bougie fraiche au lieu de dormir un
+        multiple fixe de la timeframe qui peut deriver de l'horloge reelle.
+        """
+        if self._explicit_poll:
+            return self.poll_seconds
+        return next_close_wait_seconds(self.timeframe, config.CANDLE_CLOSE_MARGIN_SEC, time.time())
 
     def _latest_signal(self, df) -> int:
         """Signal sur la derniere bougie cloturee. Si la strategie expose son
@@ -229,24 +311,14 @@ class _Trader:
         risk_txt = (" | " + ", ".join(risk)) if risk else ""
         self._refresh_log_level()
         self._trace(f"Demarrage : {self.strategy} sur {self.symbol} ({self.timeframe}){risk_txt}", level="leger")
-        self._trace(f"Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.", level="leger")
+        if self._explicit_poll:
+            self._trace(f"Re-evaluation toutes les {self.poll_seconds} s. Ctrl+C pour arreter.", level="leger")
+        else:
+            self._trace(f"Re-evaluation calee sur la cloture des bougies ({self.timeframe}) "
+                        f"+ {config.CANDLE_CLOSE_MARGIN_SEC} s de marge. Ctrl+C pour arreter.", level="leger")
         while True:
             try:
-                # 1 lecture/cycle du niveau de logs -> changement a chaud via /options.
-                self._refresh_log_level()
-                df = self._closed_candles()
-                signal = self._latest_signal(df)
-                fraction = self._entry_fraction(df)
-                price = self.exchange.fetch_price(self.symbol)
-                desired, reason = self._risk_overlay(signal, price)
-                trade = self._rebalance(desired, price, reason, fraction)
-                self._log_status(price)
-                self._trace_cycle_detail(signal, desired, fraction, reason)
-                if self.recorder:
-                    self._record_cycle(df, price, signal, desired, fraction, reason, trade)
-                if self.consec_failures:
-                    self._trace(f"Reconnexion OK apres {self.consec_failures} echec(s) consecutif(s).", level="leger")
-                    self.consec_failures = 0
+                self._run_cycle()
             except KeyboardInterrupt:
                 self._trace("Arret demande. A bientot.", level="leger")
                 break
@@ -259,7 +331,42 @@ class _Trader:
                             f"{info['detail']} -> nouvelle tentative dans {wait}s", level="leger")
                 time.sleep(wait)
                 continue
-            time.sleep(self.poll_seconds)
+            time.sleep(self._next_wait_seconds())
+
+    def _run_cycle(self):
+        """
+        Un cycle complet : lecture -> decision -> action -> journal. Isole de la
+        boucle infinie de `run()` (aucun `time.sleep` de cadence ici) pour rester
+        appelable UNE fois, donc testable sans boucle infinie. Le comportement et
+        l'ordre des operations sont IDENTIQUES a l'ancien corps de `run()`.
+
+        Si l'echange rend moins de bougies clotUREES que la strategie n'en exige
+        pour calculer (historique court, demarrage recent...), le cycle n'agit
+        PAS : il journalise le manque et ATTEND le suivant plutot que de decider
+        sur un signal degenere -- jamais de cash silencieux.
+        """
+        # 1 lecture/cycle du niveau de logs -> changement a chaud via /options.
+        self._refresh_log_level()
+        df = self._closed_candles()
+        needed = self._required_candles - 1  # cf. _closed_candles : iloc[:-1]
+        if len(df) < needed:
+            self._trace(
+                f"historique insuffisant : {len(df)} bougies closes disponibles, "
+                f"{needed} requises pour {self.strategy} -> aucune decision ce cycle.",
+                level="leger")
+            return
+        signal = self._latest_signal(df)
+        fraction = self._entry_fraction(df)
+        price = self.exchange.fetch_price(self.symbol)
+        desired, reason = self._risk_overlay(signal, price)
+        trade = self._rebalance(desired, price, reason, fraction)
+        self._log_status(price)
+        self._trace_cycle_detail(signal, desired, fraction, reason)
+        if self.recorder:
+            self._record_cycle(df, price, signal, desired, fraction, reason, trade)
+        if self.consec_failures:
+            self._trace(f"Reconnexion OK apres {self.consec_failures} echec(s) consecutif(s).", level="leger")
+            self.consec_failures = 0
 
     def _trace_cycle_detail(self, signal, desired, fraction, reason):
         """Ligne de DETAIL par cycle (niveau "complet" uniquement) : signal brut,

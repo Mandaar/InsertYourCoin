@@ -270,6 +270,65 @@ def test_post_avec_csrf_enregistre_et_redirige(server, tmp_path):
     assert read_options(tmp_path / "options.json")["log_level"] == "leger"
 
 
+# --------------------------------------------------------------------------- #
+#  C26 : /options du monitor conteneurise expose publiquement NE DOIT PLUS    #
+#  proposer/accepter de cle Kraken (DEPLOY_DOCKER.md interdit d'y deposer     #
+#  une cle) -- flag IYC_DISABLE_PAPER_CONTROL, meme convention que /paper.    #
+# --------------------------------------------------------------------------- #
+def test_route_options_get_flag_actif_retire_champs_cles(server, monkeypatch):
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _get(server + "/options")
+    assert code == 200
+    assert "name='api_key'" not in page
+    assert "name='api_secret'" not in page
+    assert "Saisie désactivée" in page
+
+
+def test_route_options_post_avec_cle_flag_actif_refuse_403(
+    server, monkeypatch, tmp_path,
+):
+    # _project_root() force vers tmp_path (jamais le VRAI .env du depot) :
+    # si le refus echouait, update_env_file ecrirait ICI, ou l'assertion
+    # ci-dessous le detecterait -- sans ce garde, le VRAI .env serait a risque.
+    monkeypatch.setattr("trading.options._project_root", lambda: tmp_path)
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    token = _csrf_token(server)
+    data = urllib.parse.urlencode({
+        "csrf_token": token, "api_key": "AAA", "persist": "1",
+    }).encode()
+    req = urllib.request.Request(server + "/options", data=data, method="POST")
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        urllib.request.urlopen(req, timeout=5)
+    assert exc.value.code == 403
+    # Aucun .env n'a ete cree/modifie -- le refus intervient AVANT toute I/O.
+    assert not (tmp_path / ".env").exists()
+
+
+def test_route_options_post_sans_cle_flag_actif_log_level_toujours_modifiable(
+    server, monkeypatch, tmp_path,
+):
+    # Le refus ne porte QUE sur les cles -- le niveau de logs reste modifiable
+    # meme en mode conteneur (rien d'autre ne change, cf. brief).
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    token = _csrf_token(server)
+    data = urllib.parse.urlencode({"csrf_token": token, "log_level": "leger"}).encode()
+    req = urllib.request.Request(server + "/options", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=5) as r:
+        assert r.status == 200
+    assert read_options(tmp_path / "options.json")["log_level"] == "leger"
+
+
+def test_route_options_flag_absent_cles_toujours_acceptees(server, monkeypatch):
+    # Non-regression explicite : sans la variable d'environnement, le
+    # formulaire de cles reste present (comportement local inchange).
+    monkeypatch.delenv("IYC_DISABLE_PAPER_CONTROL", raising=False)
+    code, page = _get(server + "/options")
+    assert code == 200
+    assert "name='api_key'" in page
+    assert "name='api_secret'" in page
+    assert "Saisie désactivée" not in page
+
+
 def test_post_route_inconnue_404(server):
     data = urllib.parse.urlencode({"x": "1"}).encode()
     req = urllib.request.Request(server + "/autre", data=data, method="POST")
@@ -1749,6 +1808,69 @@ def test_route_paper_flag_absent_comportement_lot7_strictement_inchange(
     })
     assert code == 200
     assert spawned, "le paper aurait du etre spawn (flag absent)"
+
+
+# --------------------------------------------------------------------------- #
+#  C27 : en mode conteneur, run/paper.pid n'est ecrit par PERSONNE dans CE    #
+#  conteneur (le paper tourne dans un conteneur SEPARE, meme volume). Avant   #
+#  le correctif, /paper affichait ARRETE en PERMANENCE. Le statut se deduit   #
+#  desormais de la FRAICHEUR du CSV de stats (server_obj force stats_path =   #
+#  tmp_path/"s.csv", meme fichier que le vrai paper y ecrirait).              #
+# --------------------------------------------------------------------------- #
+def test_route_paper_get_flag_actif_stats_fraiches_affiche_en_cours(
+    server_obj, monkeypatch, tmp_path,
+):
+    import datetime as _dt
+
+    url, srv = server_obj
+    stats_csv = tmp_path / "s.csv"
+    rec = StatsRecorder(str(stats_csv))
+    rec.record({"time": _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+               "symbol": "ETH/USD", "timeframe": "1d",
+               "equity": 10000.0, "exposure": 0.0})
+
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "EN COURS" in page
+    assert "ARRÊTÉ" not in page
+
+
+def test_route_paper_get_flag_actif_stats_perimees_reste_arrete(
+    server_obj, monkeypatch, tmp_path,
+):
+    url, srv = server_obj
+    stats_csv = tmp_path / "s.csv"
+    rec = StatsRecorder(str(stats_csv))
+    # Tres ancien (plusieurs jours) : au-dela du seuil dynamique meme en 1d
+    # (86400 + 360s) -- le conteneur paper est reellement mort/arrete.
+    rec.record({"time": "2020-01-01 00:00:00", "symbol": "ETH/USD",
+               "timeframe": "1d", "equity": 10000.0, "exposure": 0.0})
+
+    monkeypatch.setenv("IYC_DISABLE_PAPER_CONTROL", "1")
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "ARRÊTÉ" in page
+
+
+def test_route_paper_get_flag_absent_ignore_fraicheur_stats_garde_pid(
+    server_obj, monkeypatch, tmp_path,
+):
+    # Non-regression (mode local) : meme avec des stats fraiches, le flag
+    # absent garde le comportement PID -- aucun run/paper.pid ecrit -> ARRETE.
+    import datetime as _dt
+
+    url, srv = server_obj
+    stats_csv = tmp_path / "s.csv"
+    rec = StatsRecorder(str(stats_csv))
+    rec.record({"time": _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+               "symbol": "ETH/USD", "timeframe": "1d",
+               "equity": 10000.0, "exposure": 0.0})
+
+    monkeypatch.delenv("IYC_DISABLE_PAPER_CONTROL", raising=False)
+    code, page = _get(url + "/paper")
+    assert code == 200
+    assert "ARRÊTÉ" in page
 
 
 def test_paper_control_disabled_parsing_variantes(monkeypatch):

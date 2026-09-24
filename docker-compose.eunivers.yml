@@ -1,9 +1,20 @@
 services:
   # ---------------------------------------------------------------------------
-  # paper -- boucle de paper trading (argent fictif, prix reels Kraken).
-  # AUCUNE cle API requise en Phase 1 (donnees publiques uniquement).
+  # paper -- boucle de paper trading (argent fictif, prix reels Kraken),
+  # poche ETH. AUCUNE cle API requise en Phase 1 (donnees publiques uniquement).
   # IDENTIQUE au service `paper` de docker-compose.yml (mode dedie) : seule la
   # topologie reseau change dans cette variante (pas ce service).
+  #
+  # Mode protection, deux poches (2026-09-24, cf. docs/DEPLOY_DOCKER.md) :
+  # TSMOM 365 seul, BTC + ETH, journalier, ordres limite, compteur neuf. Ce
+  # service est la poche ETH ; `paper-btc` ci-dessous est la poche BTC -- meme
+  # image, memes reglages partages, seuls le symbole et les fichiers de
+  # /data/poches/ different. Les DEUX poches vivent SOUS /data/poches/ (pas a
+  # la racine de /data, ou vit encore l'ancien historique SMA/ETH/5m --
+  # /data/paper_state.json, /data/paper_stats.csv, /data/paper_trades.log --
+  # INTACT et JAMAIS touche par ces deux services : le compteur neuf vient des
+  # NOUVEAUX chemins, jamais d'un --reset, absent par construction de tout
+  # `command:` de service (un redemarrage automatique le rejouerait).
   # ---------------------------------------------------------------------------
   paper:
     build: .
@@ -17,16 +28,20 @@ services:
     # GOTCHA IDENTIQUE au mode dedie : ces ${PAPER_*:-...} sont resolus par
     # `docker compose` lui-meme a la LECTURE de ce fichier -- invoque TOUJOURS
     # avec `--env-file .env.deploy` (§ doc), sinon retombe silencieusement sur
-    # les defauts codes ici.
+    # les defauts codes ici (deja la cible : tsmom/1d/lookback=365/limit,
+    # stops a 0 = desactives -- cf. .env.deploy.example).
     command: >
       python -u /app/main.py paper
-      --strategy ${PAPER_STRATEGY:-sma}
+      --strategy ${PAPER_STRATEGY:-tsmom}
       --symbol ${PAPER_SYMBOL:-ETH/USD}
-      --timeframe ${PAPER_TIMEFRAME:-5m}
-      --stop-loss ${PAPER_STOP_LOSS:-5}
-      --take-profit ${PAPER_TAKE_PROFIT:-10}
-      --trailing-stop ${PAPER_TRAILING_STOP:-8}
-      --params ${PAPER_PARAMS:-band=1.5}
+      --timeframe ${PAPER_TIMEFRAME:-1d}
+      --stop-loss ${PAPER_STOP_LOSS:-0}
+      --take-profit ${PAPER_TAKE_PROFIT:-0}
+      --trailing-stop ${PAPER_TRAILING_STOP:-0}
+      --params ${PAPER_PARAMS:-lookback=365}
+      --order-type ${PAPER_ORDER_TYPE:-limit}
+      --state /data/poches/eth_state.json
+      --stats /data/poches/eth_stats.csv
     volumes:
       - iyc_data:/data
     networks:
@@ -34,6 +49,36 @@ services:
     # Phase 1 = pas de montage de .env (cles Kraken). Voir docker-compose.yml
     # (mode dedie) section commentee "Ajouter le live plus tard" -- meme
     # marche a suivre ici, sur un service `live` a part, jamais sur `paper`.
+
+  # ---------------------------------------------------------------------------
+  # paper-btc -- meme boucle, poche BTC. IDENTIQUE au service `paper-btc` de
+  # docker-compose.yml (mode dedie), meme raisonnement que `paper` ci-dessus.
+  # ---------------------------------------------------------------------------
+  paper-btc:
+    build: .
+    image: insertyourcoin:latest
+    container_name: iyc-paper-btc
+    restart: unless-stopped
+    init: true
+    working_dir: /data
+    command: >
+      python -u /app/main.py paper
+      --strategy ${PAPER_STRATEGY:-tsmom}
+      --symbol ${PAPER_BTC_SYMBOL:-BTC/USD}
+      --timeframe ${PAPER_TIMEFRAME:-1d}
+      --stop-loss ${PAPER_STOP_LOSS:-0}
+      --take-profit ${PAPER_TAKE_PROFIT:-0}
+      --trailing-stop ${PAPER_TRAILING_STOP:-0}
+      --params ${PAPER_PARAMS:-lookback=365}
+      --order-type ${PAPER_ORDER_TYPE:-limit}
+      --state /data/poches/btc_state.json
+      --stats /data/poches/btc_stats.csv
+    volumes:
+      - iyc_data:/data
+    networks:
+      - iyc-internal
+    # Phase 1 = pas de montage de .env (cles Kraken), meme raisonnement que
+    # `paper` ci-dessus.
 
   # ---------------------------------------------------------------------------
   # monitor -- serveur web de suivi (lecture seule des fichiers ecrits par
@@ -56,12 +101,18 @@ services:
     init: true
     depends_on:
       - paper
+      - paper-btc
+    # Poche affichee par ce monitor : ETH (--stats/--log/--state ci-dessous).
+    # Le monitor ne suit qu'un seul jeu de fichiers a la fois (C06, non
+    # bloquant) -- la poche BTC se suit via `docker compose logs paper-btc`
+    # ou `docker compose exec monitor cat /data/poches/btc_stats.csv`, cf.
+    # docs/DEPLOY_DOCKER.md section "Mode protection, deux poches".
     command: >
       python -u /app/main.py monitor
       --host 0.0.0.0 --port 8765
-      --stats /data/paper_stats.csv
-      --log /data/paper_trades.log
-      --state /data/paper_state.json
+      --stats /data/poches/eth_stats.csv
+      --log /data/poches/eth_trades.log
+      --state /data/poches/eth_state.json
       --live-root /data
     # --live-root /data (Lot 8B) : SANS EFFET tant que le service `live`
     # (docker-compose.live.yml, overlay optionnel NON active par defaut)
@@ -120,6 +171,8 @@ networks:
     external: true
 
 volumes:
-  # Donnees persistantes InsertYourCoin -- IDENTIQUE au mode dedie (meme nom,
-  # meme contenu : paper_state.json, paper_stats.csv, paper_trades.log).
+  # Donnees persistantes InsertYourCoin -- IDENTIQUE au mode dedie (meme nom).
+  # Contient l'ancien historique SMA/ETH/5m a la racine (paper_state.json,
+  # paper_stats.csv, paper_trades.log -- INTACT, jamais touche) ET les deux
+  # poches TSMOM sous poches/ (eth_*, btc_*).
   iyc_data:

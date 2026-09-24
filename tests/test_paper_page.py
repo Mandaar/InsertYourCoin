@@ -258,6 +258,17 @@ def test_render_paper_page_disabled_en_cours_aucun_bouton_arreter_mais_encart():
     assert "Pilotage désactivé" in html
 
 
+def test_render_paper_page_en_cours_sans_start_ts_affiche_point_interrogation():
+    # Mode conteneur (C27) : trading/monitor.py deduit "running" de la
+    # fraicheur du CSV, jamais d'un PID -> aucun start_ts connu. Le rendu
+    # doit rester coherent (statut affiche quand meme, pas de crash) plutot
+    # que de fabriquer un horodatage.
+    status = pp.compute_paper_status(True, None)
+    html = pp.render_paper_page(status, "T", control_disabled=True)
+    assert "EN COURS" in html
+    assert "depuis ?" in html
+
+
 def test_render_paper_page_disabled_false_par_defaut_comportement_lot7_inchange():
     # Non-regression explicite : sans l'argument, le rendu est identique a
     # avant l'introduction du flag.

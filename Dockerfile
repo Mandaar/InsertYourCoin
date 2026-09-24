@@ -1,11 +1,12 @@
 # InsertYourCoin -- image de deploiement (paper trading + monitoring web).
 #
-# Une SEULE image, utilisee par les 3 services du docker-compose.yml
-# (paper / monitor) avec des commandes differentes -- cf. docker-compose.yml.
-# Le service `proxy` (Caddy) utilise une image officielle separee.
+# Une SEULE image, utilisee par les services `paper`/`paper-btc`/`monitor` du
+# docker-compose.yml (2 services de base + l'overlay live optionnel), avec des
+# commandes differentes -- cf. docker-compose.yml. Le service `proxy` (Caddy)
+# utilise une image officielle separee.
 #
-# Python 3.14 : version testee localement (venv .venv, 599 tests verts,
-# 2026-08-09) -- requirements.txt documente truststore comme compatible
+# Python 3.14 : version testee localement (venv .venv, 864 tests verts,
+# 2026-09-03) -- requirements.txt documente truststore comme compatible
 # 3.11 a 3.14. On reproduit l'environnement teste plutot que d'en deviner
 # un autre (E7 : pas de degradation silencieuse de ce qui a ete valide).
 FROM python:3.14-slim

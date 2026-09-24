@@ -66,6 +66,7 @@ from .check_page import render_check_page
 from .help_page import render_help_page
 from .stats import load_stats, summarize
 from .stats_page import render_stats_page
+from .paper_trader import _TF_SECONDS
 from .diagnostics_web import run_web_check, static_diagnostic_lines, truststore_active
 from .jobs import JobBusy, JobManager
 from . import compare_page
@@ -205,6 +206,28 @@ def _parse_time(s):
         return None
 
 
+# Marge fixe ajoutee a la duree de la timeframe pour l'alerte d'inactivite
+# (C07) : un seuil FIGE a 360s faisait afficher INACTIF ~99,6% du temps en
+# 1d (poll = 86400s), sans distinguer un bot mort d'un bot sain. Timeframe
+# absente/inconnue -> repli sur cette marge SEULE (comportement d'avant ce
+# correctif, strictement inchange).
+_INACTIVITY_MARGIN_SEC = 360
+
+
+def inactivity_threshold_seconds(row) -> int:
+    """
+    Seuil (secondes) au-dela duquel l'age du dernier cycle declenche l'alerte
+    "paper inactif" (/monitoring, /paper, Accueil -- meme `inactif` partage,
+    C07). `row` = derniere ligne de stats (dict), sa colonne `timeframe` est
+    cherchee dans `_TF_SECONDS` (trading/paper_trader.py, importee en LECTURE
+    SEULE ici -- jamais ecrite). Trouvee -> duree de la timeframe + marge
+    fixe (_INACTIVITY_MARGIN_SEC) ; absente/inconnue -> marge fixe seule.
+    """
+    tf = (row or {}).get("timeframe")
+    sec = _TF_SECONDS.get(tf) if tf else None
+    return (sec + _INACTIVITY_MARGIN_SEC) if sec else _INACTIVITY_MARGIN_SEC
+
+
 def compute_view(state, stats, log_lines, initial_capital, now_str) -> dict:
     """
     Assemble les metriques d'affichage a partir des donnees lues. Fonction PURE.
@@ -237,7 +260,8 @@ def compute_view(state, stats, log_lines, initial_capital, now_str) -> dict:
     if t_last is not None and t_now is not None:
         age_seconds = (t_now - t_last).total_seconds()
 
-    inactif = (age_seconds is not None and age_seconds > 360)
+    inactif = (age_seconds is not None
+              and age_seconds > inactivity_threshold_seconds(row))
 
     trades = []
     if isinstance(state, dict) and isinstance(state.get("trades"), list):
@@ -569,11 +593,19 @@ a.wallet { color: var(--blue); }
 """
 
 
-def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
+def render_options_page(log_level, keys_ok, csrf_token, saved=False,
+                        keys_disabled=False) -> str:
     """
     Page HTML COMPLETE de la page Options (fonction PURE, testable sans serveur).
     NE CONTIENT JAMAIS la valeur d'une cle, meme si configuree : seul l'etat
     booleen `keys_ok` est affiche. `csrf_token` est injecte en champ cache du form.
+
+    `keys_disabled` (IYC_DISABLE_PAPER_CONTROL, deploiement conteneurise
+    expose publiquement, C26) : quand True, le formulaire de saisie des cles
+    Kraken (champs api_key/api_secret) est RETIRE du rendu et remplace par un
+    encart qui explique pourquoi (DEPLOY_DOCKER.md §7 interdit de deposer une
+    cle sur ce service). L'etat booleen `keys_ok` reste affiche. Ne change
+    RIEN d'autre (niveau de logs, wallet, serveur web inchanges).
     """
     if log_level not in LOG_LEVELS:
         log_level = "moyen"
@@ -599,6 +631,39 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
         "<span class='ok'>OUI</span>" if keys_ok else "<span class='no'>NON</span>"
     )
 
+    if keys_disabled:
+        # C26 : saisie retiree du rendu, jamais seulement desactivee cote
+        # client -- voir aussi le refus cote serveur (do_POST /options,
+        # trading/monitor.py) qui bloque un formulaire forge.
+        liaison_body = (
+            f"<p>Clés configurées : {etat_cles}</p>"
+            "<p class='help'>Saisie désactivée sur ce serveur — déploiement "
+            "conteneurisé exposé publiquement : la documentation interdit "
+            "d'y déposer une clé Kraken (voir <code>DEPLOY_DOCKER.md</code> "
+            "§7). Configure les clés directement dans le fichier "
+            "<code>.env</code> de l'hôte, jamais depuis ce tableau de bord.</p>"
+        )
+    else:
+        liaison_body = (
+            f"<p>Clés configurées : {etat_cles}</p>"
+            "<div class='field'><label class='flabel' for='api_key'>Clé API "
+            "(publique)</label>"
+            "<input type='password' id='api_key' name='api_key' autocomplete='off' "
+            "placeholder='(laisser vide pour ne pas changer)'></div>"
+            "<div class='field'><label class='flabel' for='api_secret'>Clé privée "
+            "(secret)</label>"
+            "<input type='password' id='api_secret' name='api_secret' "
+            "autocomplete='off' placeholder='(laisser vide pour ne pas changer)'></div>"
+            "<div class='check-row'><input type='checkbox' id='persist' "
+            "name='persist' value='1'>"
+            "<label for='persist'>Enregistrer dans .env (sinon : session seulement, "
+            "rien n'est écrit sur disque)</label></div>"
+            "<p class='help'>Crée ta clé sur Kraken avec UNIQUEMENT "
+            "<strong>Query Funds</strong> + <strong>Create &amp; Modify Orders</strong>. "
+            "<span class='warn'>JAMAIS</span> <strong>Withdraw Funds</strong> : cette "
+            "application n'a aucun besoin de retirer des fonds.</p>"
+        )
+
     token = _esc(csrf_token)
 
     body = (
@@ -617,24 +682,8 @@ def render_options_page(log_level, keys_ok, csrf_token, saved=False) -> str:
 
         # (b) Liaison Kraken
         "<div class='card'><h2>Liaison Kraken</h2>"
-        f"<p>Clés configurées : {etat_cles}</p>"
-        "<div class='field'><label class='flabel' for='api_key'>Clé API "
-        "(publique)</label>"
-        "<input type='password' id='api_key' name='api_key' autocomplete='off' "
-        "placeholder='(laisser vide pour ne pas changer)'></div>"
-        "<div class='field'><label class='flabel' for='api_secret'>Clé privée "
-        "(secret)</label>"
-        "<input type='password' id='api_secret' name='api_secret' "
-        "autocomplete='off' placeholder='(laisser vide pour ne pas changer)'></div>"
-        "<div class='check-row'><input type='checkbox' id='persist' "
-        "name='persist' value='1'>"
-        "<label for='persist'>Enregistrer dans .env (sinon : session seulement, "
-        "rien n'est écrit sur disque)</label></div>"
-        "<p class='help'>Crée ta clé sur Kraken avec UNIQUEMENT "
-        "<strong>Query Funds</strong> + <strong>Create &amp; Modify Orders</strong>. "
-        "<span class='warn'>JAMAIS</span> <strong>Withdraw Funds</strong> : cette "
-        "application n'a aucun besoin de retirer des fonds.</p>"
-        "<button class='btn' type='submit'>Enregistrer</button>"
+        + liaison_body
+        + "<button class='btn' type='submit'>Enregistrer</button>"
         "</div>"
         "</form>"
 
@@ -1317,6 +1366,8 @@ def build_monitor_server(port=8765, host="127.0.0.1",
             return render_options_page(
                 opts.get("log_level", "moyen"), keys_configured(), csrf_token,
                 saved=saved,
+                keys_disabled=paper_page.paper_control_disabled(
+                    os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")),
             )
 
         def _home_page(self):
@@ -1328,7 +1379,24 @@ def build_monitor_server(port=8765, host="127.0.0.1",
         def _paper_status_view(self):
             """Assemble le statut affichable par render_paper_page : identite
             PID confirmee (BUG-009) + alerte inactivite reutilisee de
-            compute_view (memes fichiers stats/log que /monitoring)."""
+            compute_view (memes fichiers stats/log que /monitoring).
+
+            Mode conteneur (IYC_DISABLE_PAPER_CONTROL, C27) : run/paper.pid
+            n'est ecrit par PERSONNE dans CE conteneur (le paper tourne dans
+            un conteneur SEPARE, meme volume de donnees) -- _paper_identity
+            y renvoie toujours (None, False, None), et /paper afficherait
+            ARRETE en permanence meme quand le paper tourne. Le statut se
+            deduit alors de la FRAICHEUR du CSV de stats, avec le meme seuil
+            dynamique que l'alerte d'inactivite (C07, inactivity_threshold_
+            seconds) : donnees fraiches -> EN COURS, perimees/absentes ->
+            ARRETE. Mode local (flag absent) : comportement PID inchange."""
+            if paper_page.paper_control_disabled(
+                os.environ.get("IYC_DISABLE_PAPER_CONTROL", "")
+            ):
+                view = _compute_view_now()
+                running = bool(view.get("has_data")) and not view.get("inactif")
+                status = paper_page.compute_paper_status(running, None)
+                return None, status, bool(view.get("inactif")), view.get("age_seconds")
             pid, running, start_ts = _paper_identity(root)
             status = paper_page.compute_paper_status(running, start_ts)
             view = _compute_view_now() if running else {}
@@ -2145,6 +2213,28 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                 )
                 return
 
+            # C26 : refus SERVEUR de toute cle soumise en mode conteneur,
+            # AVANT toute action -- un formulaire forge (le rendu retire deja
+            # les champs, cf. render_options_page keys_disabled) ne doit
+            # RIEN ecrire, meme CSRF valide (deja verifie ci-dessus). Meme
+            # patron que _paper_post (refus avant lecture de `action`).
+            api_key = _one("api_key")
+            api_secret = _one("api_secret")
+            keys_disabled = paper_page.paper_control_disabled(
+                os.environ.get("IYC_DISABLE_PAPER_CONTROL", ""))
+            if keys_disabled and (api_key or api_secret):
+                self._send_html(
+                    _error_page(
+                        "403 - Saisie de clés refusée",
+                        "Ce serveur est un déploiement conteneurisé exposé "
+                        "publiquement : la documentation interdit d'y déposer "
+                        "une clé Kraken (voir DEPLOY_DOCKER.md §7). Configure "
+                        "les clés directement dans le fichier .env de l'hôte."
+                    ),
+                    code=403,
+                )
+                return
+
             try:
                 # 1) Niveau de logs (ecrit dans options.json si valide).
                 level = _one("log_level")
@@ -2153,11 +2243,10 @@ def build_monitor_server(port=8765, host="127.0.0.1",
                     opts["log_level"] = level
                     write_options(opts)
 
-                # 2) Cles API : seulement si fournies. Persistance .env si case cochee,
-                #    sinon stockage memoire (session). Les VALEURS ne sont jamais
-                #    loggees ni renvoyees.
-                api_key = _one("api_key")
-                api_secret = _one("api_secret")
+                # 2) Cles API : seulement si fournies (et pas en mode
+                #    conteneur, refuse plus haut). Persistance .env si case
+                #    cochee, sinon stockage memoire (session). Les VALEURS ne
+                #    sont jamais loggees ni renvoyees.
                 persist = _one("persist") == "1"
                 updates = {}
                 if api_key:

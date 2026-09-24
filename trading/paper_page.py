@@ -347,7 +347,9 @@ def render_paper_page(status, csrf_token, errors=None, values=None,
     `status` = compute_paper_status(...). `errors`/`values` re-affichent le
     formulaire apres un POST invalide (meme convention que research_page).
     `message` = bandeau de confirmation (demarre/arrete). `inactif`/`age_seconds`
-    = alerte reprise de trading/monitor.py compute_view (>360s sans cycle).
+    = alerte reprise de trading/monitor.py compute_view (seuil DYNAMIQUE selon
+    la timeframe -- inactivity_threshold_seconds, C07 -- pas les 360s fixes
+    d'avant ce correctif).
 
     `control_disabled` (IYC_DISABLE_PAPER_CONTROL, deploiement Docker
     multi-conteneurs, cf. paper_control_disabled ci-dessus) : quand True, le

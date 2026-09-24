@@ -305,6 +305,47 @@ def test_options_page_saved_banner():
 
 
 # --------------------------------------------------------------------------- #
+#  keys_disabled (C26 : deploiement conteneurise expose publiquement --      #
+#  la doc interdit les cles sur le monitor)                                  #
+# --------------------------------------------------------------------------- #
+def test_options_page_keys_disabled_removes_key_inputs():
+    page = render_options_page("moyen", keys_ok=False, csrf_token="T",
+                               keys_disabled=True)
+    assert "name='api_key'" not in page
+    assert "name='api_secret'" not in page
+    assert "name='persist'" not in page
+    assert "Saisie désactivée" in page
+    assert "DEPLOY_DOCKER" in page
+
+
+def test_options_page_keys_disabled_still_shows_keys_ok_state():
+    page = render_options_page("moyen", keys_ok=True, csrf_token="T",
+                               keys_disabled=True)
+    assert "OUI" in page
+    assert "name='api_key'" not in page
+
+
+def test_options_page_keys_enabled_by_default_unchanged():
+    # Comportement LOCAL (flag absent) STRICTEMENT inchange.
+    page = render_options_page("moyen", keys_ok=False, csrf_token="T")
+    assert "name='api_key'" in page
+    assert "name='api_secret'" in page
+    assert "name='persist'" in page
+    assert "Saisie désactivée" not in page
+
+
+def test_options_page_keys_disabled_keeps_log_level_and_server_forms():
+    # Rien d'autre ne change : radios de niveau de logs et cartes serveur/
+    # wallet toujours presentes.
+    page = render_options_page("complet", keys_ok=False, csrf_token="TOKSRV",
+                               keys_disabled=True)
+    assert "value='complet' checked" in page
+    assert "action='/server/stop'" in page
+    assert "action='/server/restart'" in page
+    assert "kraken.com/u/funding/withdraw" in page
+
+
+# --------------------------------------------------------------------------- #
 #  Carte "Serveur web" (stop/restart) : formulaires POST, CSRF, paper non      #
 #  affecte (rappel explicite dans le texte).                                  #
 # --------------------------------------------------------------------------- #

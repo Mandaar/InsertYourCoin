@@ -9,6 +9,7 @@ import json
 from trading.monitor import (
     read_state, read_last_stats, tail_log, compute_view, build_html,
     render_fragment, list_stats_csvs, resolve_stats_path,
+    inactivity_threshold_seconds,
 )
 
 
@@ -200,6 +201,41 @@ def test_compute_view_inactif_false_when_recent():
     v = compute_view(state, stats, [], 10000.0, "2022-01-01 00:01:00")  # 60s
     assert v["age_seconds"] == 60.0
     assert v["inactif"] is False
+
+
+# --------------------------------------------------------------------------- #
+#  inactivity_threshold_seconds (C07 : seuil DYNAMIQUE, plus fige a 360s)     #
+# --------------------------------------------------------------------------- #
+def test_inactivity_threshold_seconds_unknown_timeframe_falls_back_360():
+    assert inactivity_threshold_seconds({}) == 360
+    assert inactivity_threshold_seconds({"timeframe": "3d"}) == 360  # pas dans _TF_SECONDS
+    assert inactivity_threshold_seconds(None) == 360
+
+
+def test_inactivity_threshold_seconds_known_timeframe_adds_margin():
+    assert inactivity_threshold_seconds({"timeframe": "5m"}) == 300 + 360
+    assert inactivity_threshold_seconds({"timeframe": "1d"}) == 86400 + 360
+
+
+def test_compute_view_inactif_false_under_dynamic_threshold_1d():
+    # 1d : seuil = 86400 + 360 = 86760s. 600s d'age reste largement en-dessous
+    # -- avant ce correctif (seuil fige a 360s), ce cas etait faussement
+    # signale INACTIF (C07).
+    state = {"invested": False, "trades": []}
+    stats = _stats({"price": "100", "equity": "10000", "exposure": "0",
+                    "timeframe": "1d"}, last_time="2022-01-01 00:00:00")
+    v = compute_view(state, stats, [], 10000.0, "2022-01-01 00:10:00")  # +600s
+    assert v["age_seconds"] == 600.0
+    assert v["inactif"] is False
+
+
+def test_compute_view_inactif_true_beyond_dynamic_threshold_1d():
+    state = {"invested": False, "trades": []}
+    stats = _stats({"price": "100", "equity": "10000", "exposure": "0",
+                    "timeframe": "1d"}, last_time="2022-01-01 00:00:00")
+    v = compute_view(state, stats, [], 10000.0, "2022-01-02 01:00:01")  # 90001s
+    assert v["age_seconds"] == 90001.0
+    assert v["inactif"] is True
 
 
 def test_compute_view_trades_truncated_to_8():

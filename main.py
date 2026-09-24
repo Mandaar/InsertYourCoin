@@ -289,14 +289,22 @@ def cmd_portfolio(args):
 
 def cmd_paper(args):
     from trading.paper_trader import PaperTrader
+    from trading.reset import resolve_log_file
     state_file = getattr(args, "state", None) or "paper_state.json"
     stats_file = getattr(args, "stats", None) or "paper_stats.csv"
     # Le JOURNAL des ordres appartient au meme jeu de fichiers que l'etat et les
-    # stats : il est resolu A COTE de l'etat (par defaut ./paper_trades.log, le
-    # comportement historique) et la MEME valeur sert au trader ET au --reset.
-    # Sans ce partage, `--state ailleurs/` ferait archiver un journal pendant que
-    # le trader continuerait d'ecrire dans un autre : la coupure serait fausse.
-    log_file = Path(state_file).parent / "paper_trades.log"
+    # stats : son NOM est DEDUIT de celui de l'etat, A COTE de l'etat (UNE seule
+    # source, `trading.reset.resolve_log_file` -- utilisee ici ET par --reset).
+    # `paper_state.json` garde `paper_trades.log` (comportement historique
+    # inchange) ; `eth_state.json`/`btc_state.json` (LOT B, deux poches dans le
+    # meme dossier) ont chacun leur propre journal, jamais melanges. Sans ce
+    # partage de source, `--state ailleurs/` ferait archiver un journal pendant
+    # que le trader continuerait d'ecrire dans un autre : la coupure serait fausse.
+    log_file = resolve_log_file(state_file)
+    # Dossiers parents crees si besoin (ex. poches sous /data/poches/, LOT B) :
+    # sans ca, un --state/--stats vers un dossier neuf ferait echouer l'ecriture.
+    Path(state_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(stats_file).parent.mkdir(parents=True, exist_ok=True)
     if getattr(args, "reset", False):
         # ARCHIVAGE (jamais d'ecrasement) + etat neuf, AVANT tout appel reseau :
         # la remise a zero est acquise meme si la boucle echoue ensuite.
