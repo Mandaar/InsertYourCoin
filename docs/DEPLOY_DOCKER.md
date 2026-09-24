@@ -753,7 +753,12 @@ ni écrits par aucun service de cette section (chemins différents, sous
 1. **Relevé d'état** — avant toute commande : `docker compose ps`,
    `docker compose exec monitor ls -la /data` (ou l'équivalent si `monitor` n'est
    pas encore démarré : `docker run --rm -v insertyourcoin_iyc_data:/d alpine ls -la
-   /d`). Note ce que contient le volume **avant** de toucher quoi que ce soit.
+   /d`). Note ce que contient le volume **avant** de toucher quoi que ce soit, et en
+   particulier `wc -l /data/paper_stats.csv` et la taille de `/data/paper_trades.log` :
+   ces deux nombres, relevés à nouveau après le déploiement, sont la **preuve de
+   conservation** de l'ancien historique (ils ne doivent pas bouger, puisque plus
+   aucun service n'écrit ces fichiers). Note aussi le commit en place
+   (`git rev-parse HEAD`) : c'est la cible du retour arrière.
 2. **Sauvegarde PROUVÉE** (cap CLAUDE.md, préalable explicite) — un `.tgz`
    **non vide** du volume, vérifié :
    ```bash
@@ -768,10 +773,13 @@ ni écrits par aucun service de cette section (chemins différents, sous
    Une sauvegarde jamais vérifiée (taille et contenu) n'est **pas** une sauvegarde
    prouvée.
 3. `git pull`.
-4. Mettre à jour `.env.deploy` avec les valeurs de `.env.deploy.example` §« Paramètres
-   du paper trading » (§14.1 ci-dessus) — ne pas se contenter des anciens
-   `PAPER_STRATEGY=sma`/`PAPER_TIMEFRAME=5m` d'un `.env.deploy` déjà en place sur le
-   serveur.
+4. **Copier** `.env.deploy` avant de le modifier (`cp .env.deploy
+   .env.deploy.avant-mode-protection`), puis le mettre à jour avec les valeurs de
+   `.env.deploy.example` §« Paramètres du paper trading » (§14.1 ci-dessus). Les
+   variables déjà présentes dans un `.env.deploy` existant **l'emportent** sur les
+   défauts du compose : un ancien `PAPER_STRATEGY=sma`, `PAPER_TIMEFRAME=5m`,
+   `PAPER_PARAMS=band=1.5` ou `PAPER_STOP_LOSS=5` laissé en place ferait tourner
+   l'ancienne configuration, ou planter TSMOM sur un paramètre inconnu.
 5. `docker compose --env-file .env.deploy up -d --build` (mode dédié) ou
    `docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build`
    (reverse-proxy existant, `-f` obligatoire — §9 bis).
@@ -782,8 +790,14 @@ ni écrits par aucun service de cette section (chemins différents, sous
    docker compose exec monitor cat /data/poches/eth_trades.log   # si un ordre est déjà passé
    docker compose exec monitor cat /data/poches/btc_trades.log
    ```
-   Attendre au moins un cycle journalier avant de conclure à un problème : en `1d`,
-   le prochain cycle peut être à plusieurs heures.
+   Attendus dans chaque journal : `Demarrage : TSMOM(365j) sur <symbole> (1d) | ordres
+   limit (frais 0.4%)`, `Re-evaluation calee sur la cloture des bougies (1d)`, puis une
+   ligne d'état (`CASH` ou position). **Anormal** : `historique insuffisant`, une
+   `Traceback`, ou un conteneur `Restarting`. Un premier cycle en `CASH` n'est PAS un
+   échec : le 2026-09-24, ETH était à −35,6 % et BTC à −24,7 % de leur niveau d'il y a
+   365 jours, TSMOM dit donc « hors du marché » — c'est la protection attendue.
+   Relever à nouveau `wc -l /data/paper_stats.csv` : même nombre qu'au point 1.
+   Le cycle suivant tombe peu après minuit UTC (cadence calée sur la clôture).
 
 ### 14.4 Retour arrière
 
@@ -791,9 +805,12 @@ Si le contrôle du point 6 échoue (erreur au démarrage, `TypeError` de paramè
 boucle de redémarrage `docker compose ps` montrant `Restarting`) :
 
 ```bash
-git log --oneline -3            # relever le commit précédent
-git checkout <commit-precedent>
-docker compose --env-file .env.deploy up -d --build   # (+ -f docker-compose.eunivers.yml si reverse-proxy)
+git checkout <commit-releve-au-point-1>
+cp .env.deploy.avant-mode-protection .env.deploy     # l'ancien code avec les nouvelles valeurs
+                                                     # redonnerait un bot a vide (200 bougies)
+docker compose --env-file .env.deploy up -d --build --remove-orphans
+# (+ -f docker-compose.eunivers.yml si reverse-proxy) ; --remove-orphans arrete
+# iyc-paper-btc, qui n'existe pas dans l'ancien compose (le volume n'est pas touche).
 ```
 
 Le volume `insertyourcoin_iyc_data` n'est **jamais** touché par un retour arrière —
