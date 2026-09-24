@@ -754,10 +754,11 @@ ni écrits par aucun service de cette section (chemins différents, sous
    `docker compose exec monitor ls -la /data` (ou l'équivalent si `monitor` n'est
    pas encore démarré : `docker run --rm -v insertyourcoin_iyc_data:/d alpine ls -la
    /d`). Note ce que contient le volume **avant** de toucher quoi que ce soit, et en
-   particulier `wc -l /data/paper_stats.csv` et la taille de `/data/paper_trades.log` :
-   ces deux nombres, relevés à nouveau après le déploiement, sont la **preuve de
-   conservation** de l'ancien historique (ils ne doivent pas bouger, puisque plus
-   aucun service n'écrit ces fichiers). Note aussi le commit en place
+   particulier `wc -l /data/paper_stats.csv`, la taille de `/data/paper_trades.log`
+   et `head -3 /data/paper_stats.csv` : c'est le **plancher** de la preuve de
+   conservation. Attention, l'ancien paper tourne encore à ce moment et continue
+   d'écrire ces fichiers jusqu'au point 5 : ils vont légitimement grossir entre le
+   point 1 et le point 5 (vécu le 2026-09-24). Note aussi le commit en place
    (`git rev-parse HEAD`) : c'est la cible du retour arrière.
 2. **Sauvegarde PROUVÉE** (cap CLAUDE.md, préalable explicite) — un `.tgz`
    **non vide** du volume, vérifié :
@@ -796,7 +797,11 @@ ni écrits par aucun service de cette section (chemins différents, sous
    `Traceback`, ou un conteneur `Restarting`. Un premier cycle en `CASH` n'est PAS un
    échec : le 2026-09-24, ETH était à −35,6 % et BTC à −24,7 % de leur niveau d'il y a
    365 jours, TSMOM dit donc « hors du marché » — c'est la protection attendue.
-   Relever à nouveau `wc -l /data/paper_stats.csv` : même nombre qu'au point 1.
+   **Preuve de conservation** de l'ancien historique : juste après le point 5, relever
+   `wc -l /data/paper_stats.csv` et la taille de `/data/paper_trades.log` (jamais plus
+   petits qu'au point 1), les relever une seconde fois quelques minutes plus tard
+   (identiques : plus aucun service ne les écrit), et comparer `head -3` à celui du
+   point 1 (identique : ni tronqué ni réécrit).
    Le cycle suivant tombe peu après minuit UTC (cadence calée sur la clôture).
 
 ### 14.4 Retour arrière
