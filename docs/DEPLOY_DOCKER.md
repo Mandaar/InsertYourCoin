@@ -580,7 +580,7 @@ ces deux changements (`tests/test_main_monitor_cli.py`,
 | Certificat Let's Encrypt jamais obtenu (mode A) | `docker compose logs proxy` ; vérifie DNS (`dig +short trading.example.com` doit renvoyer l'IP du serveur) et que le port **80** est bien ouvert (challenge HTTP-01) |
 | 403 « Host non autorisé » en passant par le domaine/IP | Le `header_up Host 127.0.0.1:8765` du `Caddyfile` a disparu ou le port ne correspond plus à `--port` de `monitor` dans `docker-compose.yml` (§ note du `Caddyfile`) |
 | Erreur Caddyfile au démarrage (`unrecognized directive`) | La directive `basicauth` peut avoir changé de nom selon la version exacte de `caddy:2-alpine` — vérifie `docs.caddyserver.com/docs/caddyfile/directives/basicauth` pour ta version (non testable depuis cette machine Windows, aucun Docker installé ici — à vérifier au premier `docker compose up` sur le serveur réel) |
-| Le paper semble à l'arrêt depuis un moment | `docker compose logs --tail 100 paper` ; le dashboard affiche aussi une alerte « paper inactif » après 360s sans cycle |
+| Le paper semble à l'arrêt depuis un moment | `docker compose logs --tail 100 paper` (poche ETH) ou `docker compose logs --tail 100 paper-btc` ; le dashboard affiche une alerte « paper inactif » quand le dernier cycle a plus d'une durée de bougie + 360 s (en 1d : un cycle par jour, peu après minuit UTC, donc l'alerte ne se lève qu'après ~24 h sans cycle) |
 
 ---
 
@@ -691,6 +691,146 @@ SWAG de passer le contrôle applicatif interne.
 Le mode dédié (`docker-compose.yml`, `Caddyfile`) **n'est pas modifié** par cette
 variante — les deux compose files coexistent, tu choisis celui qui correspond à ton
 serveur avec `-f`.
+
+---
+
+## 14. Mode protection, deux poches (2026-09-24)
+
+> Remplace, pour cette cible, les valeurs par défaut de `sma`/`ETH-USD`/`5m` décrites
+> aux §0-§13 (héritées du premier déploiement de test). **Décidé par Mandar** (cap
+> `CLAUDE.md`, « Go » du 2026-09-24) : **TSMOM 365 seul**, deux poches indépendantes
+> **BTC/USD + ETH/USD**, timeframe **journalier (1d)**, **ordres limite**, sans stop/
+> take-profit/trailing (jamais mesurés par les études qui valident cette cible —
+> #5, #10, #11), et un **compteur neuf** (aucun historique de l'ancien paper
+> sma/ETH/5m mélangé dans les nouvelles mesures).
+
+### 14.1 Ce qui tourne
+
+Deux services `paper` **distincts**, une poche chacun, même image :
+
+| Service | Container | Poche | Fichiers (dans `/data/poches/`) |
+|---|---|---|---|
+| `paper` | `iyc-paper` | ETH/USD | `eth_state.json`, `eth_stats.csv`, `eth_trades.log` |
+| `paper-btc` | `iyc-paper-btc` | BTC/USD | `btc_state.json`, `btc_stats.csv`, `btc_trades.log` |
+
+`monitor` (`iyc-monitor`) suit la poche **ETH** (`--stats/--log/--state` pointés sur
+`eth_*`) — il ne suit qu'un seul jeu de fichiers à la fois (limite connue, non
+bloquante). La poche BTC se suit par `docker compose logs paper-btc` ou en lisant
+directement `btc_stats.csv`/`btc_trades.log` sur le volume (`docker compose exec
+monitor cat /data/poches/btc_stats.csv`).
+
+Réglages communs aux deux poches (`.env.deploy` — voir `.env.deploy.example`) :
+`PAPER_STRATEGY=tsmom`, `PAPER_TIMEFRAME=1d`, `PAPER_PARAMS=lookback=365`,
+`PAPER_ORDER_TYPE=limit`, `PAPER_STOP_LOSS=0`, `PAPER_TAKE_PROFIT=0`,
+`PAPER_TRAILING_STOP=0` (**0 désactive** chaque stop — comportement de
+`main.py::_frac` + `if self.stop_loss:` dans `trading/paper_trader.py` ; une
+variable vide ou absente retombe sur ces mêmes valeurs par défaut). Symboles :
+`PAPER_SYMBOL=ETH/USD` (poche `paper`) et `PAPER_BTC_SYMBOL=BTC/USD` (poche
+`paper-btc`).
+
+**Le paper en ordres limite ne simule ni le non-remplissage ni le glissement de
+prix** (`trading/paper_trader.py`) : il est donc **optimiste** sur l'exécution
+réelle par rapport à des ordres limite envoyés à Kraken.
+
+### 14.2 Pourquoi le compteur neuf vient des nouveaux chemins
+
+`/data/poches/eth_*` et `/data/poches/btc_*` sont des fichiers **neufs** : au premier
+démarrage, `PaperTrader` n'en trouve aucun et repart de `fresh_state` (capital
+initial de `config.py`). **Aucun `--reset` ne figure dans aucune commande de
+service** — l'ajouter serait une erreur : sous `restart: unless-stopped`, chaque
+redémarrage automatique du conteneur le **rejouerait**, archivant silencieusement
+l'état à chaque crash/redémarrage.
+
+**L'ancien historique reste intact.** Le premier déploiement de test (sma, ETH/USD,
+5m) a écrit `/data/paper_state.json`, `/data/paper_stats.csv` et
+`/data/paper_trades.log` **à la racine** du volume — ces trois fichiers ne sont lus
+ni écrits par aucun service de cette section (chemins différents, sous
+`/data/poches/`) : ils **survivent** tels quels, consultables plus tard si besoin
+(`docker compose exec monitor cat /data/paper_stats.csv`).
+
+### 14.3 Ordre de déploiement imposé
+
+1. **Relevé d'état** — avant toute commande : `docker compose ps`,
+   `docker compose exec monitor ls -la /data` (ou l'équivalent si `monitor` n'est
+   pas encore démarré : `docker run --rm -v insertyourcoin_iyc_data:/d alpine ls -la
+   /d`). Note ce que contient le volume **avant** de toucher quoi que ce soit.
+2. **Sauvegarde PROUVÉE** (cap CLAUDE.md, préalable explicite) — un `.tgz`
+   **non vide** du volume, vérifié :
+   ```bash
+   docker run --rm \
+     -v insertyourcoin_iyc_data:/data:ro \
+     -v "$PWD":/backup \
+     alpine tar czf /backup/iyc_data_avant_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
+   # Preuve non vide + preuve que l'archive contient bien des fichiers :
+   ls -la iyc_data_avant_*.tar.gz            # taille > 0
+   tar tzf iyc_data_avant_*.tar.gz | head     # liste non vide
+   ```
+   Une sauvegarde jamais vérifiée (taille et contenu) n'est **pas** une sauvegarde
+   prouvée.
+3. `git pull`.
+4. Mettre à jour `.env.deploy` avec les valeurs de `.env.deploy.example` §« Paramètres
+   du paper trading » (§14.1 ci-dessus) — ne pas se contenter des anciens
+   `PAPER_STRATEGY=sma`/`PAPER_TIMEFRAME=5m` d'un `.env.deploy` déjà en place sur le
+   serveur.
+5. `docker compose --env-file .env.deploy up -d --build` (mode dédié) ou
+   `docker compose -f docker-compose.eunivers.yml --env-file .env.deploy up -d --build`
+   (reverse-proxy existant, `-f` obligatoire — §9 bis).
+6. **Contrôle du premier cycle dans les DEUX journaux** :
+   ```bash
+   docker compose logs --tail 50 paper
+   docker compose logs --tail 50 paper-btc
+   docker compose exec monitor cat /data/poches/eth_trades.log   # si un ordre est déjà passé
+   docker compose exec monitor cat /data/poches/btc_trades.log
+   ```
+   Attendre au moins un cycle journalier avant de conclure à un problème : en `1d`,
+   le prochain cycle peut être à plusieurs heures.
+
+### 14.4 Retour arrière
+
+Si le contrôle du point 6 échoue (erreur au démarrage, `TypeError` de paramètres,
+boucle de redémarrage `docker compose ps` montrant `Restarting`) :
+
+```bash
+git log --oneline -3            # relever le commit précédent
+git checkout <commit-precedent>
+docker compose --env-file .env.deploy up -d --build   # (+ -f docker-compose.eunivers.yml si reverse-proxy)
+```
+
+Le volume `insertyourcoin_iyc_data` n'est **jamais** touché par un retour arrière —
+`/data/poches/*` (compteur neuf de cette tentative) et l'ancien historique à la
+racine restent tels quels.
+
+### 14.5 Restauration sûre (si besoin de revenir à la sauvegarde du point 2)
+
+**Jamais de `tar xzf` direct dans un volume en service** (écraserait des fichiers
+pendant qu'un `paper` tourne encore dessus) :
+
+```bash
+# 1. Arrêter les DEUX services paper (le monitor peut rester en lecture) :
+docker compose stop paper paper-btc
+
+# 2. Copier l'EXISTANT à part avant de rien écraser (conservation, jamais
+#    d'écrasement direct) :
+docker run --rm \
+  -v insertyourcoin_iyc_data:/data:ro \
+  -v "$PWD":/backup \
+  alpine tar czf /backup/iyc_data_avant_restauration_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
+
+# 3. Décompresser l'archive de sauvegarde choisie dans le volume :
+docker run --rm \
+  -v insertyourcoin_iyc_data:/data \
+  -v "$PWD":/backup \
+  alpine sh -c "cd /data && tar xzf /backup/iyc_data_avant_20260924_120000.tar.gz"
+
+# 4. Vérifier une somme de contrôle (comparer avant/après, ou contre l'archive
+#    source) :
+docker run --rm -v insertyourcoin_iyc_data:/d alpine sh -c \
+  "find /d -type f -exec sha256sum {} \; | sort" > /tmp/apres_restauration.sha256
+# comparer a un releve equivalent pris avant la restauration
+
+# 5. Redemarrer :
+docker compose start paper paper-btc
+```
 
 ---
 

@@ -27,7 +27,10 @@ class FakeExchange:
         self.orders = []
 
     def fetch_ohlcv(self, symbol, timeframe, limit=200):
-        return self._df
+        # Respecte `limit` comme un vrai exchange (dernieres lignes seulement) :
+        # sans ca, aucun test ne peut voir un defaut de `limit` trop court
+        # (constat C01 -- FakeExchange l'ignorait, masquant le defaut d'origine).
+        return self._df if self._df is None else self._df.iloc[-limit:]
 
     def fetch_price(self, symbol):
         p = self._prices[min(self._i, len(self._prices) - 1)]

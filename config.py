@@ -114,6 +114,14 @@ def fee_for_order_type(order_type: str) -> float:
 LIMIT_ORDER_TIMEOUT_SEC = 60
 LIMIT_ORDER_POLL_SEC = 5      # cadence d'interrogation de l'ordre pendant l'attente
 
+# --- Cadence du paper/live : calage sur la cloture des bougies ---
+# Quand `poll_seconds` n'est PAS fourni explicitement (defaut CLI), le trader ne
+# dort plus une duree fixe : il se reveille juste apres la PROCHAINE cloture de
+# bougie (UTC, multiple de la duree de la timeframe), + cette marge, pour laisser
+# Kraken publier effectivement la bougie fraiche avant qu'on la lise. 60 s : court
+# devant une bougie 1h/1d, large devant la latence habituelle de publication.
+CANDLE_CLOSE_MARGIN_SEC = 60
+
 # --- Slippage (cout d'execution defavorable) — AUDIT B6 ---
 # Le prix reellement obtenu est moins bon que le prix theorique : a l'ACHAT on paie un
 # peu plus cher, a la VENTE on encaisse un peu moins (carnet d'ordres, latence, impact).

@@ -8,8 +8,10 @@ Outil de **protection du capital crypto** sur Kraken. Objectif honnête : sur du
 Il ne génère pas de rendement — c'est **mesuré**, pas supposé : neuf études
 (`docs/ETUDE_*.md`) ont testé le trading intraday, le prédictif et la diversification de
 stratégies ; aucune n'a battu le fait de ne rien faire, net de frais, hors échantillon.
-Ce qu'il sait faire, mesuré sur ~8 ans et 3 actifs (étude #5) : **rester en cash pendant
-un krach** (drawdown BTC −53 % contre −77 % en détention simple). Sa prime : rater une
+Ce qu'il sait faire, mesuré sur 3 actifs en hors-échantillon (étude #5 : historique de
+recherche depuis 2017, fenêtre hors-échantillon 2021-03 → 2024-10 pour BTC/ETH, soit ~3,5 ans,
+et 2022-12 → 2025-05 pour SOL) : **rester en cash pendant un krach** (drawdown BTC −53 %
+contre −77 % en détention simple). Un seul krach majeur dans ces fenêtres (2022). Sa prime : rater une
 partie des hausses. **Ce n'est PAS un revenu, et ce n'est plus un amortisseur de coûts** —
 l'objectif initial (« amortir les coûts de Regnum ») a été abandonné le 2026-09-02 sur
 décision de Mandar (« Go » sur le cap proposé), parce que non atteignable par ce moyen.
@@ -70,7 +72,9 @@ tests/               pytest : indicateurs, stratégies, backtester, trailing/siz
 conftest.py          imports + fabriques de données OHLCV synthétiques pour les tests
 ```
 Données : décision à la clôture de t, exécution à l'ouverture de t+1 (pas de lookahead).
-Tout-ou-rien sauf sizing "vol". Frais Kraken 0,26 % pris en compte.
+Tout-ou-rien sauf sizing "vol". Frais Kraken réels (grille officielle vérifiée le 2026-09-01,
+palier de base) : **0,80 % par ordre au marché, 0,40 % par ordre limite** — c'est `config.py`
+(`FEE_TAKER`, `FEE_MAKER`) qui fait foi, jamais un taux recopié dans la doc.
 
 ## Commandes utiles
 ```bash
@@ -123,11 +127,15 @@ tentative de « stratégie qui gagne » est hors cap tant que ce paragraphe est 
    bat TSMOM 365 seul sur aucun actif et fait *pire* que la détention simple sur SOL. Un ensemble
    moyenne : quand 365 est le seul bon horizon, la majorité suit les mauvais. C'est l'« échec
    utile » que la spec prévoyait — **365 était un accident de ce cycle**. Étages 2 et 3 : NE PAS
-   lancer. Ce qui reste, à décider par Mandar : TSMOM 365 **seul** est la seule méthode mesurée
-   qui protège 3 actifs sur 3 (DD BTC −53 % vs −77 %), **en sachant** qu'elle est fragile (seul
-   horizon positif) et qu'elle a fait −26,3 % sur les 2 dernières années d'ETH (incident #9).
-   Si elle est déployée : BTC + ETH, journalier, ordres limite, compteur neuf, jugée sur le
-   drawdown évité — pas sur le rendement. Préalables serveur : relevé d'état + sauvegarde PROUVÉE.
+   lancer. TSMOM 365 **seul** est la seule méthode mesurée qui protège 3 actifs sur 3 (DD BTC
+   −53 % vs −77 %), **en sachant** qu'elle est fragile (seul horizon positif) et qu'elle a fait
+   −26,3 % sur les 2 dernières années d'ETH (incident #9).
+   **DÉCIDÉ le 2026-09-24 par Mandar** : « Prépare tout au propre et transfère à la session
+   Infrastructure eunivers [954568] pour déploiement », puis « Go » sur le plan qui nommait la
+   cible : « TSMOM 365 seul, BTC + ETH, journalier, ordres limite, compteur neuf ». Déployée en
+   deux poches (`/data/poches/eth_*`, `/data/poches/btc_*`), l'ancien historique SMA/5 min
+   gardé intact, jugée sur le drawdown évité — pas sur le rendement. Préalables serveur :
+   relevé d'état + sauvegarde PROUVÉE du volume.
 4. Plus tard seulement, et seulement si le point 3 tient plusieurs mois : live avec petits montants.
 
 Hors cap, documenté pour ne pas y revenir : intraday (étude #7), prédictif (étude #8),

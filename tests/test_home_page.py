@@ -12,6 +12,7 @@ Fonctions PURES : aucun reseau, `render_home_page` prend toutes ses donnees
 en parametres (paper_view/check_cache/keys_ok/truststore_ok).
 """
 from trading.home_page import render_home_page
+from trading.monitor import compute_view
 
 _EMPTY_PAPER_VIEW = {"has_data": False}
 
@@ -48,6 +49,24 @@ def test_help_link_is_active_and_points_to_help_route():
     out = _render()
     assert "<a class='hublink' href='/help'>Aide</a>" in out
     assert "Aide (bientot)" not in out
+
+
+# --------------------------------------------------------------------------- #
+#  Carte Paper trading : statut ne fabrique plus un faux INACTIF en 1d (C07,  #
+#  seuil DYNAMIQUE herite de trading.monitor.compute_view).                   #
+# --------------------------------------------------------------------------- #
+def test_paper_card_1d_recent_cycle_not_marked_inactif():
+    state = {"invested": False, "trades": []}
+    stats = {"row": {"price": "100", "equity": "10000", "exposure": "0",
+                     "timeframe": "1d"},
+             "n": 1, "first_time": "2026-09-24 00:00:00",
+             "last_time": "2026-09-24 00:00:00"}
+    # +600s (10 min) : avant C07 (seuil fige a 360s), ce cas etait affiche
+    # INACTIF sur l'Accueil alors que le paper 1d tourne normalement.
+    view = compute_view(state, stats, [], 10000.0, "2026-09-24 00:10:00")
+    out = render_home_page(view, None, False, True)
+    assert "INACTIF" not in out
+    assert "CASH" in out
 
 
 def test_settings_card_shows_keys_state():

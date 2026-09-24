@@ -129,6 +129,61 @@ def test_log_file_none_desactive_larchivage_du_journal(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+#  1bis. Deux poches (eth_/btc_) dans le MEME dossier : LOT B (constat C05)    #
+# --------------------------------------------------------------------------- #
+def test_le_nom_du_journal_se_deduit_du_prefixe_de_letat(tmp_path):
+    eth_state = tmp_path / "eth_state.json"
+    btc_state = tmp_path / "btc_state.json"
+    assert reset_mod.resolve_log_file(eth_state) == tmp_path / "eth_trades.log"
+    assert reset_mod.resolve_log_file(btc_state) == tmp_path / "btc_trades.log"
+
+
+def test_deux_poches_dans_le_meme_dossier_ont_deux_journaux_distincts(tmp_path):
+    eth_state = tmp_path / "eth_state.json"
+    btc_state = tmp_path / "btc_state.json"
+    eth_state.write_text('{"cash": 1.0}')
+    btc_state.write_text('{"cash": 2.0}')
+    (tmp_path / "eth_stats.csv").write_text("time,equity\n")
+    (tmp_path / "btc_stats.csv").write_text("time,equity\n")
+    eth_log = reset_mod.resolve_log_file(eth_state)
+    btc_log = reset_mod.resolve_log_file(btc_state)
+    eth_log.write_text("[eth] ACHAT\n", encoding="utf-8")
+    btc_log.write_text("[btc] ACHAT\n", encoding="utf-8")
+
+    assert eth_log != btc_log
+    assert eth_log.name == "eth_trades.log" and btc_log.name == "btc_trades.log"
+
+
+def test_reset_dune_poche_ne_touche_aucun_fichier_de_lautre(tmp_path):
+    eth_state = tmp_path / "eth_state.json"
+    btc_state = tmp_path / "btc_state.json"
+    eth_stats = tmp_path / "eth_stats.csv"
+    btc_stats = tmp_path / "btc_stats.csv"
+    eth_state.write_text('{"cash": 1.0}')
+    btc_state.write_text('{"cash": 2.0}')
+    eth_stats.write_text("time,equity\n")
+    btc_stats.write_text("time,equity\n")
+    btc_log = reset_mod.resolve_log_file(btc_state)
+    btc_log.write_text("[btc] ACHAT jamais touche\n", encoding="utf-8")
+    btc_before = btc_log.read_text(encoding="utf-8")
+
+    reset_mod.reset_paper(eth_state, eth_stats, when=WHEN,
+                          log_file=reset_mod.resolve_log_file(eth_state))
+
+    assert btc_state.exists() and json.loads(btc_state.read_text()) == {"cash": 2.0}
+    assert btc_stats.read_text() == "time,equity\n"
+    assert btc_log.exists() and btc_log.read_text(encoding="utf-8") == btc_before
+
+
+def test_letat_par_defaut_paper_state_garde_le_journal_par_defaut(tmp_path):
+    """NON-REGRESSION explicite : le prefixe 'paper' (etat historique) rend
+    exactement le meme resultat qu'avant ce correctif."""
+    st = tmp_path / "paper_state.json"
+    assert reset_mod.resolve_log_file(st) == tmp_path / reset_mod.DEFAULT_LOG_NAME
+    assert reset_mod._log_name_for_state(st) == "paper_trades.log"
+
+
+# --------------------------------------------------------------------------- #
 #  2. Chemin REEL du CLI                                                       #
 # --------------------------------------------------------------------------- #
 def test_cmd_paper_reset_coupe_aussi_le_journal(tmp_path, monkeypatch):
@@ -178,3 +233,52 @@ def test_cmd_paper_defaut_le_journal_reste_paper_trades_log(tmp_path, monkeypatc
     main.cmd_paper(args)
 
     assert str(built["log_file"]).replace("\\", "/") == "paper_trades.log"
+
+
+def test_cmd_paper_poche_eth_recoit_son_propre_journal(tmp_path, monkeypatch):
+    """LOT B (deux poches) : `--state .../eth_state.json` donne un journal
+    `eth_trades.log`, jamais le `paper_trades.log` d'une autre poche."""
+    built = {}
+
+    class _FakePaper:
+        def __init__(self, *a, **kw):
+            built.update(kw)
+
+        def run(self):
+            pass
+
+    monkeypatch.setattr("trading.paper_trader.PaperTrader", _FakePaper)
+    monkeypatch.setattr(main, "KrakenExchange", lambda *a, **k: object())
+    st = tmp_path / "eth_state.json"
+    cs = tmp_path / "eth_stats.csv"
+    args = main.build_parser().parse_args(
+        ["paper", "--state", str(st), "--stats", str(cs)])
+
+    main.cmd_paper(args)
+
+    assert str(built["log_file"]) == str(tmp_path / "eth_trades.log")
+
+
+def test_cmd_paper_cree_les_dossiers_parents_de_letat_et_des_stats(tmp_path, monkeypatch):
+    """LOT B : les poches vivent sous un dossier neuf (ex. /data/poches/) --
+    cmd_paper le cree au besoin plutot que de planter a l'ecriture."""
+    built = {}
+
+    class _FakePaper:
+        def __init__(self, *a, **kw):
+            built.update(kw)
+
+        def run(self):
+            pass
+
+    monkeypatch.setattr("trading.paper_trader.PaperTrader", _FakePaper)
+    monkeypatch.setattr(main, "KrakenExchange", lambda *a, **k: object())
+    sub = tmp_path / "poches"
+    assert not sub.exists()
+    args = main.build_parser().parse_args(
+        ["paper", "--state", str(sub / "eth_state.json"),
+         "--stats", str(sub / "eth_stats.csv")])
+
+    main.cmd_paper(args)
+
+    assert sub.is_dir()

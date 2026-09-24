@@ -16,6 +16,7 @@ Fonctions PURES cote decision (`archive_name`) + effets de bord isoles
 """
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import config
@@ -68,6 +69,20 @@ def archive_file(path, when=None):
 
 DEFAULT_LOG_NAME = "paper_trades.log"      # meme defaut que PaperTrader.__init__
 
+# `<prefixe>_state.json` -> `<prefixe>_trades.log` (LOT B, deux poches ETH/BTC
+# dans un meme dossier : eth_state.json -> eth_trades.log, btc_state.json ->
+# btc_trades.log). `paper_state.json` correspond deja a cette regle et rend
+# `paper_trades.log` -- DEFAULT_LOG_NAME, comportement historique inchange.
+_STATE_NAME_RE = re.compile(r"(.+)_state\.json$")
+
+
+def _log_name_for_state(state_path: Path) -> str:
+    """Nom de journal DEDUIT du nom de l'etat (cf. `_STATE_NAME_RE`). Tout nom
+    d'etat qui ne suit pas le patron `<prefixe>_state.json` garde le defaut
+    historique `paper_trades.log` (jamais d'echec de resolution)."""
+    m = _STATE_NAME_RE.match(state_path.name)
+    return f"{m.group(1)}_trades.log" if m else DEFAULT_LOG_NAME
+
 
 def resolve_log_file(state_file, log_file="auto"):
     """
@@ -80,7 +95,12 @@ def resolve_log_file(state_file, log_file="auto"):
     mesure : une suite de tests a renomme le journal d'un process vivant. Le
     journal est desormais resolu A COTE de l'etat : les fichiers d'une meme
     session restent ensemble, et personne ne peut atteindre un autre paper par
-    accident. Comportement par defaut inchange (`paper_state.json` -> `.`).
+    accident.
+
+    Le NOM du journal est lui-meme DEDUIT du nom de l'etat (`_log_name_for_state`) :
+    deux poches (`eth_state.json`, `btc_state.json`) dans le meme dossier ont donc
+    chacune leur propre journal, sans jamais se melanger. Comportement par defaut
+    inchange (`paper_state.json` -> `.` -> `paper_trades.log`).
 
     `log_file=None` = ne pas toucher au journal (appels historiques a 2 fichiers).
     """
@@ -88,7 +108,8 @@ def resolve_log_file(state_file, log_file="auto"):
         return None
     if log_file != "auto":
         return Path(log_file)
-    return Path(state_file).parent / DEFAULT_LOG_NAME
+    state_path = Path(state_file)
+    return state_path.parent / _log_name_for_state(state_path)
 
 
 def reset_paper(state_file="paper_state.json", stats_file="paper_stats.csv",
